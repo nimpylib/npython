@@ -284,7 +284,7 @@ macro genAsdlTypes(inputTree: untyped): untyped =
   for child in inputTree:
     let parentName = "Asdl" & getDefName(child[0])
     let right = child[1]
-    expectKind(right, nnkPar)
+    expectKind(right, {nnkPar, nnkTupleConstr})
     # generate asdl tokens
     result.add(genAsdlToken(right, parentName))
 
@@ -300,7 +300,7 @@ macro genAsdlTypes(inputTree: untyped): untyped =
   for child in inputTree:
     let parentName = "Asdl" & getDefName(child[0])
     let right = child[1]
-    expectKind(right, nnkPar)
+    expectKind(right, {nnkPar, nnkTupleConstr})
     # generate ast types
     for subType in right:
       result.add(
