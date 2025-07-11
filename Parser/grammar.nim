@@ -219,7 +219,8 @@ proc genEpsilonSet(root: GrammarNode) =
           allChildrenCollected = false
           break
       if allChildrenCollected:
-        for child in curNode.epsilonSet:
+        let epsilonSetView = curNode.epsilonSet
+        for child in epsilonSetView:
           curNode.epsilonSet.incl(child.epsilonSet)
         collected.incl(curNode)
       else:
