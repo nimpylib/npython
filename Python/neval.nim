@@ -7,6 +7,7 @@ import symtable
 import opcode
 import coreconfig
 import builtindict
+import traceback
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
                    exceptionsImpl, moduleobject, methodobject]
@@ -703,3 +704,22 @@ proc runString*(input, fileName: string): PyObject =
   if compileRes.isThrownException:
     return compileRes
   runCode(PyCodeObject(compileRes))
+
+template orPrintTb(retRes): bool{.dirty.} =
+  if retRes.isThrownException:
+    PyExceptionObject(retRes).printTb
+    false
+  else:
+    true
+
+proc runSimpleString*(input, fileName: string): bool =
+  ## returns if successful.
+  ##
+  ## a little like `_PyRun_SimpleStringFlagsWithName`
+  ## but as you may know, it only returns -1 for failure and
+  ## 0 for success, so returing a bool is better
+  let compileRes = compile(input, fileName)
+  result = compileRes.orPrintTb
+  if not result: return
+  let runRes = runCode(PyCodeObject(compileRes))
+  result = runRes.orPrintTb

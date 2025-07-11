@@ -16,6 +16,8 @@ when defined(js):
       log(cstring" ", line)
     #stream.add((kstring"", kstring(content)))
 
+  template errEchoCompat*(content) = 
+    echoCompat content
 
   # combining two seq directly leads to a bug in the compiler when compiled to JS
   # see gh-10651
@@ -32,6 +34,9 @@ else:
 
   template echoCompat*(content) = 
     echo content
+
+  template errEchoCompat*(content) = 
+    stderr.writeLine content
 
   template addCompat*[T](a, b: seq[T]) = 
     a.add b

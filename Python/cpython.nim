@@ -84,6 +84,8 @@ proc interactiveShell =
     else:
       prevF = f
 
+template exit0or1(suc) = quit(if suc: 0 else: 1)
+
 proc nPython(args: seq[string]) =
   pyInit(args)
   if pyConfig.filepath == "":
@@ -93,18 +95,17 @@ proc nPython(args: seq[string]) =
     echo fmt"File does not exist ({pyConfig.filepath})"
     quit()
   let input = readFile(pyConfig.filepath)
-  let retObj = runString(input, pyConfig.filepath)
-  if retObj.isThrownException:
-    PyExceptionObject(retObj).printTb
+  runSimpleString(input, pyConfig.filepath).exit0or1
 
 proc echoUsage() =
-  echoCompat "usage: python [option] [file]"
+  echoCompat "usage: python [option] [-c cmd | file]"
 
 proc echoHelp() =
   echoUsage()
   echoCompat "Options:"
-  echoCompat "-V : print the Python version number and exit (also --version)"
-  echoCompat "     when given twice, print more information about the build"
+  echoCompat "-c cmd : program passed in as string (terminates option list)"
+  echoCompat "-V     : print the Python version number and exit (also --version)"
+  echoCompat "         when given twice, print more information about the build"
   echoCompat "Arguments:"
   echoCompat "file   : program read from script file"
 
@@ -112,30 +113,47 @@ proc echoHelp() =
 when isMainModule:
   import std/parseopt
 
+  proc unknownOption(p: OptParser){.noReturn.} =
+    var origKey = "-"
+    if p.kind == cmdLongOption: origKey.add '-'
+    origKey.add p.key
+    errEchoCompat "Unknown option: " & origKey
+    echoUsage()
+    quit 2
+  template noLongOption(p: OptParser) =
+    if p.kind == cmdLongOption:
+      p.unknownOption()
+
   var
     args: seq[string]
     versionVerbosity = 0
-  for kind, key, val in getopt(
+  var p = initOptParser(
     shortNoVal={'h', 'V'},
+    # Python can be considered not to allow: -c:CODE -c=code
     longNoVal = @["help", "version"],
-  ):
-    case kind
-    of cmdArgument: args.add key
+  )
+  while true:
+    p.next()
+    case p.kind
+    of cmdArgument:
+      args.add p.key
     of cmdLongOption, cmdShortOption:
-      case key:
+      case p.key:
       of "help", "h":
         echoHelp()
         quit()
       of "version", "V":
         versionVerbosity.inc
+      of "c":
+        p.noLongOption()
+        #let argv = @["-c"] & p.remainingArgs()
+        let code =
+          if p.val != "": p.val
+          else: p.remainingArgs()[0]
+        runSimpleString(code, "<string>").exit0or1
       else:
-        var origKey = "-"
-        if kind == cmdLongOption: origKey.add '-'
-        origKey.add key
-        echoCompat "Unknown option: " & origKey
-        echoUsage()
-        quit 2
-    of cmdEnd: assert(false) # cannot happen
+        p.unknownOption()
+    of cmdEnd: break
   case versionVerbosity
   of 0: nPython args
   of 1: echoVersion()
