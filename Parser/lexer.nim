@@ -42,8 +42,8 @@ proc getSource*(filePath: string, lineNo: int): string =
 proc `$`*(lexer: Lexer): string = 
   $lexer.tokenNodes
 
-var regexName = re(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
-var regexNumber = re(r"\b\d*\.?\d+([eE][-+]?\d+)?\b")
+var regexName = re2(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
+var regexNumber = re2(r"\b\d*\.?\d+([eE][-+]?\d+)?\b")
 
 
 # used in parser.nim to construct non-terminators
@@ -111,7 +111,7 @@ proc getNextToken(
     raiseSyntaxError(msg, "", lexer.lineNo, idx)
 
   template addRegexToken(tokenName:untyped, msg:string) =
-    var m: RegexMatch
+    var m: RegexMatch2
     if not line.find(`regex tokenName`, m, start=idx):
       raiseSyntaxError(msg)
     let first = m.boundaries.a
