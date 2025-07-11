@@ -1,5 +1,5 @@
-version       = "0.1.0"
-author        = "Weitang Li"
+version       = "0.1.1"
+author        = "Weitang Li, litlighilit"
 description   = "(Subset of) Python programming language implemented in Nim"
 license       = "CPython license"
 srcDir        = "Python"
