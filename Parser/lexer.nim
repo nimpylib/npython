@@ -53,17 +53,17 @@ proc newTokenNode*(token: Token,
   new result
   if token == Token.Name and content in reserveNameSet: 
     try:
-      result.token = strTokenMap[content]
+      result = TokenNode(token: strTokenMap[content])
     except KeyError:
       unreachable
   else:
-    result.token = token
     case token
     of contentTokenSet:
       assert content != ""
-      result.content = content
+      result = TokenNode(token: token, content: content)
     else:
       assert content == ""
+      result = TokenNode(token: token)
   assert result.token != Token.NULLTOKEN
   if result.token.isTerminator:
     assert -1 < lineNo and -1 < colNo
