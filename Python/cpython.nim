@@ -15,14 +15,22 @@ import lifecycle
 import ./getversion
 import ../Parser/[lexer, parser]
 import ../Objects/bundle
-import ../Utils/[utils, compat]
+import ../Utils/[utils, compat, getplatform]
 
+proc getVersionString(verbose=false): string =
+  result = "NPython "
+  if not verbose:
+    result.add Version
+    return
+  result.add Py_GetVersion()
+  result.add " on "
+  result.add PLATFORM
+template echoVersion(verbose=false) =
+  echoCompat getVersionString(verbose)
 
-proc echoVersion(verbose=false) =
-  echoCompat "NPython " & (
-    if verbose: Py_GetVersion()
-    else: Version
-  )
+proc pymain_header =
+  if pyConfig.quiet: return
+  errEchoCompat getVersionString(verbose=true)
 
 proc interactiveShell =
   var finished = true
@@ -30,7 +38,7 @@ proc interactiveShell =
   var rootCst: ParseNode
   let lexer = newLexer("<stdin>")
   var prevF: PyFrameObject
-  echoVersion()
+  pymain_header()
   while true:
     var input: string
     var prompt: string
@@ -104,6 +112,7 @@ proc echoHelp() =
   echoUsage()
   echoCompat "Options:"
   echoCompat "-c cmd : program passed in as string (terminates option list)"
+  echoCompat "-q     : don't print version and copyright messages on interactive startup"
   echoCompat "-V     : print the Python version number and exit (also --version)"
   echoCompat "         when given twice, print more information about the build"
   echoCompat "Arguments:"
@@ -128,7 +137,7 @@ when isMainModule:
     args: seq[string]
     versionVerbosity = 0
   var p = initOptParser(
-    shortNoVal={'h', 'V'},
+    shortNoVal={'h', 'V', 'q', 'v'},
     # Python can be considered not to allow: -c:CODE -c=code
     longNoVal = @["help", "version"],
   )
@@ -144,6 +153,8 @@ when isMainModule:
         quit()
       of "version", "V":
         versionVerbosity.inc
+      of "q": pyConfig.quiet = true
+      of "v": pyConfig.verbose = true
       of "c":
         p.noLongOption()
         #let argv = @["-c"] & p.remainingArgs()
