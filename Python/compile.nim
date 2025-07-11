@@ -383,14 +383,14 @@ macro compileMethod(astNodeName, funcDef: untyped): untyped =
     nnkFormalParams.newTree(
       newEmptyNode(),
       newIdentDefs(
-        ident("c"),
-        ident("Compiler")
-    ),
-      newIdentDefs(
         ident("astNode"),
         ident("Ast" & $astNodeName)
-    )
-  ),
+      ),
+      newIdentDefs(
+        ident("c"),
+        ident("Compiler")
+      ),
+    ),
     newEmptyNode(),
     newEmptyNode(),
     funcdef,
@@ -402,12 +402,15 @@ template compileSeq(c: Compiler, s: untyped) =
     c.compile(astNode)
 
 # todo: too many dispachers here! used astNode token to dispatch (if have spare time...)
-method compile(c: Compiler, astNode: AstNodeBase) {.base.} =
+method compile(astNode: AstNodeBase, c: Compiler) {.base.} =
   echo "!!!WARNING, ast node compile method not implemented"
   echo astNode
   echo "###WARNING, ast node compile method not implemented"
   # let it compile, the result shown is better for debugging
 
+template compile*(c: Compiler, astNode: AstNodeBase) =
+  bind compile
+  compile(astNode, c)
 
 compileMethod Module:
   c.compileSeq(astNode.body)
