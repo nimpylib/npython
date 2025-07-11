@@ -90,20 +90,23 @@ proc matchToken*(node: GrammarNode, token: Token): bool
 let successGrammarNode* = newGrammarNode("s") # sentinel
 
 proc newGrammarNode(name: string, tokenString=""): GrammarNode = 
-  new result
-  result.epsilonSet = initSet[GrammarNode]()
   case name[0]
   of 'A'..'H', '+', '?', '*':
-    result.kind = name[0]
+    result = GrammarNode(kind: name[0])
   of 'a':
-    result.kind = 'a'
-    result.token = strTokenMap[tokenString]
-    result.nextSet = initSet[GrammarNode]()
+    result = GrammarNode(
+      kind: 'a',
+      token: strTokenMap[tokenString],
+      nextSet: initSet[GrammarNode](),
+    )
   of 's':  # finish sentinel
-    result.kind = 's'
-    result.nextSet = initSet[GrammarNode]()
+    result = GrammarNode(
+      kind: 's',
+      nextSet: initSet[GrammarNode](),
+    )
   else:
     raise newException(ValueError, fmt"unknown name: {name}")
+  result.epsilonSet = initSet[GrammarNode]()
 
 
 # not to confuse with token terminator
