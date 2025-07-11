@@ -3,7 +3,7 @@ import strformat
 import neval
 import builtindict
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject]
-import ../Utils/[utils, compat]
+import ../Utils/[utils, macroutils, compat]
 
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
@@ -27,7 +27,7 @@ macro implBltinFunc*(prototype, pyName, body: untyped): untyped =
       ident("*"),  # let other modules call without having to lookup in the bltindict
       name,
     ),
-    bltinFuncParams,
+    bltinFuncParams.deepCopy,
     body, # the function body
   )
 
