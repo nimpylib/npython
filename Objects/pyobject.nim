@@ -9,7 +9,7 @@ import strutils
 import hashes
 import tables
 
-import ../Utils/utils
+import ../Utils/[utils, macroutils]
 import pyobjectBase
 
 export macros except name
@@ -95,18 +95,20 @@ proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) =
 
 # assert self type then cast
 macro castSelf*(ObjectType: untyped, code: untyped): untyped = 
+  let selfNoCastId = code.params[1][0]
+  selfNoCastId.expectIdent "selfNoCast"
   code.body = newStmtList(
     nnkCommand.newTree(
       ident("assert"),
       nnkInfix.newTree(
         ident("of"),
-        ident("selfNoCast"),
+        selfNoCastId,
         ObjectType
       )
     ),
     newLetStmt(
       ident("self"),
-      newCall(ObjectType, ident("selfNoCast"))
+      newCall(ObjectType, selfNoCastId)
     ),
     code.body
   )
@@ -314,7 +316,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
       ident("*"),  # let other modules call without having to lookup in the type dict
       name,
     ),
-    params,
+    params.deepCopy,
     body, # the function body
   )
   # add pragmas, the last to add is the first to execute
