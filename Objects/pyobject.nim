@@ -3,7 +3,7 @@
 # definition
 import macros except name
 import sets
-import sequtils
+
 import strformat
 import strutils
 import hashes

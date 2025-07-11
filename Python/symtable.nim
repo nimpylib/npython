@@ -1,5 +1,5 @@
 import tables
-import sequtils
+
 import sets
 import macros
 

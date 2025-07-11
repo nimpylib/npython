@@ -1,5 +1,5 @@
-import tables
-import strutils
+
+
 
 type
   PyConfig = object

@@ -1,6 +1,6 @@
 import macros
 import tables
-import sequtils
+
 import strutils
 import typetraits
 import strformat

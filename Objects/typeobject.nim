@@ -1,6 +1,6 @@
 import typetraits
 import strformat
-import strutils
+
 import tables
 
 import pyobject

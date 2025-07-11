@@ -25,7 +25,7 @@ when defined(js):
 
 else:
   import rdstdin
-  import os
+
 
   template readLineCompat*(prompt): string = 
     readLineFromStdin(prompt)
