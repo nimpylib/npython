@@ -137,6 +137,6 @@ when isMainModule:
         quit 2
     of cmdEnd: assert(false) # cannot happen
   case versionVerbosity
+  of 0: nPython args
   of 1: echoVersion()
-  of 2: echoVersion(verbose=true)
-  else: nPython args
+  else: echoVersion(verbose=true)
