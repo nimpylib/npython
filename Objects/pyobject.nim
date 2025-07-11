@@ -246,6 +246,9 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
 # works with thingks like `append(obj: PyObject)`
 # if no parenthesis, then return nil as argTypes, means do not check arg type
 proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) = 
+  var prototype = prototype
+  if prototype.kind == nnkOpenSymChoice:
+    prototype = prototype[0]  # we only care its strVal, so pick from any
   if prototype.kind == nnkIdent or prototype.kind == nnkSym:
     return (prototype, nil)
   let argTypes = nnkPar.newTree()
