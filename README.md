@@ -47,7 +47,7 @@ NPython aims for both C and JavaScript targets, so it's hard (if not impossible)
 
 #### Nim 0.x GC
 NPython relies on Nim GC. Frankly speaking, in the past, it was not satisfactory. 
-* The GC uses thread-local heap, which once made threading once nearly impossible (for Python), though not so for Nimv1 and Nimv2.
+* The GC used thread-local heap, which once made threading once nearly impossible (for Python), though not so for Nimv1 and Nimv2.
 * The GC could hardly be shared between different dynamic libs, which meant NPython can not import extensions written in Nim.
 
 If memory was managed manually, these drawbacks could be overcomed early.
@@ -56,7 +56,7 @@ If memory was managed manually, these drawbacks could be overcomed early.
 However, in current years, Nim, specially v2, has improved a lot on GC,
 which's now called MM(Memory Management).
 
-And Nimv2 uses ORC by default, which offers deterministic performance.
+And Nimv2 uses ORC by default, which offers deterministic performance and uses a shared heap.
 
 Not only has threading programming been enhanced and become easy to write,
 but also `setupForeignThreadGc()` and `tearDownForeignThreadGc()` come out here
