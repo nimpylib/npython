@@ -12,7 +12,9 @@ proc outOfMemHandler =
   let e = new OutOfMemDefect
   raise e
 
-system.outOfMemHook = outOfMemHandler
+when declared(system.outOfMemHook):
+  # if not JS
+  system.outOfMemHook = outOfMemHandler
 
 when not defined(js):
   proc controlCHandler {. noconv .} =
