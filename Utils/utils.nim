@@ -1,20 +1,20 @@
 type
   # exceptions used internally
-  InternalError* = object of Exception
+  InternalError* = object of CatchableError
 
-  SyntaxError* = ref object of Exception 
+  SyntaxError* = ref object of CatchableError
     fileName*: string
     lineNo*: int
     colNo*: int
 
   # internal error for wrong type of dict function (`hash` and `eq`) return value
-  DictError* = object of Exception
+  DictError* = object of CatchableError
 
   # internal error for not implemented bigint lib
-  IntError* = object of Exception
+  IntError* = object of CatchableError
 
   # internal error for keyboard interruption
-  InterruptError* = object of Exception
+  InterruptError* = object of OSError  ## Python's is inherited from OSError
 
 proc newSyntaxError(msg, fileName: string, lineNo, colNo: int): SyntaxError = 
   new result

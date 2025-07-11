@@ -82,7 +82,7 @@ proc nPython(args: seq[string]) =
   if pyConfig.filepath == "":
     interactiveShell()
 
-  if not pyConfig.filepath.existsFile:
+  if not pyConfig.filepath.fileExists:
     echo fmt"File does not exist ({pyConfig.filepath})"
     quit()
   let input = readFile(pyConfig.filepath)

@@ -165,7 +165,7 @@ implListMethod remove(target: PyObject), [mutable: write]:
     return retObj
   assert retObj.ofPyIntObject
   let idx = PyIntObject(retObj).toInt
-  self.items.delete(idx, idx+1)
+  self.items.delete(idx .. idx+1)
 
 
 implListMagic init:

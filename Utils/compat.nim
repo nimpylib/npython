@@ -7,7 +7,7 @@ when defined(js):
   proc log*(prompt, info: cstring) {. importc .}
 
   # how to read from console?
-  template readLineCompat*(prompt): TaintedString = 
+  template readLineCompat*(prompt): string = 
     ""
 
   template echoCompat*(content: string) =
@@ -27,7 +27,7 @@ else:
   import rdstdin
   import os
 
-  template readLineCompat*(prompt): TaintedString = 
+  template readLineCompat*(prompt): string = 
     readLineFromStdin(prompt)
 
   template echoCompat*(content) = 

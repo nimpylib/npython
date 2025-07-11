@@ -570,7 +570,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             else:
               let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
               return newNotImplementedError(msg) # no need to handle
-        except OutOfMemError:
+        except OutOfMemDefect:
           excpObj = newMemoryError("Out of Memory")
           handleException(excpObj)
         except InterruptError:
@@ -615,7 +615,7 @@ else:
   import os
   proc pyImport*(name: PyStrObject): PyObject =
     let filepath = pyConfig.path.joinPath(name.str).addFileExt("py")
-    if not filepath.existsFile:
+    if not filepath.fileExists:
       let msg = fmt"File {filepath} not found"
       return newImportError(msg)
     let input = readFile(filepath)
@@ -698,7 +698,7 @@ proc runCode*(co: PyCodeObject): PyObject =
   f.evalFrame
 
 
-proc runString*(input: TaintedString, fileName: string): PyObject = 
+proc runString*(input, fileName: string): PyObject = 
   let compileRes = compile(input, fileName)
   if compileRes.isThrownException:
     return compileRes

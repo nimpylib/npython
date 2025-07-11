@@ -127,7 +127,7 @@ proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =
     ParseStatus.Normal
 
 
-proc parseWithState*(input: TaintedString, 
+proc parseWithState*(input: string, 
                      lexer: Lexer,
                      mode=Mode.File, 
                      parseNodeArg: ParseNode = nil,

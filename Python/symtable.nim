@@ -57,8 +57,8 @@ proc newSymTableEntry(parent: SymTableEntry): SymTableEntry =
   if not parent.isNil: # not root
     parent.children.add result
   result.argVars = initTable[PyStrObject, int]()
-  result.declaredVars = initSet[PyStrObject]()
-  result.usedVars = initSet[PyStrObject]()
+  result.declaredVars = initHashSet[PyStrObject]()
+  result.usedVars = initHashSet[PyStrObject]()
   result.scopes = initTable[PyStrObject, Scope]()
   result.names = initTable[PyStrObject, int]()
   result.localVars = initTable[PyStrObject, int]()

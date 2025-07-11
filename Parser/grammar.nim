@@ -97,16 +97,16 @@ proc newGrammarNode(name: string, tokenString=""): GrammarNode =
     result = GrammarNode(
       kind: 'a',
       token: strTokenMap[tokenString],
-      nextSet: initSet[GrammarNode](),
+      nextSet: initHashSet[GrammarNode](),
     )
   of 's':  # finish sentinel
     result = GrammarNode(
       kind: 's',
-      nextSet: initSet[GrammarNode](),
+      nextSet: initHashSet[GrammarNode](),
     )
   else:
     raise newException(ValueError, fmt"unknown name: {name}")
-  result.epsilonSet = initSet[GrammarNode]()
+  result.epsilonSet = initHashSet[GrammarNode]()
 
 
 # not to confuse with token terminator
@@ -134,7 +134,7 @@ proc childTerminator(node: GrammarNode): GrammarNode =
   return childTerminator(node.children[0])
 
 proc nextInTree(node: GrammarNode): HashSet[GrammarNode] = 
-  result = initSet[GrammarNode]()
+  result = initHashSet[GrammarNode]()
   var curNode = node
   while true:
     let father = curNode.father
@@ -177,7 +177,7 @@ proc assignId(node: GrammarNode) =
 
 proc genEpsilonSet(root: GrammarNode) = 
   var toVisit = @[root]
-  var allNode = initSet[GrammarNode]()
+  var allNode = initHashSet[GrammarNode]()
   # collect direct epsilon set. Reachable by a single epsilon
   while 0 < toVisit.len:
     let curNode = toVisit.pop
@@ -203,7 +203,7 @@ proc genEpsilonSet(root: GrammarNode) =
         toVisit.add(child)
 
   # collect epsilons of member of epsilon set recursively
-  var collected = initSet[GrammarNode]()
+  var collected = initHashSet[GrammarNode]()
   collected.incl(successGrammarNode)
   for curNode in allNode:
     if not collected.contains(curNode):
@@ -232,7 +232,7 @@ proc genEpsilonSet(root: GrammarNode) =
     # exclude 'A' and 'F' in epsilon set
     if curNode.epsilonSet.len == 0:
       continue
-    var toExclude = initSet[GrammarNode]()
+    var toExclude = initHashSet[GrammarNode]()
     for child in curNode.epsilonSet:
       case child.kind
       of 'A', 'F':
@@ -536,7 +536,7 @@ proc lexGrammar =
         colIdx = startColIdx
     inc(lineIdx)
     let grammar = newGrammar(name, grammarString)
-    grammarSet.add(strTokenMap[name], grammar)
+    grammarSet[strTokenMap[name]] = grammar
 
 
 proc genFirstSet(grammar: Grammar) = 

@@ -6,10 +6,10 @@ import ../Utils/utils
 
 when not defined(js):
   import os
-  import ospaths
+
 
 proc outOfMemHandler =
-  let e = new OutOfMemError
+  let e = new OutOfMemDefect
   raise e
 
 system.outOfMemHook = outOfMemHandler

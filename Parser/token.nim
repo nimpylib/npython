@@ -82,7 +82,7 @@ proc readGrammarToken: seq[string] {.compileTime.} =
 # everything inside pars
 proc readReserveName: HashSet[string] {.compileTime.} = 
   let text = slurp(grammarFileName)
-  result = initSet[string]()
+  result = initHashSet[string]()
   var idx = 0
   while idx < text.len:
     case text[idx]
