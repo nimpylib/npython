@@ -11,8 +11,6 @@ type
 declarePyType Code(tpToken):
     # for convenient and not performance critical accessing
     code: seq[(OpCode, OpArg)]
-    opCodes: ptr OpCode # array of opcodes with `length`, same with `code`
-    opArgs: ptr OpArg # array of args with `length`, same with `code`
     lineNos: seq[int]
     constants: seq[PyObject]
 
@@ -32,38 +30,16 @@ declarePyType Code(tpToken):
 
 # most attrs of code objects are set in compile.nim
 proc newPyCode*(codeName, fileName: PyStrObject, length: int): PyCodeObject =
-  when defined(js):
-    result = newPyCodeSimple()
-  else:
-    proc finalizer(obj: PyCodeObject) = 
-      dealloc(obj.opCodes)
-      dealloc(obj.opArgs)
-
-    newPyCodeFinalizer(result, finalizer)
-    result.opCodes = createU(OpCode, length)
-    result.opArgs = createU(OpArg, length)
+  result = newPyCodeSimple()
+  result.code = newSeqOfCap[(OpCode, OpArg)] length
   result.codeName = codeName
   result.fileName = fileName
 
 proc len*(code: PyCodeObject): int {. inline .} = 
   code.code.len
 
-template `[]`*(opCodes: ptr OpCode, idx: int): OpCode = 
-  cast[ptr OpCode](cast[int](opCodes) + idx * sizeof(OpCode))[]
-
-template `[]`*(opArgs: ptr OpArg, idx: int): OpArg = 
-  cast[ptr OpArg](cast[int](opArgs) + idx * sizeof(OpArg))[]
-
-template `[]=`(opCodes: ptr OpCode, idx: int, value: OpCode) = 
-  cast[ptr OpCode](cast[int](opCodes) + idx * sizeof(OpCode))[] = value
-
-template `[]=`(opArgs: ptr OpArg, idx: int, value: OpArg) = 
-  cast[ptr OpArg](cast[int](opArgs) + idx * sizeof(OpArg))[] = value
-
 proc addOpCode*(code: PyCodeObject, 
                instr: tuple[opCode: OpCode, opArg: OpArg, lineNo: int]) = 
-  code.opCodes[code.len] = instr.opCode
-  code.opArgs[code.len] = instr.opArg
   code.code.add((instr.opCode, instr.opArg))
   code.lineNos.add(instr.lineNo)
 

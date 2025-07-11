@@ -76,23 +76,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   # instructions are fetched so frequently that we should build a local cache
   # instead of doing tons of dereference
 
-  when not defined(js):
-    let opCodes = f.code.opCodes
-    let opArgs = f.code.opArgs
-
   var lastI = -1
 
   # instruction helpers
-  var opCode: OpCode
-  var opArg: OpArg
   template fetchInstr: (OpCode, OpArg) = 
     inc lastI
-    when defined(js):
-      f.code.code[lastI]
-    else:
-      opCode = opCodes[lastI]
-      opArg = opArgs[lastI]
-      (opCode, opArg)
+    f.code.code[lastI]
 
   template jumpTo(i: int) = 
     lastI = i - 1
