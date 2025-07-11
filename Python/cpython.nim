@@ -104,6 +104,7 @@ proc echoHelp() =
   echoUsage()
   echoCompat "Options:"
   echoCompat "-V : print the Python version number and exit (also --version)"
+  echoCompat "     when given twice, print more information about the build"
   echoCompat "Arguments:"
   echoCompat "file   : program read from script file"
 
@@ -111,7 +112,9 @@ proc echoHelp() =
 when isMainModule:
   import std/parseopt
 
-  var args: seq[string]
+  var
+    args: seq[string]
+    versionVerbosity = 0
   for kind, key, val in getopt(
     shortNoVal={'h', 'V'},
     longNoVal = @["help", "version"],
@@ -124,11 +127,16 @@ when isMainModule:
         echoHelp()
         quit()
       of "version", "V":
-        echoVersion()
-        quit()
+        versionVerbosity.inc
       else:
-        echoCompat "Unknown option: " & key
+        var origKey = "-"
+        if kind == cmdLongOption: origKey.add '-'
+        origKey.add key
+        echoCompat "Unknown option: " & origKey
         echoUsage()
         quit 2
     of cmdEnd: assert(false) # cannot happen
-  nPython args
+  case versionVerbosity
+  of 1: echoVersion()
+  of 2: echoVersion(verbose=true)
+  else: nPython args
