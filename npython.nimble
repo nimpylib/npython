@@ -4,8 +4,10 @@ author        = "Weitang Li, litlighilit"
 description   = "(Subset of) Python programming language implemented in Nim"
 license       = "CPython license"
 srcDir        = "Python"
-bin           = @["python"]
 binDir        = "bin"
+
+let srcName = "python"
+namedBin[srcName] = "npython"
 
 requires  "regex"
 requires  "nim >= 1.6.14"  # 2.* (at least till 2.3.1) is okey, too.
@@ -35,7 +37,7 @@ template taskWithArgs(name, taskDesc, body){.dirty.} =
     var args = getArgs taskName
     body
 
-let binPathWithoutExt = binDir & '/' & bin[0]
+let binPathWithoutExt = binDir & '/' & namedBin[srcName]
 taskWithArgs test, "test all, assuming after build":
   let subTest =
     if args.len == 0: "asserts"
@@ -48,4 +50,4 @@ taskWithArgs test, "test all, assuming after build":
     exec pyExe & ' ' & i
 
 task buildJs, "build JS":
-  selfExec "js -o:" & binPathWithoutExt & ".js " & srcDir & '/' & bin[0]
+  selfExec "js -o:" & binPathWithoutExt & ".js " & srcDir & '/' & srcName
