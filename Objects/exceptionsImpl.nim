@@ -72,5 +72,5 @@ proc isExceptionType*(obj: PyObject): bool =
 proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionObject = 
   let excpObj = newSyntaxError(e.msg)
   # don't have code name
-  excpObj.traceBacks.add (fileName, nil, e.lineNo, e.colNo)
+  excpObj.traceBacks.add (PyObject fileName, PyObject nil, e.lineNo, e.colNo)
   excpObj
