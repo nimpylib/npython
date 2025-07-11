@@ -146,7 +146,7 @@ proc freeVarsToSeq*(ste: SymTableEntry): seq[PyStrObject] =
 
 proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) = 
   var toVisit: seq[(AstNodeBase, SymTableEntry)]
-  toVisit.add((astRoot, nil))
+  toVisit.add((AstNodeBase astRoot, SymTableEntry nil))
   while toVisit.len != 0:
     let (astNode, parentSte) = toVisit.pop
     let ste = newSymTableEntry(parentSte)
