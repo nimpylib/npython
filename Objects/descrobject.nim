@@ -5,7 +5,7 @@ import noneobject
 import exceptions
 import stringobject
 import methodobject
-import funcobject
+
 import ../Python/call
 import ../Utils/utils
 

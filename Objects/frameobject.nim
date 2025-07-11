@@ -1,11 +1,11 @@
 
 
 import pyobject
-import baseBundle
+
 import codeobject
 import dictobject
 import cellobject
-import ../Python/opcode
+
 
 declarePyType Frame():
   # currently not used?

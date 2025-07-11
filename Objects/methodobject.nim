@@ -2,8 +2,8 @@ import strformat
 
 import pyobject
 import exceptions
-import funcobject
-import frameobject
+
+
 import stringobject
 
 type

@@ -1,5 +1,5 @@
 import strformat
-
+{.used.}  # this module contains toplevel code, so never `importButNotUsed`
 import neval
 import builtindict
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject]

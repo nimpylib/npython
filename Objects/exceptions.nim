@@ -9,7 +9,7 @@
 import strformat
 
 import pyobject
-import noneobject
+
 
 type ExceptionToken* {. pure .} = enum
   Base,

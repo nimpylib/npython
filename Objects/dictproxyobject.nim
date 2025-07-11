@@ -1,6 +1,6 @@
 import pyobject
 import baseBundle
-import dictobject
+
 
 # read only dict used for `__dict__` of types
 declarePyType DictProxy():
