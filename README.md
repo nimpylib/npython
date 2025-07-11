@@ -26,8 +26,8 @@ Check out `./tests` to see more examples.
 ```
 git clone https://github.com/liwt31/NPython.git
 cd NPython
-nimble c ./Python/python
-./Python/python
+nimble build
+bin/npython
 ```
 
 ### Todo
@@ -44,11 +44,25 @@ Currently, the performance bottlenecks are object allocation, seq accessing (com
 
 ### Drawbacks
 NPython aims for both C and JavaScript targets, so it's hard (if not impossible) to perform low-level address based optimization.
-NPython currently relies on Nim GC. Frankly speaking it's not satisfactory. 
-* The GC uses thread-local heap, makes threading nearly impossible (for Python).
-* The GC can hardly be shared between different dynamic libs, which means NPython can not import extensions written in Nim.
 
-If memory is managed manually, hopefully these drawbacks can be overcomed. Of course that's a huge sacrifice.
+#### Nim 0.x GC
+NPython relies on Nim GC. Frankly speaking, in the past, it was not satisfactory. 
+* The GC uses thread-local heap, which once made threading once nearly impossible (for Python), though not so for Nimv1 and Nimv2.
+* The GC could hardly be shared between different dynamic libs, which meant NPython can not import extensions written in Nim.
+
+If memory was managed manually, these drawbacks could be overcomed early.
+
+#### Nim v1 and v2 MM
+However, in current years, Nim, specially v2, has improved a lot on GC,
+which's now called MM(Memory Management).
+
+And Nimv2 uses ORC by default, which offers deterministic performance.
+
+Not only has threading programming been enhanced and become easy to write,
+but also `setupForeignThreadGc()` and `tearDownForeignThreadGc()` come out here
+for foreignal call to control Nim's MM.
+
+In short those difficulties that once held us back have disappeared.
 
 
 ### License
