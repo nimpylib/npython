@@ -2,20 +2,27 @@ when defined(js):
   {.error: "python.nim is for c target. Compile jspython.nim as js target" .}
 
 import strformat
-import strutils
+
 import os # file existence
 
-import cligen # parse opt
+
 
 import neval
 import compile
 import coreconfig
 import traceback
 import lifecycle
+import ./getversion
 import ../Parser/[lexer, parser]
 import ../Objects/bundle
 import ../Utils/[utils, compat]
 
+
+proc echoVersion(verbose=false) =
+  echoCompat "NPython " & (
+    if verbose: Py_GetVersion()
+    else: Version
+  )
 
 proc interactiveShell =
   var finished = true
@@ -23,7 +30,7 @@ proc interactiveShell =
   var rootCst: ParseNode
   let lexer = newLexer("<stdin>")
   var prevF: PyFrameObject
-  echoCompat "NPython 0.1.0"
+  echoVersion()
   while true:
     var input: string
     var prompt: string
@@ -90,5 +97,38 @@ proc nPython(args: seq[string]) =
   if retObj.isThrownException:
     PyExceptionObject(retObj).printTb
 
+proc echoUsage() =
+  echoCompat "usage: python [option] [file]"
+
+proc echoHelp() =
+  echoUsage()
+  echoCompat "Options:"
+  echoCompat "-V : print the Python version number and exit (also --version)"
+  echoCompat "Arguments:"
+  echoCompat "file   : program read from script file"
+
+
 when isMainModule:
-  dispatch(nPython)
+  import std/parseopt
+
+  var args: seq[string]
+  for kind, key, val in getopt(
+    shortNoVal={'h', 'V'},
+    longNoVal = @["help", "version"],
+  ):
+    case kind
+    of cmdArgument: args.add key
+    of cmdLongOption, cmdShortOption:
+      case key:
+      of "help", "h":
+        echoHelp()
+        quit()
+      of "version", "V":
+        echoVersion()
+        quit()
+      else:
+        echoCompat "Unknown option: " & key
+        echoUsage()
+        quit 2
+    of cmdEnd: assert(false) # cannot happen
+  nPython args

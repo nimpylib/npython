@@ -1,4 +1,5 @@
-version       = "0.1.1"
+import "Python/versionInfo" as libver
+version       = libver.Version
 author        = "Weitang Li, litlighilit"
 description   = "(Subset of) Python programming language implemented in Nim"
 license       = "CPython license"
@@ -6,7 +7,7 @@ srcDir        = "Python"
 bin           = @["python"]
 binDir        = "bin"
 
-requires  "cligen", "regex"
+requires  "regex"
 requires  "nim >= 1.6.14"  # 2.* (at least till 2.3.1) is okey, too.
 
 # copied from nimpylib.nimble
@@ -45,3 +46,6 @@ taskWithArgs test, "test all, assuming after build":
   for i in listFiles "tests/" & subTest:
     echo "testing " & i
     exec pyExe & ' ' & i
+
+task buildJs, "build JS":
+  selfExec "js -o:" & binPathWithoutExt & ".js " & srcDir & '/' & bin[0]
