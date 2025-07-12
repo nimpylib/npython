@@ -9,6 +9,7 @@
 import strformat
 
 import pyobject
+import stringobject
 
 
 type ExceptionToken* {. pure .} = enum
@@ -95,14 +96,14 @@ declareErrors
 template newProcTmpl(excpName) = 
   # use template for lazy evaluation to use PyString
   # theses two templates are used internally to generate errors (default thrown)
-  template `new excpName Error`*: PyBaseErrorObject = 
+  proc `new excpName Error`*: PyBaseErrorObject{.inline.} = 
     let excp = `newPy excpName ErrorSimple`()
     excp.tk = ExceptionToken.`excpName`
     excp.thrown = true
     excp
 
 
-  template `new excpName Error`*(msgStr:string): PyBaseErrorObject = 
+  proc `new excpName Error`*(msgStr:string): PyBaseErrorObject{.inline.} = 
     let excp = `newPy excpName ErrorSimple`()
     excp.tk = ExceptionToken.`excpName`
     excp.thrown = true
