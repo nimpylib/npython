@@ -949,8 +949,11 @@ ast atom, [AsdlExpr]:
         raiseSyntaxError("Yield expression not implemented", child)
       of Token.testlist_comp:
         let testListComp = astTestlistComp(child)
-        # no tuple, just things like (1 + 2) * 3
-        if testListComp.len == 1:
+        # 1-element tuple or things like (1 + 2) * 3
+        if testListComp.len == 1 and not (
+            child.children.len == 2 and  # 1-element tuple. e.g. (1,)
+            child.children[1].tokenNode.token == Token.Comma
+        ):
           if testListComp[0].kind == AsdlExprTk.ListComp:
             raiseSyntaxError("generator expression not implemented", child)
           result = testListComp[0]
