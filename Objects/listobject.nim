@@ -26,7 +26,7 @@ genSequenceMagics "list",
   implListMagic, implListMethod,
   ofPyListObject, PyListObject,
   newPyListSimple, [mutable: read], [reprLock, mutable: read],
-  lsSeqToStr  
+  lsSeqToStr
 
 implListMagic setitem, [mutable: write]:
   if arg1.ofPyIntObject:
