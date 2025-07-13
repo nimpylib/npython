@@ -20,11 +20,13 @@ proc newPyList*(items: seq[PyObject]): PyListObject =
   result = newPyList()
   result.items = items
 
+template lsSeqToStr(ss): string = '[' & ss.join", " & ']'
+
 genSequenceMagics "list",
   implListMagic, implListMethod,
   ofPyListObject, PyListObject,
   newPyListSimple, [mutable: read], [reprLock, mutable: read],
-  '[', ']'
+  lsSeqToStr  
 
 implListMagic setitem, [mutable: write]:
   if arg1.ofPyIntObject:
