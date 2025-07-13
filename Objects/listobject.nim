@@ -77,9 +77,23 @@ when not defined(release):
   implListMethod hello(), [hello]:
     pyNone
 
-# implListMethod extend:
-# todo
-#
+
+implListMethod extend(other: PyObject), [mutable: write]:
+  if other.ofPyListObject:
+    self.items &= PyListObject(other).items
+  else:
+    let (iterable, nextMethod) = getIterableWithCheck(other)
+    if iterable.isThrownException:
+      return iterable
+    while true:
+      let nextObj = nextMethod(iterable)
+      if nextObj.isStopIter:
+        break
+      if nextObj.isThrownException:
+        return nextObj
+      self.items.add nextObj
+  pyNone
+
 
 implListMethod insert(idx: PyIntObject, item: PyObject), [mutable: write]:
   var intIdx: int

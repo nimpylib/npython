@@ -23,6 +23,24 @@ template genSequenceMagics*(nameStr,
     newPyNameSimple; mutRead, mutReadRepr;
     reprs_left, reprs_right: char): untyped{.dirty.} =
 
+  implNameMagic add, mutRead:
+    var res = newPyNameSimple()
+    if other.ofPyNameObject:
+      res.items = self.items & PyNameObject(other).items
+      return res
+    else:
+      res.items = self.items
+      let (iterable, nextMethod) = getIterableWithCheck(other)
+      if iterable.isThrownException:
+        return iterable
+      while true:
+        let nextObj = nextMethod(iterable)
+        if nextObj.isStopIter:
+          break
+        if nextObj.isThrownException:
+          return nextObj
+        res.items.add nextObj
+      return res
 
   implNameMagic eq, mutRead:
     if not other.ofPyNameObject:
