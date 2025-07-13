@@ -32,5 +32,8 @@ l[-1] = 100
 
 assert l.pop() == 100
 
+ls2 = [1, 2, 2]
+ls2.remove(2)
+assert ls2[-1] == 2
 
 print("ok")

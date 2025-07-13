@@ -400,6 +400,10 @@ macro reprLock*(code: untyped): untyped =
     )
   code
 
+template allowSelfReadWhenBeforeRealWrite*(body) =
+  self.writeLock = false
+  body
+  self.writeLock = true
 
 macro mutable*(kind, code: untyped): untyped = 
   if kind.strVal != "read" and kind.strVal != "write":

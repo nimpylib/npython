@@ -1,4 +1,4 @@
-import sequtils
+
 import strformat
 import strutils
 
@@ -160,13 +160,15 @@ implListMethod pop(), [mutable: write]:
   self.items.pop
 
 implListMethod remove(target: PyObject), [mutable: write]:
-  let retObj = indexPyListObjectMethod(selfNoCast, @[target])
+  var retObj: PyObject
+  allowSelfReadWhenBeforeRealWrite:
+    retObj = indexPyListObjectMethod(selfNoCast, @[target])
   if retObj.isThrownException:
     return retObj
   assert retObj.ofPyIntObject
   let idx = PyIntObject(retObj).toInt
-  self.items.delete(idx .. idx+1)
-
+  self.items.delete(idx)
+  pyNone
 
 implListMagic init:
   if 1 < args.len:
