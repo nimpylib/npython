@@ -1,5 +1,5 @@
 import hashes
-
+import std/strformat
 import pyobject
 import baseBundle
 import stringobject
@@ -39,6 +39,14 @@ implStrMagic repr:
 implStrMagic hash:
   newPyInt(self.hash)
 
-
+# TODO: encoding, errors params
 implStrMagic New(tp: PyObject, obj: PyObject):
-  obj.callMagic(str)
+  # ref: unicode_new -> unicode_new_impl -> PyObject_Str
+  let fun = obj.getMagic(str)
+  if fun.isNil:
+    return obj.callMagic(repr)
+  result = fun(obj)
+  if not result.ofPyStrObject:
+    return newTypeError(
+      &"__str__ returned non-string (type {result.pyType.name:.200s})")
+
