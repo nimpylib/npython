@@ -17,11 +17,10 @@ proc newPyTuple*(items: seq[PyObject]): PyTupleObject =
   result.items = items
 
 
-template genSequenceMagics*(nameStr,
-    implNameMagic, implNameMethod;
-    ofPyNameObject, PyNameObject,
-    newPyNameSimple; mutRead, mutReadRepr;
-    seqToStr): untyped{.dirty.} =
+template genCollectMagics*(items, `&`, `&=`,
+  implNameMagic, newPyNameSimple,
+  ofPyNameObject, PyNameObject,
+  mutRead, mutReadRepr, seqToStr){.dirty.} =
 
   implNameMagic add, mutRead:
     var res = newPyNameSimple()
@@ -39,8 +38,46 @@ template genSequenceMagics*(nameStr,
           break
         if nextObj.isThrownException:
           return nextObj
-        res.items.add nextObj
+        `&=` res.items, nextObj
       return res
+
+
+  implNameMagic contains, mutRead:
+    for item in self.items:
+      let retObj =  item.callMagic(eq, other)
+      if retObj.isThrownException:
+        return retObj
+      if retObj == pyTrueObj:
+        return pyTrueObj
+    return pyFalseObj
+
+
+  implNameMagic repr, mutReadRepr:
+    var ss: seq[string]
+    for item in self.items:
+      var itemRepr: PyStrObject
+      let retObj = item.callMagic(repr)
+      errorIfNotString(retObj, "__repr__")
+      itemRepr = PyStrObject(retObj)
+      ss.add itemRepr.str
+    return newPyString(seqToStr(ss))
+
+
+  implNameMagic len, mutRead:
+    newPyInt(self.items.len)
+
+
+template genSequenceMagics*(nameStr,
+    implNameMagic, implNameMethod;
+    ofPyNameObject, PyNameObject,
+    newPyNameSimple; mutRead, mutReadRepr;
+    seqToStr): untyped{.dirty.} =
+
+  bind genCollectMagics
+  genCollectMagics items, `&`, `&=`,
+    implNameMagic, newPyNameSimple,
+    ofPyNameObject, PyNameObject,
+    mutRead, mutReadRepr, seqToStr
 
   implNameMagic eq, mutRead:
     if not other.ofPyNameObject:
@@ -59,32 +96,6 @@ template genSequenceMagics*(nameStr,
         return pyFalseObj
     pyTrueObj
 
-  implNameMagic contains, mutRead:
-    for idx, item in self.items:
-      let retObj =  item.callMagic(eq, other)
-      if retObj.isThrownException:
-        return retObj
-      if retObj == pyTrueObj:
-        return pyTrueObj
-    return pyFalseObj
-
-
-  implNameMagic iter, mutRead: 
-    newPySeqIter(self.items)
-
-
-  implNameMagic repr, mutReadRepr:
-    var ss: seq[string]
-    for item in self.items:
-      var itemRepr: PyStrObject
-      let retObj = item.callMagic(repr)
-      errorIfNotString(retObj, "__repr__")
-      itemRepr = PyStrObject(retObj)
-      ss.add(itemRepr.str)
-    return newPyString(seqToStr(ss))
-
-  implNameMagic len, mutRead:
-    newPyInt(self.items.len)
 
   implNameMagic init:
     if 1 < args.len:
@@ -104,6 +115,11 @@ template genSequenceMagics*(nameStr,
           return nextObj
         self.items.add nextObj
     pyNone
+
+
+  implNameMagic iter, mutRead: 
+    newPySeqIter(self.items)
+
 
   implNameMagic getitem:
     if other.ofPyIntObject:
@@ -158,13 +174,14 @@ genSequenceMagics "tuple",
   newPyTupleSimple, [], [reprLock],
   tupleSeqToString
 
-
-implTupleMagic hash:
+template hashImpl*(items) =
   var h = self.id
   for item in self.items:
     h = h xor item.id
   return newPyInt(h)
 
+implTupleMagic hash:
+  hashImpl items
 
 proc len*(t: PyTupleObject): int {. cdecl inline .} = 
   t.items.len
