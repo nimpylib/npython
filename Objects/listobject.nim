@@ -6,6 +6,7 @@ import pyobject
 import baseBundle
 import sliceobject
 import iterobject
+import ./tupleobject
 import ../Utils/[utils, compat]
 
 declarePyType List(reprLock, mutable, tpToken):
@@ -19,50 +20,11 @@ proc newPyList*(items: seq[PyObject]): PyListObject =
   result = newPyList()
   result.items = items
 
-
-implListMagic contains, [mutable: read]:
-  for idx, item in self.items:
-    let retObj =  item.callMagic(eq, other)
-    if retObj.isThrownException:
-      return retObj
-    if retObj == pyTrueObj:
-      return pyTrueObj
-  return pyFalseObj
-
-
-implListMagic iter, [mutable: read]: 
-  newPySeqIter(self.items)
-
-
-implListMagic repr, [mutable: read, reprLock]:
-  var ss: seq[string]
-  for item in self.items:
-    var itemRepr: PyStrObject
-    let retObj = item.callMagic(repr)
-    errorIfNotString(retObj, "__repr__")
-    itemRepr = PyStrObject(retObj)
-    ss.add(itemRepr.str)
-  return newPyString("[" & ss.join(", ") & "]")
-
-
-implListMagic len, [mutable: read]:
-  newPyInt(self.items.len)
-
-implListMagic getitem, [mutable: read]:
-  if other.ofPyIntObject:
-    let idx = getIndex(PyIntObject(other), self.items.len)
-    return self.items[idx]
-  if other.ofPySliceObject:
-    let slice = PySliceObject(other)
-    let newList = newPyList()
-    let retObj = slice.getSliceItems(self.items.addr, newList.items.addr)
-    if retObj.isThrownException:
-      return retObj
-    else:
-      return newList
-    
-  return newIndexTypeError("list", other)
-
+genSequenceMagics "list",
+  implListMagic, implListMethod,
+  ofPyListObject, PyListObject,
+  newPyListSimple, [mutable: read], [reprLock, mutable: read],
+  '[', ']'
 
 implListMagic setitem, [mutable: write]:
   if arg1.ofPyIntObject:
@@ -89,16 +51,6 @@ implListMethod copy(), [mutable: read]:
   newL.items = self.items # shallow copy
   newL
 
-
-implListMethod count(target: PyObject), [mutable: read]:
-  var count: int
-  for item in self.items:
-    let retObj = item.callMagic(eq, target)
-    if retObj.isThrownException:
-      return retObj
-    if retObj == pyTrueObj:
-      inc count
-  newPyInt(count)
 
 # some test methods just for debugging
 when not defined(release):
@@ -129,18 +81,6 @@ when not defined(release):
 # todo
 #
 
-implListMethod index(target: PyObject), [mutable: read]:
-  for idx, item in self.items:
-    let retObj =  item.callMagic(eq, target)
-    if retObj.isThrownException:
-      return retObj
-    if retObj == pyTrueObj:
-      return newPyInt(idx)
-  let msg = fmt"{target} is not in list"
-  newValueError(msg)
-
-
-
 implListMethod insert(idx: PyIntObject, item: PyObject), [mutable: write]:
   var intIdx: int
   if idx.negative:
@@ -170,21 +110,3 @@ implListMethod remove(target: PyObject), [mutable: write]:
   self.items.delete(idx)
   pyNone
 
-implListMagic init:
-  if 1 < args.len:
-    let msg = fmt"list expected at most 1 args, got {args.len}"
-    return newTypeError(msg)
-  if self.items.len != 0:
-    self.items.setLen(0)
-  if args.len == 1:
-    let (iterable, nextMethod) = getIterableWithCheck(args[0])
-    if iterable.isThrownException:
-      return iterable
-    while true:
-      let nextObj = nextMethod(iterable)
-      if nextObj.isStopIter:
-        break
-      if nextObj.isThrownException:
-        return nextObj
-      self.items.add nextObj
-  pyNone
