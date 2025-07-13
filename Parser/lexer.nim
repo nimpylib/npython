@@ -1,4 +1,4 @@
-import regex
+import ./re_utils
 import deques
 import sets
 import strformat
@@ -42,8 +42,8 @@ proc getSource*(filePath: string, lineNo: int): string =
 proc `$`*(lexer: Lexer): string = 
   $lexer.tokenNodes
 
-var regexName = re2(r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b")
-var regexNumber = re2(r"\b\d*\.?\d+([eE][-+]?\d+)?\b")
+compileLiteralRe regexName, r"\b[a-zA-Z_]+[a-zA-Z_0-9]*\b"
+compileLiteralRe regexNumber, r"\b\d*\.?\d+([eE][-+]?\d+)?\b"
 
 
 # used in parser.nim to construct non-terminators
@@ -111,13 +111,12 @@ proc getNextToken(
     raiseSyntaxError(msg, "", lexer.lineNo, idx)
 
   template addRegexToken(tokenName:untyped, msg:string) =
-    var m: RegexMatch2
+    var m: RegexMatch
     if not line.find(`regex tokenName`, m, start=idx):
       raiseSyntaxError(msg)
-    let first = m.boundaries.a
     let last = m.boundaries.b
     idx = last + 1
-    result = newTokenNode(Token.tokenName, lexer.lineNo, first, line[first..last])
+    result = newTokenNode(Token.tokenName, lexer.lineNo, m.boundaries.a, m.capturedStr line)
 
   template addSingleCharToken(tokenName) = 
     result = newTokenNode(Token.tokenName, lexer.lineNo, idx)
