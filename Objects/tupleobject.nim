@@ -67,16 +67,8 @@ template genSequenceMagics*(nameStr,
       return res
     else:
       res.items = self.items
-      let (iterable, nextMethod) = getIterableWithCheck(other)
-      if iterable.isThrownException:
-        return iterable
-      while true:
-        let nextObj = nextMethod(iterable)
-        if nextObj.isStopIter:
-          break
-        if nextObj.isThrownException:
-          return nextObj
-        `&=` res.items, nextObj
+      pyForIn i, other:
+        `&=` res.items, i
       return res
   implNameMagic eq, mutRead:
     if not other.ofPyNameObject:
@@ -103,16 +95,8 @@ template genSequenceMagics*(nameStr,
     if self.items.len != 0:
       self.items.setLen(0)
     if args.len == 1:
-      let (iterable, nextMethod) = getIterableWithCheck(args[0])
-      if iterable.isThrownException:
-        return iterable
-      while true:
-        let nextObj = nextMethod(iterable)
-        if nextObj.isStopIter:
-          break
-        if nextObj.isThrownException:
-          return nextObj
-        self.items.add nextObj
+      pyForIn i, args[0]:
+        self.items.add i
     pyNone
 
 
