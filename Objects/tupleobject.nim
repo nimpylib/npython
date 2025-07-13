@@ -21,7 +21,7 @@ template genSequenceMagics*(nameStr,
     implNameMagic, implNameMethod;
     ofPyNameObject, PyNameObject,
     newPyNameSimple; mutRead, mutReadRepr;
-    reprs_left, reprs_right: char): untyped{.dirty.} =
+    seqToStr): untyped{.dirty.} =
 
   implNameMagic add, mutRead:
     var res = newPyNameSimple()
@@ -81,7 +81,7 @@ template genSequenceMagics*(nameStr,
       errorIfNotString(retObj, "__repr__")
       itemRepr = PyStrObject(retObj)
       ss.add(itemRepr.str)
-    return newPyString(reprs_left & ss.join(", ") & reprs_right)
+    return newPyString(seqToStr(ss))
 
   implNameMagic len, mutRead:
     newPyInt(self.items.len)
@@ -140,11 +140,23 @@ template genSequenceMagics*(nameStr,
         inc count
     newPyInt(count)
 
+proc tupleSeqToString(ss: openArray[string]): string =
+  ## one-element tuple must be out as "(1,)"
+  result = "("
+  case ss.len
+  of 0: discard
+  of 1:
+    result.add ss[0]
+    result.add ','
+  else:
+    result.add ss.join", "
+  result.add ')'
+
 genSequenceMagics "tuple",
   implTupleMagic, implTupleMethod,
   ofPyTupleObject, PyTupleObject,
   newPyTupleSimple, [], [reprLock],
-  '(', ')'
+  tupleSeqToString
 
 
 implTupleMagic hash:
