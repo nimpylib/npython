@@ -280,6 +280,12 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
   # pragmas: custom pragmas
   # body: function body
   var (methodName, argTypes) = getNameAndArgTypes(prototype)
+  if methodName.kind == nnkAccQuoted:  # for reversed keyword
+    var ls = methodName
+    var name = "" 
+    for i in ls:
+      name.add i.strVal
+    methodName = ident name
   methodName.expectKind({nnkIdent, nnkSym})
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)

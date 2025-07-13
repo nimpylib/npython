@@ -1156,23 +1156,41 @@ ast testlist, [AsdlExpr]:
 #                   (comp_for | (',' (test | star_expr))* [','])) )
 ast dictorsetmaker, [AsdlExpr]:
   let children = parseNode.children
-  let d = newAstDict()
+  let le = children.len
+  if le == 0:  # {} -> dict()
+    return newAstDict()
+  elif le == 1:
+    let s = newAstSet()
+    s.elts.add astTest children[0]
+    return s
+  # Then `children[1]` won't go out of bound
+  let leFix = le + 1  # XXX: + 1 to add tailing comma. So for list,etc. FIXME: allow trailing comma
+  let isDict = children[1].tokenNode.token == Token.Colon
   # no need to care about setting lineNo and colOffset, because `atom` does so
-  for idx in 0..<((children.len+1) div 4):
-    let i = idx * 4
-    if children.len < i + 3:
-      raiseSyntaxError("dict definition too complex (no set, no comprehension)")
-    let c1 = children[i]
-    if not (c1.tokenNode.token == Token.test):
-      raiseSyntaxError("dict definition too complex (no set, no comprehension)", c1)
-    d.keys.add(astTest(c1))
-    if not (children[i+1].tokenNode.token == Token.Colon):
-      raiseSyntaxError("dict definition too complex (no set, no comprehension)")
-    let c3 = children[i+2]
-    if not (c3.tokenNode.token == Token.test):
-      raiseSyntaxError("dict definition too complex (no set, no comprehension)", c3)
-    d.values.add(astTest(c3))
-  result = d
+  if isDict:
+    let d = newAstDict()
+    for idx in 0..<(leFix div 4):
+      let i = idx * 4
+      if children.len < i + 3:
+        raiseSyntaxError("dict definition too complex (no comprehension)")
+      let c1 = children[i]
+      if not (c1.tokenNode.token == Token.test):
+        raiseSyntaxError("dict definition too complex (no comprehension)", c1)
+      d.keys.add(astTest(c1))
+      if not (children[i+1].tokenNode.token == Token.Colon):
+        raiseSyntaxError("dict definition too complex (no comprehension)")
+      let c3 = children[i+2]
+      if not (c3.tokenNode.token == Token.test):
+        raiseSyntaxError("dict definition too complex (no comprehension)", c3)
+      d.values.add(astTest(c3))
+    result = d
+  else:
+    let s = newAstSet()
+    for i in 0..<(leFix div 2):
+      let c = children[i * 2]
+      s.elts.add(astTest(c))
+    result = s
+
   
 # classdef: 'class' NAME ['(' [arglist] ')'] ':' suite
 ast classdef, [AstClassDef]:

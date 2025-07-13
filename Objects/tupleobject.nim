@@ -17,29 +17,10 @@ proc newPyTuple*(items: seq[PyObject]): PyTupleObject =
   result.items = items
 
 
-template genCollectMagics*(items, `&`, `&=`,
+template genCollectMagics*(items,
   implNameMagic, newPyNameSimple,
   ofPyNameObject, PyNameObject,
   mutRead, mutReadRepr, seqToStr){.dirty.} =
-
-  implNameMagic add, mutRead:
-    var res = newPyNameSimple()
-    if other.ofPyNameObject:
-      res.items = self.items & PyNameObject(other).items
-      return res
-    else:
-      res.items = self.items
-      let (iterable, nextMethod) = getIterableWithCheck(other)
-      if iterable.isThrownException:
-        return iterable
-      while true:
-        let nextObj = nextMethod(iterable)
-        if nextObj.isStopIter:
-          break
-        if nextObj.isThrownException:
-          return nextObj
-        `&=` res.items, nextObj
-      return res
 
 
   implNameMagic contains, mutRead:
@@ -74,11 +55,29 @@ template genSequenceMagics*(nameStr,
     seqToStr): untyped{.dirty.} =
 
   bind genCollectMagics
-  genCollectMagics items, `&`, `&=`,
+  genCollectMagics items,
     implNameMagic, newPyNameSimple,
     ofPyNameObject, PyNameObject,
     mutRead, mutReadRepr, seqToStr
 
+  implNameMagic add, mutRead:
+    var res = newPyNameSimple()
+    if other.ofPyNameObject:
+      res.items = self.items & PyNameObject(other).items
+      return res
+    else:
+      res.items = self.items
+      let (iterable, nextMethod) = getIterableWithCheck(other)
+      if iterable.isThrownException:
+        return iterable
+      while true:
+        let nextObj = nextMethod(iterable)
+        if nextObj.isStopIter:
+          break
+        if nextObj.isThrownException:
+          return nextObj
+        `&=` res.items, nextObj
+      return res
   implNameMagic eq, mutRead:
     if not other.ofPyNameObject:
       return pyFalseObj

@@ -1,7 +1,7 @@
 
 import strformat
 import tables
-
+import std/sets
 import compile
 import symtable
 import opcode
@@ -10,6 +10,7 @@ import builtindict
 import traceback
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
+                   setobject,
                    exceptionsImpl, moduleobject, methodobject]
 import ../Utils/utils
 
@@ -354,6 +355,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               # an optimization can save the copy
               let newList = newPyList(args)
               sPush newList 
+            
+            of OpCode.BuildSet:
+              var args = initHashSet[PyObject](opArg)
+              for i in 1..opArg:
+                args.incl sPop()
+              # an optimization can save the copy
+              let newSet = newPySet(args)
+              sPush newSet
 
             of OpCode.BuildMap:
               let d = newPyDict()

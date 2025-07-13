@@ -668,6 +668,17 @@ compileMethod UnaryOp:
   let opCode = astNode.op.toOpCode
   c.addOp(newInstr(opCode, astNode.lineNo.value))
 
+compileMethod Set:
+  let n = astNode.elts.len
+  for i in 0..<astNode.elts.len:
+    c.compile(astNode.elts[i])
+  var lineNo: int
+  if astNode.elts.len == 0:
+    lineNo = astNode.lineNo.value
+  else:
+    lineNo = c.lastLineNo
+  c.addOp(newArgInstr(OpCode.BuildSet, n, lineNo))
+  
 compileMethod Dict:
   let n = astNode.values.len
   for i in 0..<astNode.keys.len:

@@ -89,6 +89,8 @@ implBltinFunc len(obj: PyObject):
   obj.callMagic(len)
 
 
+implBltinFunc hash(obj: PyObject): obj.callMagic(hash)
+
 implBltinFunc iter(obj: PyObject): obj.callMagic(iter)
 
 implBltinFunc repr(obj: PyObject): obj.callMagic(repr)
@@ -110,6 +112,8 @@ registerBltinObject("range", pyRangeObjectType)
 registerBltinObject("list", pyListObjectType)
 registerBltinObject("tuple", pyTupleObjectType)
 registerBltinObject("dict", pyDictObjectType)
+registerBltinObject("set", pySetObjectType)
+registerBltinObject("frozenset", pyFrozenSetObjectType)
 registerBltinObject("int", pyIntObjectType)
 registerBltinObject("str", pyStrObjectType)
 registerBltinObject("property", pyPropertyObjectType)

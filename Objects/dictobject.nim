@@ -1,5 +1,5 @@
 import strformat
-import hashes
+
 import strutils
 import tables
 import macros
@@ -9,31 +9,8 @@ import listobject
 import baseBundle
 import ../Utils/utils
 
-
-# hash functions for py objects
-# raises an exception to indicate type error. Should fix this
-# when implementing custom dict
-proc hash*(obj: PyObject): Hash = 
-  let fun = obj.pyType.magicMethods.hash
-  if fun.isNil:
-    return hash(addr(obj[]))
-  else:
-    let retObj = fun(obj)
-    if not retObj.ofPyIntObject:
-      raise newException(DictError, retObj.pyType.name)
-    return hash(PyIntObject(retObj))
-
-
-proc `==`*(obj1, obj2: PyObject): bool {. inline, cdecl .} =
-  let fun = obj1.pyType.magicMethods.eq
-  if fun.isNil:
-    return obj1.id == obj2.id
-  else:
-    let retObj = fun(obj1, obj2)
-    if not retObj.ofPyBoolObject:
-      raise newException(DictError, retObj.pyType.name)
-    return PyBoolObject(retObj).b
-
+import ./hash
+export hash
 
 # currently not ordered
 # nim ordered table has O(n) delete time
