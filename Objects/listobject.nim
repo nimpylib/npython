@@ -84,15 +84,7 @@ implListMethod extend(other: PyObject), [mutable: write]:
   if other.ofPyListObject:
     self.items &= PyListObject(other).items
   else:
-    let (iterable, nextMethod) = getIterableWithCheck(other)
-    if iterable.isThrownException:
-      return iterable
-    while true:
-      let nextObj = nextMethod(iterable)
-      if nextObj.isStopIter:
-        break
-      if nextObj.isThrownException:
-        return nextObj
+    pyForIn nextObj, other:
       self.items.add nextObj
   pyNone
 
