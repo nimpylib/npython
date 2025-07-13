@@ -161,6 +161,7 @@ when isMainModule:
         let code =
           if p.val != "": p.val
           else: p.remainingArgs()[0]
+        pyInit(@[])
         runSimpleString(code, "<string>").exit0or1
       else:
         p.unknownOption()
