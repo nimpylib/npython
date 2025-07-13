@@ -9,7 +9,7 @@ import methodobject
 import funcobjectImpl
 import descrobject
 import dictproxyobject
-
+import ./hash
 import ../Utils/utils
 import ../Python/call
 
@@ -58,6 +58,14 @@ proc defaultGe(o1, o2: PyObject): PyObject {. cdecl .} =
   let gt = o1.callMagic(gt, o2)
   let eq = o1.callMagic(eq, o2)
   gt.callMagic(Or, eq)
+
+proc hashDefault(self: PyObject): PyObject {. cdecl .} = 
+  let res = cast[BiggestInt](rawHash(self))  # CPython does so
+  newPyInt(res)
+
+proc defaultEq(o1, o2: PyObject): PyObject {. cdecl .} = 
+  if rawEq(o1, o2): pyTrueObj
+  else: pyFalseObj
 
 proc reprDefault(self: PyObject): PyObject {. cdecl .} = 
   newPyString(fmt"<{self.pyType.name} at {self.idStr}>")
@@ -128,9 +136,11 @@ proc addGeneric(t: PyTypeObject) =
     trySetSlot(ne, defaultNe)
   if (not nilMagic(ge)) and (not nilMagic(eq)):
     trySetSlot(ge, defaultGe)
+  trySetSlot(eq, defaultEq)
   trySetSlot(getattr, getAttr)
   trySetSlot(setattr, setAttr)
   trySetSlot(repr, reprDefault)
+  trySetSlot(hash, hashDefault)
   trySetSlot(str, t.magicMethods.repr)
 
 

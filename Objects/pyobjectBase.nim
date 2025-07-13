@@ -24,6 +24,8 @@ type
     BoundMethod,
     Slice,
     Cell,
+    Set,
+    FrozenSet,
 
 when defined(js):
   var objectId = 0
