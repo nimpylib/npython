@@ -5,7 +5,7 @@ import strutils
 import std/sets
 import pyobject
 import baseBundle
-
+import ./iterobject
 
 import ./tupleobject
 import ../Utils/[utils]
@@ -19,10 +19,20 @@ declarePyType FrozenSet(reprLock, tpToken):
 
 template setSeqToStr(ss): string = '{' & ss.join", " & '}'
 
-template getItems(s: PyObject): HashSet =
+template getItems(s: PyObject, elseDo): HashSet =
   if s.ofPySetObject: PySetObject(s).items
   elif s.ofPyFrozenSetObject: PyFrozenSetObject(s).items
-  else: return newNotImplementedError""   # TODO
+  else: elseDo
+
+template getItems(s: PyObject): HashSet =
+  getItems s: return newNotImplementedError""   # TODO
+
+
+template getItemsMayIter(s: PyObject): HashSet =
+  getItems s:
+    PyFrozenSetObject(
+      pyFrozenSetObjectType.pyType.magicMethods.init(s, @[])
+    ).items
 
 template genOp(S, mutRead, pyOp, nop){.dirty.} =
   `impl S Magic` pyOp, mutRead:
@@ -73,16 +83,8 @@ template genSet(S, mutRead, mutReadRepr){.dirty.} =
     if self.items.len != 0:
       self.items.clear()
     if args.len == 1:
-      let (iterable, nextMethod) = getIterableWithCheck(args[0])
-      if iterable.isThrownException:
-        return iterable
-      while true:
-        let nextObj = nextMethod(iterable)
-        if nextObj.isStopIter:
-          break
-        if nextObj.isThrownException:
-          return nextObj
-        self.items.incl nextObj
+      pyForIn i, args[0]:
+        self.items.incl i
     pyNone
 
   
@@ -104,6 +106,25 @@ genSet Set, [mutable: read], [mutable: read, reprLock]
 genSet FrozenSet, [], [reprLock]
 
 
+implSetMethod update(args), [mutable: write]:
+  for other in args:
+    self.items.incl(other.getItemsMayIter)
+  pyNone
+
+implSetMethod intersection_update(args), [mutable: write]:
+  for other in args:
+    self.items = self.items * (other.getItemsMayIter)
+  pyNone
+
+implSetMethod difference_update(args), [mutable: write]:
+  for other in args:
+    self.items = self.items - (other.getItemsMayIter)
+  pyNone
+
+implSetMethod symmetric_difference_update(other: PyObject), [mutable: write]:
+  self.items = self.items -+- (other.getItemsMayIter)
+
+
 implSetMethod clear(), [mutable: write]:
   self.items.clear()
   pyNone
@@ -113,8 +134,26 @@ implSetMethod add(item: PyObject), [mutable: write]:
   pyNone
 
 implSetMethod `discard`(item: PyObject), [mutable: write]:
-  self.items.excl(item)
+  if item.ofPyFrozenSetObject or item.ofPySetObject:
+    self.items.excl item.getItems
+  else:
+    self.items.excl(item)
   pyNone
+
+proc removeImpl(self: PySetObject, item: PyObject): PyObject =
+  if self.items.missingOrExcl(item):
+    newKeyError(PyStrObject(item.callMagic(repr)).str)
+  else:
+    pyNone
+
+implSetMethod remove(item: PyObject), [mutable: write]:
+  if item.ofPyFrozenSetObject or item.ofPySetObject:
+    return self.removeImpl(item)
+  else:
+    pyForIn i, args[0]:
+      result = self.removeImpl(i)
+      if result.isThrownException:
+        return
 
 implSetMethod pop(), [mutable: write]:
   if self.items.len == 0:
@@ -122,4 +161,3 @@ implSetMethod pop(), [mutable: write]:
     return newKeyError(msg)
   self.items.pop
 
-# TODO: more ...
