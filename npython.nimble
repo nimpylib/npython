@@ -9,9 +9,6 @@ binDir        = "bin"
 let srcName = "python"
 namedBin[srcName] = "npython"
 
-when defined(npythonUseRegex):
-  requires  "regex"
-  # otherwise uses std/re
 requires  "nim >= 1.6.14"  # 2.* (at least till 2.3.1) is okey, too.
 
 # copied from nimpylib.nimble
