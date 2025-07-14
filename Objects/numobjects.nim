@@ -509,15 +509,12 @@ proc `//`*(a, b: PyIntObject): PyObject =
   retZeroDiv
 
 proc divmodNonZero*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
-  assert lDivmod(a, b, result[0], result[1])
+  ## export for builtins.divmod
+  assert lDivmod(a, b, result.d, result.m)
 
-proc divmod*(a, b: PyIntObject): (PyIntObject, PyIntObject) =
-  ## 
-  var d, m: PyIntObject
-  if not lDivmod(a, b, d, m):
+proc divmod*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
+  if not lDivmod(a, b, result.d, result.m):
     raise newException(ValueError, "division by zero")
-  (d, m)
-
 
 proc vLShift(z, a: var seq[Digit], m: int, d: int): Digit =
   ## Shift digit vector `a[0:m]` left by `d` bits, with 0 <= d < digitBits.
@@ -966,12 +963,34 @@ implFloatMagic mul, [castOther]:
 implFloatMagic trueDiv, [castOther]:
   newPyFloat(self.v / casted.v)
 
+proc floorDivNonZero(a, b: PyFloatObject): PyFloatObject =
+  newPyFloat(floor(a.v / b.v))
 
-implFloatMagic floorDiv, [castOther]:
-  newPyFloat(floor(self.v / casted.v))
+proc floorModNonZero(a, b: PyFloatObject): PyFloatObject =
+  newPyFloat(floorMod(a.v, b.v))
 
-implFloatMagic Mod, [castOther]:
-  newPyFloat((self.v.floorMod casted.v))
+template genDivOrMod(dm, mag){.dirty.} =
+  proc `floor dm`(a, b: PyFloatObject): PyObject =
+    if b.v == 0:
+      retZeroDiv
+    `floor dm NonZero` a, b
+
+  implFloatMagic mag, [castOther]:
+    `floor dm` self, casted
+
+genDivOrMod Div, floorDiv
+genDivOrMod Mod, Mod
+
+proc divmodNonZero*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
+  ## export for builtins.divmod
+  result.d = a.floorDivNonZero b
+  result.m = a.floorModNonZero b
+
+proc divmod*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
+  if b.v == 0.0:
+    raise newException(ValueError, "division by zero")
+  divmodNonZero(a, b)
+
 
 implFloatMagic pow, [castOther]:
   newPyFloat(self.v.pow(casted.v))
