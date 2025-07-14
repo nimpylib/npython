@@ -589,7 +589,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     `py name ObjectType`.magicMethods.New = `newPy name Default`
 
   result.add(getAst(initTypeTmpl(nameIdent, 
-    nameIdent.strVal, 
+    nameIdent.strVal.toLowerAscii, 
     newLit(tpToken), 
     newLit(dict)
     )))
