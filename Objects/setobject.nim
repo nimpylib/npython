@@ -17,7 +17,11 @@ declarePyType Set(reprLock, mutable, tpToken):
 declarePyType FrozenSet(reprLock, tpToken):
   items: HashSet[PyObject]
 
-template setSeqToStr(ss): string = '{' & ss.join", " & '}'
+template setSeqToStr(ss): string =
+  if ss.len == 0:
+    self.pyType.name & "()"
+  else:
+    '{' & ss.join", " & '}'
 
 template getItems(s: PyObject, elseDo): HashSet =
   if s.ofPySetObject: PySetObject(s).items
