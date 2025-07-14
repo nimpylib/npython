@@ -131,6 +131,7 @@ proc inplaceAdd(a: PyIntObject, b: Digit) =
     a.digits.add truncate(carry)
 
 
+# assuming all positive, return a + b
 proc doAdd(a, b: PyIntObject): PyIntObject =
   if a.digits.len < b.digits.len:
     return doAdd(b, a)
@@ -148,32 +149,40 @@ proc doAdd(a, b: PyIntObject): PyIntObject =
 
 # assuming all positive, return a - b
 proc doSub(a, b: PyIntObject): PyIntObject =
-  if a.digits.len < b.digits.len:
-    let c = doSub(b, a)
-    c.sign = Negative
-    return c
-  var carry = Digit(0)
   result = newPyIntSimple()
-  for i in 0..<a.digits.len:
-    let aa = TwoDigits(a.digits[i])
-    var bb = TwoDigits(carry)
-    if i < b.digits.len:
-      bb = bb + TwoDigits(b.digits[i])
-    if bb <= aa:
-      result.digits.add truncate(aa - bb)
-      carry = 0
-    else:
-      result.digits.add(Digit(maxValue - truncate(bb - aa)))
-      carry = 1
-  if carry != 0:
-    result.digits.add carry
+  result.sign = Positive
+
+  var borrow = false #Digit(0)
+
+  # Ensure `a` is the larger of the two
+  var larger = a
+  var smaller = b
+  var sizeA = larger.digits.len
+  var sizeB = smaller.digits.len
+  if sizeA < sizeB or (sizeA == sizeB and doCompare(a, b) == Negative):
     result.sign = Negative
+    larger = b
+    smaller = a
+    swap sizeA, sizeB
+  result.digits.setLen(sizeA)
+
+  # Perform subtraction digit by digit
+  for i in 0..<sizeB:
+    let diff = TwoDigits(larger.digits[i]) - TwoDigits(smaller.digits[i]) - TwoDigits(borrow)
+    result.digits[i] = truncate(diff)
+    borrow = diff < 0
+
+  for i in sizeB..<sizeA:
+    let diff = TwoDigits(larger.digits[i]) - TwoDigits(borrow)
+    result.digits[i] = truncate(diff)
+    borrow = diff < 0
+
+  # Normalize the result to remove leading zeros
   result.normalize()
+
+  # Handle the sign of the result
   if result.digits.len == 0:
     result.sign = Zero
-  else:
-    result.sign = Positive
-
 
 # assuming all positive, return a * b
 proc doMul(a: PyIntObject, b: Digit): PyIntObject =
