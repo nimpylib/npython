@@ -250,7 +250,7 @@ proc `+`*(a, b: PyIntObject): PyIntObject =
     of Zero:
       return a
     of Positive:
-      return doSub(a, b)
+      return doSub(b, a)
   of Zero:
     return b
   of Positive:
