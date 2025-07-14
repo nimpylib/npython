@@ -472,21 +472,20 @@ proc fromStr(s: string): PyIntObject =
     else:
       result.sign = Positive
 
-method `$`*(i: PyIntObject): string = 
-  var strSeq: seq[string]
+method `$`*(i: PyIntObject): string =
   if i.zero:
     return "0"
   var ii = i.copy()
   var r: PyIntObject
   while true:
     (ii, r) = ii.doDiv pyIntTen
-    strSeq.add($int(r.digits[0]))
+    result.add(char(r.digits[0] + Digit('0')))
     if ii.digits.len == 0:
       break
   #strSeq.add($i.digits)
   if i.negative:
-    strSeq.add("-")
-  strSeq.reversed.join()
+    result.add '-'
+  result.reverse
 
 proc hash*(self: PyIntObject): Hash {. inline, cdecl .} = 
   result = hash(self.sign)
