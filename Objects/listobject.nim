@@ -25,7 +25,7 @@ template lsSeqToStr(ss): string = '[' & ss.join", " & ']'
 genSequenceMagics "list",
   implListMagic, implListMethod,
   ofPyListObject, PyListObject,
-  newPyListSimple, [mutable: read], [reprLock, mutable: read],
+  newPyListSimple, [mutable: read], [reprLockWithMsg"[...]", mutable: read],
   lsSeqToStr
 
 implListMagic setitem, [mutable: write]:

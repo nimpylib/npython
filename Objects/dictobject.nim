@@ -54,7 +54,7 @@ implDictMagic contains, [mutable: read]:
   else:
     return pyTrueObj
 
-implDictMagic repr, [mutable: read, reprLock]:
+implDictMagic repr, [mutable: read, reprLockWithMsg"{...}"]:
   var ss: seq[string]
   for k, v in self.table.pairs:
     let kRepr = k.callMagic(repr)

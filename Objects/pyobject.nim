@@ -384,10 +384,10 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
     discard
 
 
-macro reprLock*(code: untyped): untyped = 
+proc reprLockImpl(s, code: NimNode): NimNode =
   let reprEnter = quote do:
     if self.reprLock:
-      return newPyString("...")
+      return newPyString(`s`)
     self.reprLock = true
 
   let reprLeave = quote do: 
@@ -405,6 +405,12 @@ macro reprLock*(code: untyped): untyped =
       )
     )
   code
+
+macro reprLockWithMsg*(s: string, code: untyped): untyped =
+  reprLockImpl(s, code)
+
+macro reprLock*(code: untyped): untyped = 
+  reprLockImpl(newLit"...", code)
 
 template allowSelfReadWhenBeforeRealWrite*(body) =
   self.writeLock = false
