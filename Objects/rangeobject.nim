@@ -54,11 +54,11 @@ implRangeMagic init:
   # range(0, 3, 3): l = 1
   # range(0, 3, 4): l = 2
   if step.positive:
-    length = (ending - start + step - pyIntOne) div step
+    length = (ending - start + step - pyIntOne).floorDivNonZero step
   # range(1, -1, -1): l = 2
   else:
     assert step.negative
-    length = (-ending + start - step - pyIntOne) div -step
+    length = (-ending + start - step - pyIntOne).floorDivNonZero -step
   if length.negative:
     length = pyIntZero
   self.start = start

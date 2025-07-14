@@ -8,14 +8,24 @@ import macros
 import strformat
 import strutils
 import math
+import std/bitops
+const BitPerByte = 8
+proc bit_length*(self: SomeInteger): int =
+  when defined(noUndefinedBitOpts):
+    sizeof(x) * BitPerByte bitops.countLeadingZeroBits x
+  else:
+    1 + fastLog2(
+      when self is SomeSignedInt: abs(self)
+      else: self
+    )
+
 
 import pyobject
 import exceptions
 import boolobject
 import stringobject
 import ../Utils/utils
-
-# this is a **very slow** bigint lib, div support is not complete.
+# this is a **very slow** bigint lib.
 # Why reinvent such a bad wheel?
 # because we seriously need low level control on our modules
 # todo: make it a decent bigint module
@@ -25,12 +35,10 @@ when defined(js):
   type
     Digit = uint16
     TwoDigits = uint32
+    SDigit = int32
 
   const digitBits = 16
     
-  proc `$`(i: uint16|uint32): string = 
-    $int(i)
-
   template truncate(x: TwoDigits): Digit =
     const mask = 0x0000FFFF
     Digit(x and mask)
@@ -39,16 +47,18 @@ else:
   type
     Digit = uint32
     TwoDigits = uint64
+    SDigit = int64
 
   const digitBits = 32
 
   template truncate(x: TwoDigits): Digit =
     Digit(x)
 
-const maxValue = TwoDigits(high(Digit)) + 1
+type STwoDigit = SDigit
 
-template promote(x: Digit): TwoDigits =
-  TwoDigits(x) shl digitBits
+
+const maxValue = TwoDigits(high(Digit)) + 1
+const sMaxValue = SDigit(high(Digit)) + 1
 
 template demote(x: TwoDigits): Digit =
   Digit(x shr digitBits)
@@ -65,15 +75,50 @@ declarePyType Int(tpToken):
   sign: IntSign
   digits: seq[Digit]
 
-#proc newPyInt(i: Digit): PyIntObject
-proc newPyInt*(i: int): PyIntObject
+#proc compatSign(op: PyIntObject): SDigit{.inline.} = cast[SDigit](op.sign)
+# NOTE: CPython uses 0,1,2 for IntSign, so its `_PyLong_CompactSign` is `1 - sign`
 
-# currently avoid using setLen because of gh-10651
-proc setXLen(intObj: PyIntObject, l: int) =
-  if intObj.digits.len == 0:
-    intObj.digits = newSeq[Digit](l)
+#proc newPyInt(i: Digit): PyIntObject
+proc newPyInt*(o: PyIntObject): PyIntObject =
+  ## deep copy, returning a new object
+  result = newPyIntSimple()
+  result.sign = o.sign
+  result.digits = o.digits
+
+proc newPyInt*(i: Digit): PyIntObject =
+  result = newPyIntSimple()
+  if i != 0:
+    result.digits.add i
+    result.sign = Positive
+  # can't be negative
   else:
-    intObj.digits.setLen(l)
+    result.sign = Zero
+
+proc newPyInt*[I: SomeSignedInt](i: I): PyIntObject =
+  result = newPyIntSimple()
+  var ui = abs(i)
+  while ui != 0:
+    result.digits.add Digit(
+      when sizeof(I) <= sizeof(SDigit): ui
+      else: ui mod I(sMaxValue)
+    )
+    ui = ui shr digitBits
+
+  if i < 0:
+    result.sign = Negative
+  elif i == 0:
+    result.sign = Zero
+  else:
+    result.sign = Positive
+
+proc newPyIntOfLen(l: int): PyIntObject =
+  ## `long_alloc`
+  ## 
+  ## result sign is `Positive` if l != 0; `Zero` otherwise
+  result = newPyIntSimple()
+  result.digits.setLen(l)
+  if l != 0:
+    result.sign = Positive
 
 let pyIntZero* = newPyInt(0)
 let pyIntOne* = newPyInt(1)
@@ -90,6 +135,7 @@ proc positive*(intObj: PyIntObject): bool {. inline .} =
   intObj.sign == Positive
 
 proc copy(intObj: PyIntObject): PyIntObject =
+  ## XXX: copy only digits (sign uninit!)
   let newInt = newPyIntSimple()
   newInt.digits = intObj.digits
   newInt
@@ -308,6 +354,9 @@ proc `-`*(a, b: PyIntObject): PyIntObject =
     of Positive:
       return doSub(a, b)
 
+proc negate*(self: PyIntObject){.inline.} =
+  self.sign = Negative
+
 proc `-`*(a: PyIntObject): PyIntObject =
   result = a.copy()
   result.sign = IntSign(-int(a.sign))
@@ -343,98 +392,335 @@ proc `*`*(a, b: PyIntObject): PyIntObject =
       return c
 
 
-proc doDiv(n, d: PyIntObject): (PyIntObject, PyIntObject) =
-  var
-    nn = n.digits.len
-    dn = d.digits.len
-  assert nn != 0
+template fastExtract(a, b){.dirty.} =
+  let
+    left = SDigit a.digits[0]
+    right = SDigit b.digits[0]
+  when check:
+    assert a.digits.len == 1
+    assert b.digits.len == 1
 
-  if nn < dn:
-    return (pyIntZero, n)
-  elif dn == 1:
-    let dd = d.digits[0]
-    let q = newPyIntSimple()
-    var rr: Digit
-    q.setXLen(n.digits.len)
+proc fast_floor_div(a, b: PyIntObject; check: static[bool] = true): PyIntObject =
+  fastExtract a, b
+  newPyInt floorDiv(left, right)
 
-    for i in countdown(n.digits.high, 0):
-      let tmp = TwoDigits(n.digits[i]) + rr.promote
-      q.digits[i] = truncate(tmp div TwoDigits(dd))
-      rr = truncate(tmp mod Twodigits(dd))
+proc fast_mod(a, b: PyIntObject; check: static[bool] = true): PyIntObject =
+  fastExtract a, b
+  #let sign = b.compatSign
+  newPyInt floorMod(left, right)  
 
-    q.normalize()
-    let r = newPyIntSimple()
-    r.digits.add rr
-    return (q, r)
+proc inplaceDivRem1(pout: var openArray[Digit], pin: openArray[Digit], size: int, n: Digit): Digit =
+  ## Perform in-place division with remainder for a single digit
+  var remainder: TwoDigits = 0
+  assert n > 0 and n < maxValue
+
+  for i in countdown(size - 1, 0):
+    let dividend = (remainder shl digitBits) or TwoDigits(pin[i])
+    let quotient = truncate(dividend div n)
+    remainder = dividend mod n
+    pout[i] = quotient
+
+  return Digit(remainder)
+
+proc divRem1(a: PyIntObject, n: Digit, remainder: var Digit): PyIntObject =
+  ## Divide an integer by a single digit, returning both quotient and remainder
+  ## The sign of a is ignored; n should not be zero.
+  ## 
+  ## the result's sign is always positive
+  assert n > 0 and n < maxValue
+  let size = a.digits.len
+  let quotient = newPyIntOfLen(size)
+  remainder = inplaceDivRem1(quotient.digits, a.digits, size, n)
+  quotient.normalize()
+  return quotient
+
+proc inplaceRem1(pin: var seq[Digit], size: int, n: Digit): Digit =
+  ## Compute the remainder of a multi-digit integer divided by a single digit.
+  ## `pin` points to the least significant digit (LSD).
+  var rem: TwoDigits = 0
+  assert n > 0 and n <= maxValue - 1
+
+  for i in countdown(size - 1, 0):
+    rem = ((rem shl digitBits) or TwoDigits(pin[i])) mod TwoDigits(n)
+
+  return Digit(rem)
+
+proc rem1(a: PyIntObject, n: Digit): PyIntObject =
+  ## Get the remainder of an integer divided by a single digit.
+  ## The sign of `a` is ignored; `n` should not be zero.
+  assert n > 0 and n <= maxValue - 1
+  let size = a.digits.len
+  let remainder = inplaceRem1(a.digits, size, n)
+  return newPyInt(remainder)
+
+proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool
+proc lMod(v, w: PyIntObject, modRes: var PyIntObject): bool =
+  ## Compute modulus: *modRes = v % w
+  ## returns w != 0
+  #assert modRes != nil
+  if v.digits.len == 1 and w.digits.len == 1:
+    modRes = fast_mod(v, w)
+    return not modRes.isNil
+
+  if not tryRem(v, w, modRes):
+    return
+
+  # Adjust signs if necessary
+  if (modRes.sign == Negative and w.sign == Positive) or
+     (modRes.sign == Positive and w.sign == Negative):
+    modRes = modRes + w
+
+template retZeroDiv =
+  return newZeroDivisionError"division by zero"
+
+proc `%`*(a, b: PyIntObject): PyObject =
+  var res: PyIntObject
+  if lMod(a, b, res):
+    retZeroDiv
+  result = res
+
+proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool
+
+template fastDivIf1len(a, b: PyIntObject) =
+  if a.digits.len == 1 and b.digits.len == 1:
+    return fast_floor_div(a, b)
+
+template lDiv(a, b: PyIntObject; result): bool =
+  var unused: PyIntObject
+  lDivmod(a, b, result, unused)
+
+proc floorDivNonZero*(a, b: PyIntObject): PyIntObject =
+  ## `long_div`
+  ## Integer division
+  ## 
+  ## assuming b is non-zero
+  fastDivIf1len a, b
+  assert lDiv(a, b, result)
+
+proc `//`*(a, b: PyIntObject): PyObject =
+  ## `long_div`
+  ## Integer division
+  ## 
+  ## .. note:: this may returns ZeroDivisionError
+  fastDivIf1len a, b
+  var res: PyIntObject
+  if lDiv(a, b, res):
+    return res
+  retZeroDiv
+
+proc divmodNonZero*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
+  assert lDivmod(a, b, result[0], result[1])
+
+proc divmod*(a, b: PyIntObject): (PyIntObject, PyIntObject) =
+  ## 
+  var d, m: PyIntObject
+  if not lDivmod(a, b, d, m):
+    raise newException(ValueError, "division by zero")
+  (d, m)
+
+
+proc vLShift(z, a: var seq[Digit], m: int, d: int): Digit =
+  ## Shift digit vector `a[0:m]` left by `d` bits, with 0 <= d < digitBits.
+  ## Put the result in `z[0:m]`, and return the `d` bits shifted out of the top.
+  assert d >= 0 and d < digitBits
+  var carry: Digit = 0
+  for i in 0..<m:
+    let shifted = (TwoDigits(a[i]) shl d) or TwoDigits(carry)
+    z.add truncate(shifted)
+    carry = truncate(shifted shr digitBits)
+  return carry
+
+proc vRShift(z, a: var seq[Digit], m: int, d: int): Digit =
+  ## Shift digit vector `a[0:m]` right by `d` bits, with 0 <= d < digitBits.
+  ## Put the result in `z[0:m]`, and return the `d` bits shifted out of the bottom.
+  assert d >= 0 and d < digitBits
+  var carry: Digit = 0
+  let mask = (Digit(1) shl d) - 1
+
+  for i in countdown(m - 1, 0):
+    let acc = (TwoDigits(carry) shl digitBits) or TwoDigits(a[i])
+    carry = Digit(acc and mask)
+    z[i] = Digit(acc shr d)
+
+  return carry
+proc xDivRem(v1, w1: PyIntObject, prem: var PyIntObject): PyIntObject =
+  ## `x_divrem`
+  ## Perform unsigned integer division with remainder
+  var v, w, a: PyIntObject
+  var sizeV = v1.digits.len
+  var sizeW = w1.digits.len
+  assert sizeV >= sizeW and sizeW >= 2
+
+  # Allocate space for v and w
+  v = newPyIntSimple()
+  v.digits.setLen(sizeV + 1)
+  w = newPyIntSimple()
+  w.digits.setLen(sizeW)
+
+  # Normalize: shift w1 left so its top digit is >= maxValue / 2
+  let d = digitBits - bitLength(w1.digits[^1])
+  let carryW = vLShift(w.digits, w1.digits, sizeW, d)
+  assert carryW == 0
+  let carryV = vLShift(v.digits, v1.digits, sizeV, d)
+  if carryV != 0 or v.digits[^1] >= w.digits[^1]:
+    v.digits.add carryV
+    inc sizeV
+
+  # Quotient has at most `k = sizeV - sizeW` digits
+  let k = sizeV - sizeW
+  assert k >= 0
+  a = newPyIntSimple()
+  a.digits.setLen(k)
+
+  var v0 = v.digits
+  let w0 = w.digits
+  let wm1 = w0[^1]
+  let wm2 = w0[^2]
+
+  for vk in countdown(k - 1, 0):
+    # Estimate quotient digit `q`
+    let vtop = v0[vk + sizeW]
+    assert vtop <= wm1
+    let vv = (TwoDigits(vtop) shl digitBits) or TwoDigits(v0[vk + sizeW - 1])
+    var q = Digit(vv div wm1)
+    var r = Digit(vv mod wm1)
+
+    while TwoDigits(wm2) * TwoDigits(q) > ((TwoDigits(r) shl digitBits) or TwoDigits(v0[vk + sizeW - 2])):
+      dec q
+      r += wm1
+      if r >= maxValue:
+        break
+    assert q <= maxValue
+
+    # Subtract `q * w0[0:sizeW]` from `v0[vk:vk+sizeW+1]`
+    var zhi: SDigit = 0
+    for i in 0..<sizeW:
+      let z = (SDigit(v0[vk + i]) + zhi).STwoDigit - STwoDigit(q) * STwoDigit(w0[i])
+      v0[vk + i] = truncate(cast[Digit](z))
+      zhi = z shr digitBits
+
+    let svtop = SDigit vtop
+    assert svtop + zhi == -1 or svtop + zhi == 0
+    # Add back `w` if `q` was too large
+    if svtop + zhi < 0:
+      var carry = Digit 0
+      for i in 0..<sizeW:
+        carry += v0[vk + i] + w0[i]
+        v0[vk + i] = truncate(carry)
+        carry = carry shr digitBits
+      dec q
+
+    # Store quotient digit
+    a.digits[vk] = q
+
+  # Unshift remainder
+  let carry = vRShift(w.digits, v0, sizeW, d)
+  assert carry == 0
+  prem = w
+  return a
+
+proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool =
+  ## `long_rem`
+  ## Integer reminder.
+  ## 
+  ## returns if `b` is non-zero  (only false when b is zero)
+  let sizeA = a.digits.len
+  let sizeB = b.digits.len
+
+  if sizeB == 0:
+    #raise newException(ZeroDivisionError, "division by zero")
+    return
+
+  result = true
+  if sizeA < sizeB or (
+      sizeA == sizeB and a.digits[^1] < b.digits[^1]):
+      # |a| < |b|
+    prem = newPyInt(a)
+    return
+
+  if sizeB == 1:
+    prem = rem1(a, b.digits[0])
   else:
-    assert nn >= dn and dn >= 2
-    raise newException(IntError, "")
+    discard xDivRem(a, b, prem)
+
+  #[ Set the sign.]#
+  if (a.sign == Negative) and not prem.zero():
+    prem.negate()
+
+proc tryDivrem(a, b: PyIntObject, pdiv, prem: var PyIntObject): bool =
+  ## `long_divrem`
+  ## Integer division with remainder
+  ## 
+  ## returns if `b` is non-zero  (only false when b is zero)
+  let sizeA = a.digits.len
+  let sizeB = b.digits.len
+
+  if sizeB == 0:
+    #raise newException(ZeroDivisionError, "division by zero")
+    return
+
+  result = true
+  if sizeA < sizeB or (
+      sizeA == sizeB and a.digits[^1] < b.digits[^1]):
+      # |a| < |b|
+    prem = newPyInt(a)
+    pdiv = pyIntZero
+    return
+
+  if sizeB == 1:
+    var remainder: Digit
+    pdiv = divRem1(a, b.digits[0], remainder)
+    prem = newPyInt(remainder)
+  else:
+    pdiv = xDivRem(a, b, prem)
+
+  #[ Set the signs.
+       The quotient pdiv has the sign of a*b;
+       the remainder prem has the sign of a,
+       so a = b*z + r.]#
+  if (a.sign == Negative) != (b.sign == Negative):
+    pdiv.negate()
+  if (a.sign == Negative) and not prem.zero():
+    prem.negate()
 
 
-proc `div`*(a, b: PyIntObject): PyIntObject =
-  case a.sign
-  of Negative:
-    case b.sign
-    of Negative:
-      let (q, r) = doDiv(a, b)
-      if q.digits.len == 0:
-        q.sign = Zero
-      else:
-        q.sign = Positive
-      return q
-    of Zero:
-      assert false
-    of Positive:
-      let (q, r) = doDiv(a, b)
-      if q.digits.len == 0:
-        q.sign = Zero
-      else:
-        q.sign = Negative
-      return q
-  of Zero:
-    return pyIntZero
-  of Positive:
-    case b.sign
-    of Negative:
-      let (q, r) = doDiv(a, b)
-      if q.digits.len == 0:
-        q.sign = Zero
-      else:
-        q.sign = Negative
-      return q
-    of Zero:
-      assert false
-    of Positive:
-      let (q, r) = doDiv(a, b)
-      if q.digits.len == 0:
-        q.sign = Zero
-      else:
-        q.sign = Positive
-      return q
+proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool =
+  ## Python's returns -1 on failure, which is only to be Memory Alloc failure
+  ## where nim will just `SIGSEGV`
+  ## 
+  ## returns w != 0
+  result = true
+
+  # Fast path for single-digit longs
+  if v.digits.len == 1 and w.digits.len == 1:
+    divRes = fast_floor_div(v, w, off)
+    modRes = fast_mod(v, w, off)
+    return
+
+  # Perform long division and remainder
+  if not tryDivrem(v, w, divRes, modRes): return false
+
+  # Adjust signs if necessary
+  if (modRes.sign == Negative and w.sign == Positive) or
+     (modRes.sign == Positive and w.sign == Negative):
+    modRes = modRes + w
+    divRes = divRes - pyIntOne
 
 # a**b
 proc pow(a, b: PyIntObject): PyIntObject =
   assert(not b.negative)
   if b.zero:
     return pyIntOne
-  let new_b = b div pyIntTwo
+  # we have checked b is not zero
+  let new_b = b.floorDivNonZero pyIntTwo
   let half_c = pow(a, new_b)
   if b.digits[0] mod 2 == 1:
     return half_c * half_c * a
   else:
     return half_c * half_c
 
-#[
-proc newPyInt(i: Digit): PyIntObject =
-  result = newPyIntSimple()
-  if i != 0:
-    result.digits.add i
-  # can't be negative
-  if i == 0:
-    result.sign = Zero
-  else:
-    result.sign = Positive
 
+#[
 proc newPyInt(i: int): PyIntObject =
   var ii: int
   if i < 0:
@@ -453,18 +739,15 @@ proc newPyInt(i: int): PyIntObject =
 ]#
 proc fromStr(s: string): PyIntObject =
   result = newPyIntSimple()
-  var start = 0
-  var sign: IntSign
+  var sign = s[0] == '-'
   # assume s not empty
-  if s[0] == '-':
-    start = 1
   result.digits.add 0
-  for i in start..<s.len:
+  for i in (sign.int)..<s.len:
     result = result.doMul(10)
     let c = s[i]
-    result.inplaceAdd Digit(ord(c) - ord('0'))
+    result.inplaceAdd Digit(c) - Digit('0')
   result.normalize
-  if s[0] == '-':
+  if sign:
     result.sign = Negative
   else:
     if result.digits.len == 0:
@@ -476,10 +759,10 @@ method `$`*(i: PyIntObject): string =
   if i.zero:
     return "0"
   var ii = i.copy()
-  var r: PyIntObject
+  var r: Digit
   while true:
-    (ii, r) = ii.doDiv pyIntTen
-    result.add(char(r.digits[0] + Digit('0')))
+    ii = ii.divRem1(10, r)
+    result.add(char(r + Digit('0')))
     if ii.digits.len == 0:
       break
   #strSeq.add($i.digits)
@@ -513,21 +796,6 @@ proc toFloat*(pyInt: PyIntObject): float =
 
 proc newPyInt*(str: string): PyIntObject = 
   fromStr(str)
-
-proc newPyInt*(i: int): PyIntObject = 
-  result = newPyIntSimple()
-  var ui = abs(i)
-  while ui != 0:
-    result.digits.add Digit(ui mod int(maxValue))
-    ui = ui shr digitBits
-
-  if i < 0:
-    result.sign = Negative
-  elif i == 0:
-    result.sign = Zero
-  else:
-    result.sign = Positive
-
 
 proc newPyFloat*(pyInt: PyIntObject): PyFloatObject = 
   result = newPyFloatSimple()
@@ -564,24 +832,21 @@ implIntMagic mul:
 
 
 implIntMagic trueDiv:
-  let casted = newPyFloat(self)
+  let casted = newPyFloat(self) ## XXX: TODO: ref long_true_divide
   casted.callMagic(trueDiv, other)
 
 
 implIntMagic floorDiv:
  if other.ofPyIntObject:
-   let intOther = PyIntObject(other)
-   if intOther.zero:
-     return newZeroDivisionError()
-   try:
-     return self.div PyIntObject(other)
-   except IntError:
-     return newValueError("big int operation not implemented")
+   self // PyIntObject(other)
  elif other.ofPyFloatObject:
    let newFloat = newPyFloat(self)
    return newFloat.callMagic(floorDiv, other)
  else:
    return newTypeError(fmt"floor divide not supported by int and {other.pyType.name}")
+
+implIntMagic Mod:
+  intBinaryTemplate(`%`, pow, "%")
 
 implIntMagic pow:
   intBinaryTemplate(pow, pow, "**")
@@ -705,6 +970,8 @@ implFloatMagic trueDiv, [castOther]:
 implFloatMagic floorDiv, [castOther]:
   newPyFloat(floor(self.v / casted.v))
 
+implFloatMagic Mod, [castOther]:
+  newPyFloat((self.v.floorMod casted.v))
 
 implFloatMagic pow, [castOther]:
   newPyFloat(self.v.pow(casted.v))
