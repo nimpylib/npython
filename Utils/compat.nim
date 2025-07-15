@@ -1,10 +1,11 @@
 when defined(js):
   import strutils
+  import std/jsconsole
   #[
   include karax/prelude
   var stream*: seq[(kstring, kstring)]
-  ]#
   proc log*(prompt, info: cstring) {. importc .}
+  ]#
 
   # how to read from console?
   template readLineCompat*(prompt): string = 
@@ -12,18 +13,16 @@ when defined(js):
 
   template echoCompat*(content: string) =
     echo content
-    for line in content.split("\n"):
-      log(cstring" ", line)
     #stream.add((kstring"", kstring(content)))
 
   template errEchoCompat*(content) = 
-    echoCompat content
+    console.error content
 
-  # combining two seq directly leads to a bug in the compiler when compiled to JS
-  # see gh-10651
+  # Years ago...
+  # combining two seq directly leaded to a bug in the compiler when compiled to JS
+  # see gh-10651 (have been closed)
   template addCompat*[T](a, b: seq[T]) = 
-    for item in b:
-      a.add item
+    a.add b
 
 else:
   import rdstdin
