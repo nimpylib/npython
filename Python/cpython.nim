@@ -70,7 +70,7 @@ proc parseCompileEval*(input: string, lexer: Lexer,
     else:
       prevF = f
 
-proc interactiveShell =
+proc interactiveShell{.mayAsync.} =
   var finished = true
   # the root of the concrete syntax tree. Keep this when user input multiple lines
   var rootCst: ParseNode
@@ -89,7 +89,7 @@ proc interactiveShell =
       assert (not rootCst.isNil)
 
     try:
-      input = readLineCompat(prompt)
+      input = mayAwait readLineCompat(prompt)
     except EOFError, IOError:
       quit(0)
     
@@ -101,16 +101,16 @@ template exit0or1(suc) = quit(if suc: 0 else: 1)
 proc nPython*(args: seq[string],
     fileExists: proc(fp: string): bool,
     readFile: proc(fp: string): string,
-  ) =
+  ){.mayAsync.} =
   pyInit(args)
   if pyConfig.filepath == "":
-    interactiveShell()
-
-  if not fileExists(pyConfig.filepath):
-    echo fmt"File does not exist ({pyConfig.filepath})"
-    quit()
-  let input = readFile(pyConfig.filepath)
-  runSimpleString(input, pyConfig.filepath).exit0or1
+    mayAwait interactiveShell()
+  else:
+    if not fileExists(pyConfig.filepath):
+      echo fmt"File does not exist ({pyConfig.filepath})"
+      quit()
+    let input = readFile(pyConfig.filepath)
+    runSimpleString(input, pyConfig.filepath).exit0or1
 
 
 proc echoUsage() =
@@ -128,7 +128,7 @@ proc echoHelp() =
 
 
 proc main*(cmdline: string|seq[string] = "",
-    nPython: proc (args: seq[string])) =
+    nPython: proc (args: seq[string]){.mayAsync.}){.mayAsync.} =
   proc unknownOption(p: OptParser){.noReturn.} =
     var origKey = "-"
     if p.kind == cmdLongOption: origKey.add '-'
@@ -174,15 +174,15 @@ proc main*(cmdline: string|seq[string] = "",
         p.unknownOption()
     of cmdEnd: break
   case versionVerbosity
-  of 0: nPython args
+  of 0: mayAwait nPython args
   of 1: echoVersion()
   else: echoVersion(verbose=true)
 
 when isMainModule:
   import std/os # file existence
-  proc wrap_nPython(args: seq[string]) =
-    nPython(args, os.fileExists, readFile)
+  proc wrap_nPython(args: seq[string]){.mayAsync.} =
+    mayAwait nPython(args, os.fileExists, readFile)
   when defined(js):
     {.error: "python.nim is for c target. Compile jspython.nim as js target" .}
 
-  main nPython=wrap_nPython
+  mayWaitFor main(nPython=wrap_nPython)
