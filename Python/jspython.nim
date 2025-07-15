@@ -1,11 +1,8 @@
-import neval
-import compile
-import coreconfig
-import traceback
-import lifecycle
+
+import ./neval
 import ../Parser/[lexer, parser]
-import ../Objects/bundle
-import ../Utils/[utils, compat]
+import ./cpython
+import ../Objects/frameobject
 
 var finished = true
 var rootCst: ParseNode
@@ -14,50 +11,42 @@ var prevF: PyFrameObject
 
 proc interactivePython(input: cstring): bool {. exportc .} =
   echo input
-  if finished:
-    rootCst = nil
-    lexerInst.clearIndent
-  else:
-    assert (not rootCst.isNil)
+  return parseCompileEval($input, lexerInst, rootCst, prevF, finished)
 
-  try:
-    rootCst = parseWithState($input, lexerInst, Mode.Single, rootCst)
-  except SyntaxError:
-    let e = SyntaxError(getCurrentException())
-    let excpObj = fromBltinSyntaxError(e, newPyStr("<stdin>"))
-    excpObj.printTb
-    finished = true
-    return true
+import std/jsffi
 
-  if rootCst.isNil:
-    return true
-  finished = rootCst.finished
-  if not finished:
-    return false
+when isMainModule and defined(nodejs):
+  let fs = require("fs");
+  proc fileExists(fp: string): bool =
+    fs.existsSync(fp.cstring).to bool
+  proc readFile(fp: string): string =
+    let buf = fs.readFileSync(fp.cstring)
+    let n = buf.length.to int
+    # without {'encoding': ...} option, Buffer returned
+    when declared(newStringUninit):
+      result = newStringUninit(n)
+      for i in 0..<n:
+        result[i] = buf[i].to char
+    else:
+      for i in 0..<n:
+        result.add buf[i]
 
-  let compileRes = compile(rootCst, "<stdin>")
-  if compileRes.isThrownException:
-    PyExceptionObject(compileRes).printTb
-    return true
-  let co = PyCodeObject(compileRes)
+  proc wrap_nPython(args: seq[string]) =
+    nPython(args, fileExists, readFile)
+  
+  proc commandLineParams(): seq[string] =
+    ## minic std/cmdline's
 
-  when defined(debug):
-    echo co
+    let process = require("process");
+    let start = 2
+    let argv = process.argv #.slice(start)
+    let hi = argv.length.to int
+    let argn = hi - start
+    result = newSeqOfCap[string](argn)
+    for i in start ..< hi:
+      result.add $(argv[i].to cstring)
 
-  var globals: PyDictObject
-  if prevF != nil:
-    globals = prevF.globals
-  else:
-    globals = newPyDict()
-  let fun = newPyFunc(newPyString("Bla"), co, globals)
-  let f = newPyFrame(fun)
-  var retObj = f.evalFrame
-  if retObj.isThrownException:
-    PyExceptionObject(retObj).printTb
-  else:
-    prevF = f
-  true
-
+  main(commandLineParams(), wrap_nPython)
 
 # karax not working. gh-86
 #[
@@ -93,5 +82,3 @@ proc createDom(): VNode =
 setRenderer createDom
 
 ]#
-# init without arguments
-pyInit(@[])

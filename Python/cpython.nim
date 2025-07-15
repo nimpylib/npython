@@ -1,11 +1,6 @@
-when defined(js):
-  {.error: "python.nim is for c target. Compile jspython.nim as js target" .}
 
+import std/parseopt
 import strformat
-
-import os # file existence
-
-
 
 import neval
 import compile
@@ -32,48 +27,31 @@ proc pymain_header =
   if pyConfig.quiet: return
   errEchoCompat getVersionString(verbose=true)
 
-proc interactiveShell =
-  var finished = true
-  # the root of the concrete syntax tree. Keep this when user input multiple lines
-  var rootCst: ParseNode
-  let lexer = newLexer("<stdin>")
-  var prevF: PyFrameObject
-  pymain_header()
-  while true:
-    var input: string
-    var prompt: string
-    if finished:
-      prompt = ">>> "
-      rootCst = nil
-      lexer.clearIndent
-    else:
-      prompt = "... "
-      assert (not rootCst.isNil)
+const Fstdin = "<stdin>"
 
-    try:
-      input = readLineCompat(prompt)
-    except EOFError, IOError:
-      quit(0)
-
+proc parseCompileEval*(input: string, lexer: Lexer, 
+  rootCst: var ParseNode, prevF: var PyFrameObject, finished: var bool
+  ): bool{.discardable.} =
+    ## stuff to change, just a compatitable layer for ./jspython
     try:
       rootCst = parseWithState(input, lexer, Mode.Single, rootCst)
     except SyntaxError:
       let e = SyntaxError(getCurrentException())
-      let excpObj = fromBltinSyntaxError(e, newPyStr("<stdin>"))
+      let excpObj = fromBltinSyntaxError(e, newPyStr(Fstdin))
       excpObj.printTb
       finished = true
-      continue
+      return true
 
     if rootCst.isNil:
-      continue
+      return true
     finished = rootCst.finished
     if not finished:
-      continue
+      return false
 
-    let compileRes = compile(rootCst, "<stdin>")
+    let compileRes = compile(rootCst, Fstdin)
     if compileRes.isThrownException:
       PyExceptionObject(compileRes).printTb
-      continue
+      return true
     let co = PyCodeObject(compileRes)
 
     when defined(debug):
@@ -92,18 +70,48 @@ proc interactiveShell =
     else:
       prevF = f
 
+proc interactiveShell =
+  var finished = true
+  # the root of the concrete syntax tree. Keep this when user input multiple lines
+  var rootCst: ParseNode
+  let lexer = newLexer(Fstdin)
+  var prevF: PyFrameObject
+  pymain_header()
+  while true:
+    var input: string
+    var prompt: string
+    if finished:
+      prompt = ">>> "
+      rootCst = nil
+      lexer.clearIndent
+    else:
+      prompt = "... "
+      assert (not rootCst.isNil)
+
+    try:
+      input = readLineCompat(prompt)
+    except EOFError, IOError:
+      quit(0)
+    
+    parseCompileEval(input, lexer, rootCst, prevF, finished)
+
+
 template exit0or1(suc) = quit(if suc: 0 else: 1)
 
-proc nPython(args: seq[string]) =
+proc nPython*(args: seq[string],
+    fileExists: proc(fp: string): bool,
+    readFile: proc(fp: string): string,
+  ) =
   pyInit(args)
   if pyConfig.filepath == "":
     interactiveShell()
 
-  if not pyConfig.filepath.fileExists:
+  if not fileExists(pyConfig.filepath):
     echo fmt"File does not exist ({pyConfig.filepath})"
     quit()
   let input = readFile(pyConfig.filepath)
   runSimpleString(input, pyConfig.filepath).exit0or1
+
 
 proc echoUsage() =
   echoCompat "usage: python [option] [-c cmd | file]"
@@ -119,9 +127,8 @@ proc echoHelp() =
   echoCompat "file   : program read from script file"
 
 
-when isMainModule:
-  import std/parseopt
-
+proc main*(cmdline: string|seq[string] = "",
+    nPython: proc (args: seq[string])) =
   proc unknownOption(p: OptParser){.noReturn.} =
     var origKey = "-"
     if p.kind == cmdLongOption: origKey.add '-'
@@ -136,7 +143,7 @@ when isMainModule:
   var
     args: seq[string]
     versionVerbosity = 0
-  var p = initOptParser(
+  var p = initOptParser(cmdline,
     shortNoVal={'h', 'V', 'q', 'v'},
     # Python can be considered not to allow: -c:CODE -c=code
     longNoVal = @["help", "version"],
@@ -170,3 +177,12 @@ when isMainModule:
   of 0: nPython args
   of 1: echoVersion()
   else: echoVersion(verbose=true)
+
+when isMainModule:
+  import std/os # file existence
+  proc wrap_nPython(args: seq[string]) =
+    nPython(args, os.fileExists, readFile)
+  when defined(js):
+    {.error: "python.nim is for c target. Compile jspython.nim as js target" .}
+
+  main nPython=wrap_nPython
