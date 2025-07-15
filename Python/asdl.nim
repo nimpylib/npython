@@ -20,7 +20,12 @@ type
 
 
 method hash*(node: AstNodeBase): Hash {. base .} = 
-  hash(cast[int](node))
+  when defined(js):
+    hashes.hash(cast[pointer](node))
+    # NIM-BUG: if cast[int]:
+    #  at rt: SyntaxError: Cannot convert [object Object] to a BigInt
+  else:
+    hash(cast[int](node))
 
 
 proc genMember(member: NimNode): NimNode = 
