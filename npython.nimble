@@ -48,5 +48,7 @@ taskWithArgs test, "test all, assuming after build":
     echo "testing " & i
     exec pyExe & ' ' & i
 
-task buildJs, "build JS":
-  selfExec "js -o:" & binPathWithoutExt & ".js " & srcDir & '/' & srcName
+import std/os
+taskWithArgs buildJs, "build JS":
+  selfExec "js -o:" & binPathWithoutExt & ".js " &
+    args.quoteShellCommand & ' '& srcDir & '/' & srcName
