@@ -2,6 +2,10 @@
 import std/os
 import std/strutils
 
+when defined(js) and not compiles(static(fileExists".")):  
+  proc fileExists(fp: string): bool = true  # XXX: TODO: I've tried many ways
+  # to support compile-time check, but Nim just rejects when JS
+
 when true:
   # copied from std/os, removed `readlink` part, see `XXX` below
   proc findExe*(exe: string, followSymlinks: bool = true;
