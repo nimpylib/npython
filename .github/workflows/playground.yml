@@ -11,7 +11,7 @@ on:
 
 env:
   nim-version: 'stable'
-  git-url-arg: --git.url:https://github.com/${{ github.repository }} --git.commit:master
+  git-repo-url: https://github.com/${{ github.repository }}
   deploy-dir: .gh-pages
 jobs:
   docs:
@@ -33,7 +33,8 @@ jobs:
       run: nimble install karax
     - name: buildKarax
       run: |
-        nimble buildKarax -d:homepage="${{ github.event.repository.homepage }}" \
+        nimble buildKarax \
+        -d:homepage="${{ github.event.repository.homepage }}" -d:gitRepoUrl="${{ env.git-repo-url }}" \
         -d:release --opt:size --includeJs \
         --htmlName=index 
     - name: "CNAME"

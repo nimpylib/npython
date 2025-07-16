@@ -22,7 +22,8 @@ proc interactivePython(input: string): bool {. exportc, discardable .} =
   return parseCompileEval(input, lexerInst, rootCst, prevF, finished)
 
 let info = getVersionString(verbose=true)
-
+const gitRepoUrl{.strdefine.} = ""
+const repoInfoPre = "This website is frontend-only. Open-Source at "
 include karax/prelude
 import karax/kdom
 import karax/vstyles
@@ -66,6 +67,10 @@ proc createDom(): VNode =
     tdiv(class="header"):
       p(class="info"):
         text info
+      when gitRepoUrl.len != 0:
+        small: italic(class="repo-info"): # TODO: artistic
+          text repoInfoPre
+          a(href=gitRepoUrl): text "Github"
     tdiv(class="stream", id=historyContainerId):
       for line in stream:
         let (prompt, content) = line
