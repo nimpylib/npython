@@ -70,7 +70,7 @@ proc parseCompileEval*(input: string, lexer: Lexer,
     else:
       prevF = f
 
-proc interactiveShell{.mayAsync.} =
+proc interactiveShell*{.mayAsync.} =
   var finished = true
   # the root of the concrete syntax tree. Keep this when user input multiple lines
   var rootCst: ParseNode
@@ -91,12 +91,12 @@ proc interactiveShell{.mayAsync.} =
     try:
       input = mayAwait readLineCompat(prompt)
     except EOFError, IOError:
-      quit(0)
+      quitCompat(0)
     
     parseCompileEval(input, lexer, rootCst, prevF, finished)
 
 
-template exit0or1(suc) = quit(if suc: 0 else: 1)
+template exit0or1(suc) = quitCompat(if suc: 0 else: 1)
 
 proc nPython*(args: seq[string],
     fileExists: proc(fp: string): bool,
@@ -108,7 +108,7 @@ proc nPython*(args: seq[string],
   else:
     if not fileExists(pyConfig.filepath):
       echo fmt"File does not exist ({pyConfig.filepath})"
-      quit()
+      quitCompat()
     let input = readFile(pyConfig.filepath)
     runSimpleString(input, pyConfig.filepath).exit0or1
 
@@ -135,11 +135,16 @@ proc main*(cmdline: string|seq[string] = "",
     origKey.add p.key
     errEchoCompat "Unknown option: " & origKey
     echoUsage()
-    quit 2
+    quitCompat 2
   template noLongOption(p: OptParser) =
     if p.kind == cmdLongOption:
       p.unknownOption()
-
+  when defined(js) and cmdline is seq[string]:
+    # fix: initOptParser will call paramCount.
+    #   which is only defined when -d:nodejs
+    var cmdline =
+      if cmdline.len == 0: @["-"]
+      else: cmdline
   var
     args: seq[string]
     versionVerbosity = 0
@@ -157,7 +162,7 @@ proc main*(cmdline: string|seq[string] = "",
       case p.key:
       of "help", "h":
         echoHelp()
-        quit()
+        quitCompat()
       of "version", "V":
         versionVerbosity.inc
       of "q": pyConfig.quiet = true
@@ -170,6 +175,8 @@ proc main*(cmdline: string|seq[string] = "",
           else: p.remainingArgs()[0]
         pyInit(@[])
         runSimpleString(code, "<string>").exit0or1
+      of "":  # allow -
+        discard
       else:
         p.unknownOption()
     of cmdEnd: break

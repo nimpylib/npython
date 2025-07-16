@@ -3,7 +3,7 @@
 when defined(js):
   import std/jsconsole
   const
-    karax* = defined(karax)
+    dKarax = defined(karax)
     jsAlert = defined(jsAlert)
   when jsAlert:
     proc alert(s: cstring){.importc.}
@@ -13,9 +13,10 @@ when defined(js):
       alert cs
     template echoCompat*(content: string) =
       alert cstring content
-  elif karax:
+  elif dKarax:
     include karax/prelude
     var stream*: seq[(kstring, kstring)]
+    proc log*(prompt, info: cstring) {. importc .}
     template echoCompat*(content: string) =
       echo content
       stream.add((kstring"", kstring(content)))
@@ -180,8 +181,11 @@ when not declared(async):
   template mayWaitFor*(x): untyped = x
 
 when not declared(getCurrentDir):
-  import std/os
-  export getCurrentDir
+  when defined(js):
+    proc getCurrentDir*(): string = ""  ## XXX: workaround for pyInit(@[])
+  else:
+    import std/os
+    export getCurrentDir
 
 when not declared(quitCompat):
   template quitCompat*(e: untyped = 0) = quit(e)
