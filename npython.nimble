@@ -55,5 +55,5 @@ taskWithArgs buildJs, "build JS. supported backends: " &
     args.quoteShellCommand & ' '& srcDir & '/' & srcName
 
 taskWithArgs buildKarax, "build html page with karax":
-  exec "karun -d:karax " &
+  selfExec "r --hints:off -d:release Tools/mykarun -d:karax " & " --appName=" & namedBin[srcName] & ' ' &
     args.quoteShellCommand & ' '& srcDir & '/' & srcName
