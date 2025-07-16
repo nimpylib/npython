@@ -4,8 +4,8 @@ when defined(js):
   import std/jsconsole
   template errEchoCompat*(content: string) = 
     console.error cstring content
-  const karax* = defined(karax)
-  when karax:
+  const dKarax = defined(karax)
+  when dKarax:
     include karax/prelude
     var stream*: seq[(kstring, kstring)]
     proc log*(prompt, info: cstring) {. importc .}
@@ -134,7 +134,7 @@ when defined(js):
         bind errEchoCompat, quitCompat
         errEchoCompat(e)
         quitCompat QuitFailure
-  when karax:
+  when dKarax:
     template echoCompat*(content: string) =
       echo content
       stream.add((kstring"", kstring(content)))
@@ -174,8 +174,11 @@ when not declared(async):
   template mayWaitFor*(x): untyped = x
 
 when not declared(getCurrentDir):
-  import std/os
-  export getCurrentDir
+  when defined(js):
+    proc getCurrentDir*(): string = ""  ## XXX: workaround for pyInit(@[])
+  else:
+    import std/os
+    export getCurrentDir
 
 when not declared(quitCompat):
   template quitCompat*(e: untyped = 0) = quit(e)
