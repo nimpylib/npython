@@ -35,10 +35,12 @@ jobs:
       run: |
         nimble buildKarax -d:homepage="${{ github.event.repository.homepage }}" \
         -d:release --opt:size --includeJs \
-        --htmlName=index
-    - name: mv to deploy dir
-      run: mv index.html ${{ env.deploy-dir }}
+        --htmlName=index 
     - name: "CNAME"
+      run: mkdir ${{ env.deploy-dir }} || true
+    - name: mv to deploy dir
+      run: mv index.html ${{ env.deploy-dir }}/index.html
+    - name: create deploy-dir if needed
       run: |
         cname=$(echo ${{ github.event.repository.homepage }} | grep -oP 'https?://\K[^/]+')
         prefix="play."
