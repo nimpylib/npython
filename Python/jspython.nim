@@ -66,53 +66,9 @@ when isMain(nodejs or deno):
   mayWaitFor main(commandLineParams(), wrap_nPython)
 
 else:
-  import ./lifecycle
-  pyInit(@[])
-  when isMain(dkarax):
-    import ../Objects/frameobject
-    import ../Parser/[lexer, parser]
-    var finished = true
-    var rootCst: ParseNode
-    let lexerInst = newLexer("<stdin>")
-    var prevF: PyFrameObject
-    proc interactivePython(input: string): bool {. exportc, discardable .} =
-      echo input
-      if finished:
-        rootCst = nil
-        lexerInst.clearIndent
-      return parseCompileEval(input, lexerInst, rootCst, prevF, finished)
-
-    const prompt = ">>> "
-
-    include karax/prelude
-    import karax/kdom
-
-    proc createDom(): VNode =
-      result = buildHtml(tdiv):
-        tdiv(class="stream"):
-          echo stream.len
-          for line in stream:
-            let (prompt, content) = line
-            tdiv(class="line"):
-              p(class="prompt"):
-                if prompt.len == 0:
-                  text kstring" "
-                else:
-                  text prompt
-              p:
-                text content
-        tdiv(class="line editline"):
-          p(class="prompt"):
-            text prompt
-          p(class="edit", contenteditable="true"):
-            proc onKeydown(ev: Event, n: VNode) =
-              if KeyboardEvent(ev).keyCode == 13:
-                let input = n.dom.innerHTML
-                echo input
-                interactivePython($input)
-                n.dom.innerHTML = kstring""
-                ev.preventDefault
-
-    setRenderer createDom
+  when isMain(dKarax):
+    import ./karaxpython
   elif isMainModule:
+    import ./lifecycle
+    pyInit(@[])
     mayWaitFor interactiveShell()
