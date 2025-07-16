@@ -49,6 +49,11 @@ taskWithArgs test, "test all, assuming after build":
     exec pyExe & ' ' & i
 
 import std/os
-taskWithArgs buildJs, "build JS":
+taskWithArgs buildJs, "build JS. supported backends: " &
+    "-d:nodejs|-d:deno|-d:jsAlert":
   selfExec "js -o:" & binPathWithoutExt & ".js " &
+    args.quoteShellCommand & ' '& srcDir & '/' & srcName
+
+taskWithArgs buildKarax, "build html page with karax":
+  exec "karun -d:karax " &
     args.quoteShellCommand & ' '& srcDir & '/' & srcName
