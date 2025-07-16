@@ -9,3 +9,5 @@ trash/
 
 __pycache__/
 /bin/
+/app.html
+/app.js
