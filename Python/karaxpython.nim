@@ -1,4 +1,11 @@
 {.used.}
+
+import std/strutils
+proc subsNonbreakingSpace(s: var string) =
+  ## The leading space, if with following spaces, in on contenteditable element
+  ## will become `U+00A0` (whose utf-8 encoding is c2a0)
+  s = s.replace("\xc2\xa0", " ")
+
 import ./cpython
 
 import ../Utils/compat
@@ -44,8 +51,8 @@ proc createDom(): VNode =
       p(class="edit", contenteditable="true"):
         proc onKeydown(ev: Event, n: VNode) =
           if KeyboardEvent(ev).keyCode == 13:
-            let input = $n.dom.textContent
-            echo input
+            var input = $n.dom.textContent
+            input.subsNonbreakingSpace
             interactivePython(input)
             n.dom.innerHTML = kstring""
             ev.preventDefault
