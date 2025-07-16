@@ -8,8 +8,7 @@ when defined(js):
   when dKarax:
     include karax/prelude
     var stream*: seq[(kstring, kstring)]
-    proc log*(prompt, info: cstring) {. importc .}
-    
+
   import std/jsffi
 
   when defined(nodejs):

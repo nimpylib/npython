@@ -12,7 +12,7 @@ import ../Parser/[lexer, parser]
 import ../Objects/bundle
 import ../Utils/[utils, compat, getplatform]
 
-proc getVersionString(verbose=false): string =
+proc getVersionString*(verbose=false): string =
   result = "NPython "
   if not verbose:
     result.add Version
