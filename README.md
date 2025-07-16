@@ -2,10 +2,14 @@
 
 (Subset of) Python programming language implemented in Nim, from the compiler to the VM.
 
-[Online interactive demo by compiling Nim to Javascript](https://liwt31.github.io/NPython-demo/).
+[Online interactive demo by compiling Nim to Javascript][play-npython].
+
+[play-npython]: https://play.nimpylib.org/
 
 ### Purpose
-Fun and practice. Learn both Python and Nim.
+- Fun and practice. Learn both Python and Nim.
+- Serve as a altertive small version of CPython
+  (as of 0.1.1, less than 2MB on release build mode)
 
 
 ### Status
@@ -23,12 +27,33 @@ Check out `./tests` to see more examples.
 
 
 ### How to use
+
+#### prepare
+
 ```
-git clone https://github.com/liwt31/NPython.git
-cd NPython
+git clone https://github.com/nimpylib/npython.git
+cd npython
+```
+
+NPython support C backend and multiply JS backends:
+
+> after build passing `-h` flag to npython and you will
+see help message
+
+#### For a binary executable (C backend)
+
+```
 nimble build
 bin/npython
 ```
+
+#### For JS backend
+
+- NodeJS: `nimble buildJs -d:nodejs`
+- Deno: `nimble buildJs -d:deno`
+- Browser, prompt&alert-based repl: `nimble buildJs -d:jsAlert`
+- single page website: `nimble buildKarax` (requires `nimble install karax`). This is how [online playground][play-npython] runs
+
 
 ### Todo
 * more features on user defined class
