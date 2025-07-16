@@ -9,11 +9,6 @@ import ./lifecycle
 import ../Objects/frameobject
 import ../Parser/[lexer, parser]
 pyInit(@[])
-proc subsNonbreakingSpace(s: var string) =
-  ## The leading space, if with following spaces, in on contenteditable element
-  ## will become `U+00A0` (whose utf-8 encoding is c2a0)
-  s = s.replace("\xc2\xa0", " ")
-
 
 var finished = true
 var rootCst: ParseNode
@@ -36,24 +31,22 @@ var prompt: kstring
 
 let
   suitHeight = (StyleAttr.height, kstring"wrap-content") # XXX: still too height
-  preserveSpaces = (whiteSpace, kstring"pre") # ensure spaces remained
-  monospace = (StyleAttr.font_family, kstring"monospace")
 template oneReplLineNode(editable: static[bool]; promptExpr, editExpr): VNode{.dirty.} =
   buildHtml:
     tdiv(class="line", style=style(
         (display, kstring"flex"),   # make children within one line
         suitHeight,
     )):
-      p(class="prompt" , style=style(
-          suitHeight, monospace, preserveSpaces,
+      pre(class="prompt" , style=style(
+          suitHeight,
       )):
         promptExpr
 
-      p(class="edit", contenteditable=editable, style=style(
+      pre(class="edit", contenteditable=editable, style=style(
         (flex, kstring"1"),  # without this, it becomes uneditable
         (border, kstring"none"),
         (outline, kstring"none"),
-        suitHeight, monospace, preserveSpaces,
+        suitHeight,
       )):
         editExpr
 # TODO: arrow-up / arrow-down for history
@@ -91,7 +84,6 @@ proc createDom(): VNode =
       proc onKeydown(ev: Event, n: VNode) =
         if KeyboardEvent(ev).keyCode == 13:
           var input = $n.dom.textContent
-          input.subsNonbreakingSpace
           pushHistory(prompt, input)
           interactivePython(input)
           n.dom.innerHTML = kstring""
