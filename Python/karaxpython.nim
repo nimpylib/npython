@@ -61,7 +61,7 @@ var historyNode: Node
 type HistoryTrackPos = object
   offset: Natural  ## neg order
 
-proc reset(self: var HistoryTrackPos) = self.offset = 0
+proc reset*(self: var HistoryTrackPos) = self.offset = 0
 
 proc stepToPastImpl(self: var HistoryTrackPos) =
   let hi = stream.high
@@ -76,8 +76,37 @@ proc stepToNowImpl(self: var HistoryTrackPos) =
 template getHistoryRecord(self: HistoryTrackPos): untyped =
   stream[stream.high - self.offset]
 
+{.push noconv.}
+proc createRange(doc: Document): Range{.importcpp.}
+proc setStart(rng: Range, node: Node, pos: int) {.importcpp.}
+proc collapse(rng: Range, b: bool) {.importcpp.}
+proc addRange(s: Selection, rng: Range){.importcpp.}
+{.pop.}
+
+proc setCursorPos(element: Node, position: int) =
+  ## .. note:: position is starting from 1, not 0
+  # from JS code:
+  # Create a new range
+  let range = document.createRange()
+
+  # Get the text node
+  let textNode = element.firstChild
+
+  # Set the position
+  range.setStart(textNode, position)
+  range.collapse(true)
+
+  # Apply the selection
+  let selection = document.getSelection()
+  selection.removeAllRanges()
+  selection.addRange(range)
+
+  # Focus the element
+  element.focus();
+
+
 template genStep(pastOrNext){.dirty.} =
-  proc `stepTo pastOrNext`*(self: var HistoryTrackPos, n: var Node) =
+  proc `stepTo pastOrNext`*(self: var HistoryTrackPos, input: var Node) =
     self.`stepTo pastOrNext Impl`
     var tup: tuple[prompt, info: kstring]
 
@@ -87,14 +116,18 @@ template genStep(pastOrNext){.dirty.} =
       self.`stepTo pastOrNext Impl`
       tup = self.getHistoryRecord
 
-    n.innerHtml = tup.info
+    let hisInp = tup.info
+    input.innerHTML = hisInp
+    # set cursor to end  (otherwise it'll just be at the begining)
+    let le = hisInp.len  # XXX: suitable for Unicode?
+    input.setCursorPos(le)
 
 genStep Past
 genStep Now
 
 var historyInputPos: HistoryTrackPos
 
-# TODO: arrow-up / arrow-down for history
+
 proc pushHistory(prompt: kstring, exp: string) =
   stream.add (prompt, kstring exp)
 
