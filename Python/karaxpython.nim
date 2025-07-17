@@ -32,7 +32,9 @@ var prompt: kstring
 
 let
   suitHeight = (StyleAttr.height, kstring"wrap-content") # XXX: still too height
-template oneReplLineNode(editable: static[bool]; promptExpr, editExpr): VNode{.dirty.} =
+
+template oneReplLineNode(editNodeClasses;
+    editable: static[bool]; promptExpr, editExpr): VNode =
   buildHtml:
     tdiv(class="line", style=style(
         (display, kstring"flex"),   # make children within one line
@@ -43,24 +45,39 @@ template oneReplLineNode(editable: static[bool]; promptExpr, editExpr): VNode{.d
       )):
         promptExpr
 
-      pre(class="edit", contenteditable=editable, style=style(
+      pre(class=editNodeClasses, contenteditable=editable, style=style(
         (flex, kstring"1"),  # without this, it becomes uneditable
         (border, kstring"none"),
         (outline, kstring"none"),
         suitHeight,
       )):
         editExpr
-# TODO: arrow-up / arrow-down for history
+
 const historyContainerId = "history-container"
+var historyNode: Node
+
+# TODO: arrow-up / arrow-down for history
 proc pushHistory(prompt: kstring, exp: string) =
   stream.add (prompt, kstring exp)
 
   # auto scroll down when the inputing line is to go down the view
-  let historyNode = document.getElementById(historyContainerId)
   let last = historyNode.lastChild
   if last.isNil: return
   last.scrollIntoView(ScrollIntoViewOptions(
     `block`: "start", inline: "start", behavior: "instant"))
+
+const isEditingClass = "isEditing"
+
+# NOTE: do not use add callback for DOMContentLoaded
+#  as karax's init is called on windows.load event
+#  so to set `clientPostRenderCallback` of setRenderer
+proc postRenderCallback() =
+  historyNode = document.getElementById(historyContainerId)
+
+  let nodes = document.getElementsByClassName(isEditingClass)
+  assert nodes.len == 1, $nodes.len
+  let edit = nodes[0]
+  edit.focus()
 
 proc createDom(): VNode =
   result = buildHtml(tdiv):
@@ -75,10 +92,10 @@ proc createDom(): VNode =
       for line in stream:
         let (prompt, content) = line
         tdiv(class="history"):
-          oneReplLineNode(false,
+          oneReplLineNode("expr", false,
             text prompt, text content
           )
-    oneReplLineNode(true, block:
+    oneReplLineNode("expr " & isEditingClass, true, block:
       prompt = if finished:
         kstring">>> "
       else:
@@ -95,4 +112,5 @@ proc createDom(): VNode =
           ev.preventDefault
     )
 
-setRenderer createDom
+setRenderer createDom, clientPostRenderCallback=postRenderCallback
+
