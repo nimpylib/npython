@@ -21,11 +21,13 @@ export pyobjectBase
 template getMagic*(obj: PyObject, methodName): untyped = 
   obj.pyType.magicMethods.methodName
 
-template getFun*(obj: PyObject, methodName: untyped, handleExcp=false): untyped = 
-  if obj.pyType.isNil:
-    unreachable("Py type not set")
-  let fun = getMagic(obj, methodName)
-  if fun.isNil:
+
+template checkTypeNotNil(obj) =
+  when not defined(release):
+    if obj.pyType.isNil:
+      unreachable("Py type not set")
+
+template handleNilFunOfGetFun(obj, methodName, handleExcp) =
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
     let msg = "No " & methodStr & " method for " & objTypeStr & " defined"
@@ -34,16 +36,20 @@ template getFun*(obj: PyObject, methodName: untyped, handleExcp=false): untyped 
       handleException(excp)
     else:
       return excp
+
+template getFun*(obj: PyObject, methodName: untyped, handleExcp=false): untyped = 
+  bind checkTypeNotNil, handleNilFunOfGetFun
+  obj.checkTypeNotNil
+  let fun = getMagic(obj, methodName)
+  if fun.isNil:
+    handleNilFunOfGetFun(obj, methodName, handleExcp)
   fun
 
 
 # XXX: `obj` is used twice so it better be a simple identity
 # if it's a function then the function is called twice!
 
-# is there any ways to reduce the repetition? simple template won't work
-template callMagic*(obj: PyObject, methodName: untyped, handleExcp=false): PyObject = 
-  let fun = obj.getFun(methodName, handleExcp)
-  let res = fun(obj)
+template checkExcAndRet[T](res: T, handleExcp): T =
   when handleExcp:
     if res.isThrownException:
       handleException(res)
@@ -51,16 +57,35 @@ template callMagic*(obj: PyObject, methodName: untyped, handleExcp=false): PyObj
   else:
     res
 
+# is there any ways to reduce the repetition? simple template won't work
+template callMagic*(obj: PyObject, methodName: untyped, handleExcp=false): PyObject = 
+  let fun = obj.getFun(methodName, handleExcp)
+  let res = fun(obj)
+  bind checkExcAndRet
+  res.checkExcAndRet handleExcp
+
   
 template callMagic*(obj: PyObject, methodName: untyped, arg1: PyObject, handleExcp=false): PyObject = 
   let fun = obj.getFun(methodName, handleExcp)
   let res = fun(obj, arg1)
-  when handleExcp:
-    if res.isThrownException:
-      handleException(res)
-    res
+  bind checkExcAndRet
+  res.checkExcAndRet handleExcp
+
+
+template callInplaceMagic*(obj: PyObject, methodName1: untyped,
+    arg1: PyObject, handleExcp=false): PyObject = 
+  bind checkTypeNotNil, handleNilFunOfGetFun
+  bind checkExcAndRet
+  obj.checkTypeNotNil
+  var fun = obj.getMagic(methodName1)
+  if fun.isNil:
+    pyNotImplemented
   else:
-    res
+    if fun.isNil:
+      handleNilFunOfGetFun(obj, methodName1, handleExcp)
+    else:
+      let res = fun(obj, arg1)
+      res.checkExcAndRet handleExcp
 
 template callMagic*(obj: PyObject, methodName: untyped, 
                     arg1, arg2: PyObject, handleExcp=false): PyObject = 

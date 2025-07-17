@@ -10,7 +10,7 @@ import builtindict
 import traceback
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
-                   setobject,
+                   setobject, notimplementedobject,
                    exceptionsImpl, moduleobject, methodobject]
 import ../Utils/utils
 
@@ -46,17 +46,46 @@ template doUnary(opName: untyped) =
   let res = top.callMagic(opName, handleExcp=true)
   sSetTop res
 
-macro callInplaceMagic(op1, instr, op2): untyped =
-  let iMagic = ident 'i' & instr.strVal
+macro tryCallInplaceMagic(op1, opName, op2): untyped =
+  let iMagic = ident 'i' & opName.strVal
   quote do:
-    `op1`.callMagic(`iMagic`, `op2`, handleExcp=true)
+    `op1`.callInplaceMagic(`iMagic`, `op2`, handleExcp=false)
 
 template doInplace(opName: untyped) =
   bind callInplaceMagic
   let op2 = sPop()
   let op1 = sTop()
-  let res = op1.callInplaceMagic(opName, op2)
-  sSetTop res
+  let res = op1.tryCallInplaceMagic(opName, op2)
+  if res.isNotImplemented:
+    var nres = op1.callMagic(opName, op2, handleExcp=true)
+    if nres.isNotImplemented:
+      let
+        opStr{.inject.} = "i" & astToStr(opName)
+        # PY-DIFF: not iadd, but +=
+        typ1{.inject.} = op1.pyType.name
+        typ2{.inject.} = op2.pyType.name
+      nres = newTypeError(
+        &"unsupported operand type(s) for '{opStr}': '{typ1}' and '{typ2}'"
+      )
+      sSetTop nres
+    else:
+      sSetTop nres
+      let stIdx = lastI - 2
+      let (opCode, opArg) = f.code.code[stIdx]
+      var st: OpCode
+      case opCode
+      of OpCode.LoadFast: st=StoreFast
+      of OpCode.LoadGlobal: st=StoreGlobal
+      of OpCode.LoadAttr: st=StoreAttr
+      of OpCode.LoadName: st=StoreName
+      of OpCode.LoadDeref: st=StoreDeref
+      of {OpCode.LoadClosure, LoadMethod, LoadClassDeref}:
+        raiseAssert(
+          &"augumented assignment for {opCode} is not implemented yet")
+      else: unreachable()
+      f.code.code.insert (st, opArg), lastI+1
+  else:
+    sSetTop res
 
 template doBinary(opName: untyped) =
   let op2 = sPop()
