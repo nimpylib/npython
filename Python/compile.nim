@@ -360,6 +360,20 @@ genMapMethod toOpCode:
     FloorDiv: BinaryFloorDivide
   }
 
+method toInplaceOpCode(op: AsdlOperator): OpCode {.base.} =
+  echo "inplace ",op
+  assert false
+genMapMethod toInplaceOpCode:
+  {
+    Add: InplaceAdd,
+    Sub: InplaceSubtract,
+    Mult: InplaceMultiply,
+    Div: InplaceTrueDivide,
+    Mod: InplaceModulo,
+    Pow: InplacePower,
+    FloorDiv: InplaceFloorDivide
+  }
+
 
 method toOpCode(op: AsdlUnaryop): OpCode {.base.} =
   unreachable
@@ -468,11 +482,11 @@ compileMethod Assign:
   c.compile(astNode.value)
   c.compile(astNode.targets[0])
 
-
 compileMethod AugAssign:
-  # don't do augassign as it's complicated and not necessary
-  unreachable  # should be blocked by ast
-
+  c.compile(astNode.target)
+  c.compile(astNode.value)
+  let opCode = astNode.op.toInplaceOpCode
+  c.addOp(newInstr(opCode, astNode.lineNo.value))
 
 compileMethod For:
   assert astNode.orelse.len == 0

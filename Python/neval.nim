@@ -46,6 +46,18 @@ template doUnary(opName: untyped) =
   let res = top.callMagic(opName, handleExcp=true)
   sSetTop res
 
+macro callInplaceMagic(op1, instr, op2): untyped =
+  let iMagic = ident 'i' & instr.strVal
+  quote do:
+    `op1`.callMagic(`iMagic`, `op2`, handleExcp=true)
+
+template doInplace(opName: untyped) =
+  bind callInplaceMagic
+  let op2 = sPop()
+  let op1 = sTop()
+  let res = op1.callInplaceMagic(opName, op2)
+  sSetTop res
+
 template doBinary(opName: untyped) =
   let op2 = sPop()
   let op1 = sTop()
@@ -217,20 +229,33 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               let value = sPop()
               discard obj.callMagic(setitem, idx, value, handleExcp=true)
 
+            of OpCode.BinarySubscr:
+              doBinary(getitem)
+
+
             of OpCode.BinaryAdd:
               doBinary(add)
 
             of OpCode.BinarySubtract:
               doBinary(sub)
 
-            of OpCode.BinarySubscr:
-              doBinary(getitem)
-
             of OpCode.BinaryFloorDivide:
               doBinary(floorDiv)
 
             of OpCode.BinaryTrueDivide:
               doBinary(trueDiv)
+
+            of OpCode.InplaceAdd:
+              doInplace(add)
+
+            of OpCode.InplaceSubtract:
+              doInplace(sub)
+
+            of OpCode.InplaceFloorDivide:
+              doInplace(floorDiv)
+
+            of OpCode.InplaceTrueDivide:
+              doInplace(trueDiv)
 
             of OpCode.GetIter:
               let top = sTop()

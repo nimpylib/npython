@@ -57,6 +57,20 @@ type
     Mod: BinaryMethod
     pow: BinaryMethod
     
+    iadd,
+      isub,
+      imul,
+      itrueDiv,
+      ifloorDiv,
+      # use uppercase to avoid conflict with nim keywords
+      # backquoting is a less clear solution
+      iMod,
+      ipow,
+      # note: these 3 are all bitwise operations, nothing to do with keywords `and` or `or`
+      iAnd,
+      iXor,
+      iOr: BinaryMethod
+
     Not: UnaryMethod
     negative: UnaryMethod
     positive: UnaryMethod

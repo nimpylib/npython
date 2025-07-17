@@ -463,7 +463,13 @@ ast expr_stmt, [AsdlStmt]:
     node.value = testlistStarExpr2
     result = node
   of Token.augassign: # `x += 1` like
-    raiseSyntaxError("Inplace operation not implemented", middleChild)
+    let testlistStarExpr2 = astTestlist(parseNode.children[2])
+    let node = newAstAugAssign()
+    setNo(node, middleChild.children[0])
+    node.target = testlistStarExpr1
+    node.op = astAugAssign(middleChild)
+    node.value = testlistStarExpr2
+    result = node
   else:
     raiseSyntaxError("Only support simple assignment like a=1", middleChild)
   assert result != nil
@@ -486,13 +492,50 @@ ast testlist_star_expr, [AsdlExpr]:
     result = newTuple(elms)
   copyNo(result, elms[0])
   assert result != nil
-  
 
+
+#[
+  var op: AsdlAugAssign
+  case token
+  of Token.Plusequal:
+    op = newAstPlusequal()
+  of Token.Minequal:
+    op = newAstMinequal()
+  else:
+    unreachable
+  var nodeSeq = @[firstAstNode]
+  for idx in 1..parseNode.children.len div 2:
+    let nextChild = parseNode.children[2 * idx]
+    let nextAstNode = childAstFunc(nextChild)
+    nodeSeq.add(nextAstNode)
+  result = newAugAssign(op, nodeSeq)
+  copyNo(result, firstAstNode)
+]#
 # augassign: ('+=' | '-=' | '*=' | '@=' | '/=' | '%=' | '&=' | '|=' | '^=' |
 #             '<<=' | '>>=' | '**=' | '//=')
 ast augassign, [AsdlOperator]:
-  raiseSyntaxError("Inplace operator not implemented")
-  
+  assert parseNode.children.len == 1
+  let augassignNode = parseNode.children[0]
+  let token = augassignNode.tokenNode.token
+  result = AsdlOperator(case token
+  of Token.Plusequal: newAstAdd()
+  of Token.Minequal:newAstSub()
+  of Token.Starequal: newAstMult()
+  of Token.Slashequal:newAstDiv()
+  of Token.Percentequal: newAstMod()
+  of Token.DoubleSlashequal: newAstFloorDiv()
+  else:
+    let msg = fmt"Complex augumented assign operation not implemented: " & $token
+    raiseSyntaxError(msg)
+  )
+
+
+#[
+Amperequal
+Vbarequal
+  Circumflexequal
+  ]#
+
 proc astDelStmt(parseNode: ParseNode): AsdlStmt = 
   raiseSyntaxError("del not implemented")
   
@@ -840,24 +883,18 @@ template astForBinOp(childAstFunc: untyped) =
   result = firstAstNode
   for idx in 1..parseNode.children.len div 2:
     let opParseNode = parseNode.children[2 * idx - 1]
-    var op: AsdlOperator
     let token = opParseNode.tokenNode.token
-    case token
-    of Token.Plus:
-      op = newAstAdd()
-    of Token.Minus:
-      op = newAstSub()
-    of Token.Star:
-      op = newAstMult()
-    of Token.Slash:
-      op = newAstDiv()
-    of Token.Percent:
-      op = newAstMod()
-    of Token.DoubleSlash:
-      op = newAstFloorDiv()
+    let op = AsdlOperator(case token
+    of Token.Plus: newAstAdd()
+    of Token.Minus:newAstSub()
+    of Token.Star: newAstMult()
+    of Token.Slash:newAstDiv()
+    of Token.Percent: newAstMod()
+    of Token.DoubleSlash: newAstFloorDiv()
     else:
       let msg = fmt"Complex binary operation not implemented: " & $token
       raiseSyntaxError(msg)
+    )
 
     let secondChild = parseNode.children[2 * idx]
     let secondAstNode = childAstFunc(secondChild)
