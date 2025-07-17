@@ -215,6 +215,8 @@ template checkTypeTmpl(obj, tp, tpObj, methodName) =
     let msg = fmt"{expected} is requred for {mName} (got {got})"
     return newTypeError(msg)
 
+proc isSeqObject(n: NimNode): bool =
+  n.kind == nnkBracketExpr and n[0].eqIdent"seq" and n[1].eqIdent"PyObject"
 
 macro checkArgTypes*(nameAndArg, code: untyped): untyped = 
   let methodName = nameAndArg[0]
@@ -226,30 +228,32 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
     assert varargs[0].strVal == "*"
     varargName = varargs[1].strVal
   let argNum = argTypes.len
-  if varargName == "":
-    #  return `checkArgNum(1, "append")` like
-    body.add newCall(ident("checkArgNum"), 
-               newIntLitNode(argNum), 
-               newStrLitNode(methodName.strVal)
-             )
-  else:
-    body.add newCall(ident("checkArgNumAtLeast"), 
-               newIntLitNode(argNum - 1), 
-               newStrLitNode(methodName.strVal)
-             )
-    let remainingArgNode = ident(varargname)
-    body.add(quote do:
-      let `remainingArgNode` = args[`argNum`-1..^1]
-    )
-
+  let oriParams = code.params
+  let multiArg = argNum > 1 or oriParams[^1][1].isSeqObject
+  if multiArg:
+    if varargName == "":
+      #  return `checkArgNum(1, "append")` like
+      body.add newCall(ident("checkArgNum"), 
+                newIntLitNode(argNum), 
+                newStrLitNode(methodName.strVal)
+              )
+    else:
+      body.add newCall(ident("checkArgNumAtLeast"), 
+                newIntLitNode(argNum - 1), 
+                newStrLitNode(methodName.strVal)
+              )
+      let remainingArgNode = ident(varargname)
+      body.add(quote do:
+        let `remainingArgNode` = args[`argNum`-1..^1]
+      )
 
   for idx, child in argTypes:
     if child.kind == nnkPrefix:
       continue
-    let obj = nnkBracketExpr.newTree(
+    let obj = if multiArg: nnkBracketExpr.newTree(
       ident("args"),
       newIntLitNode(idx),
-    )
+    ) else: oriParams[idx+2][0]
     let name = child[0]
     let tp = child[1]
     if tp.strVal == "PyObject":  # won't bother checking 
