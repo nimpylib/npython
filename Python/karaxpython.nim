@@ -58,23 +58,44 @@ const historyContainerId = "history-container"
 var historyNode: Node
 
 # === history input track ===
-type HistoryTrackPos = object
-  offset: Natural  ## neg order
+import std/options
+type
+  Historyinfo = tuple[prompt, info: kstring]
+  HistoryTrackPos = object
+    offset: Natural  ## neg order
+    incomplete: Option[HistoryInfo]
+    useInComplete: bool
+
+proc pushInCompleteHistory*(self: var HistoryTrackPos, ps, inp: kstring) =
+  self.incomplete = some (ps, inp)
+
+proc popInCompleteHistory*(self: var HistoryTrackPos) =
+  if self.incomplete.isSome:
+    self.incomplete = none HistoryInfo
 
 proc reset*(self: var HistoryTrackPos) = self.offset = 0
 
 proc stepToPastImpl(self: var HistoryTrackPos) =
   let hi = stream.high
+  if self.useInComplete:
+    self.useInComplete = false
+    return
   self.offset =
     if self.offset == hi: hi
     else: self.offset + 1
 proc stepToNowImpl(self: var HistoryTrackPos) =
   self.offset =
-    if self.offset == 0: 0
+    if self.offset == 0:
+      if self.incomplete.isSome:
+        self.useInComplete = true
+      0
     else: self.offset - 1
 
 template getHistoryRecord(self: HistoryTrackPos): untyped =
-  stream[stream.high - self.offset]
+  if self.useInComplete:
+    assert self.incomplete.isSome
+    self.incomplete.unsafeGet()
+  else: stream[stream.high - self.offset]
 
 {.push noconv.}
 proc createRange(doc: Document): Range{.importcpp.}
@@ -83,6 +104,7 @@ proc collapse(rng: Range, b: bool) {.importcpp.}
 proc addRange(s: Selection, rng: Range){.importcpp.}
 {.pop.}
 
+import std/jsconsole
 proc setCursorPos(element: Node, position: int) =
   ## .. note:: position is starting from 1, not 0
   # from JS code:
@@ -93,6 +115,9 @@ proc setCursorPos(element: Node, position: int) =
   let textNode = element.firstChild
 
   # Set the position
+  if textNode.isNil:
+    # happend if last incomplete history input is empty
+    return
   range.setStart(textNode, position)
   range.collapse(true)
 
@@ -134,9 +159,9 @@ proc pushHistory(prompt: kstring, exp: string) =
   historyInputPos.reset
 
   # auto scroll down when the inputing line is to go down the view
-  let last = historyNode.lastChild
-  if last.isNil: return
-  last.scrollIntoView(ScrollIntoViewOptions(
+  let incomplete = historyNode.lastChild
+  if incomplete.isNil: return
+  incomplete.scrollIntoView(ScrollIntoViewOptions(
     `block`: "start", inline: "start", behavior: "instant"))
 
 const isEditingClass = "isEditing"
@@ -177,13 +202,18 @@ proc createDom(): VNode =
     ,
     block:
       proc onKeydown(ev: Event, n: VNode) =
+        template getCurInput: kstring = n.dom.textContent
         case KeyboardEvent(ev).key  # .keyCode is deprecated
         of "Enter":
-          var input = $n.dom.textContent
+          historyInputPos.popInCompleteHistory()
+          let kInput = getCurInput()
+          let input = $kInput
           pushHistory(prompt, input)
           interactivePython(input)
           n.dom.innerHTML = kstring""
         of "ArrowUp":
+          let kInput = getCurInput()
+          historyInputPos.pushIncompleteHistory(prompt, kInput)
           historyInputPos.stepToPast n.dom
         of "ArrowDown":
           historyInputPos.stepToNow n.dom
