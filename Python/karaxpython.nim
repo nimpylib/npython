@@ -24,6 +24,7 @@ proc interactivePython(input: string): bool {. exportc, discardable .} =
 let info = getVersionString(verbose=true)
 const gitRepoUrl{.strdefine.} = ""
 const repoInfoPre = "This website is frontend-only. Open-Source at "
+
 include karax/prelude
 import karax/kdom
 import karax/vstyles
@@ -56,9 +57,48 @@ template oneReplLineNode(editNodeClasses;
 const historyContainerId = "history-container"
 var historyNode: Node
 
+# === history input track ===
+type HistoryTrackPos = object
+  offset: Natural  ## neg order
+
+proc reset(self: var HistoryTrackPos) = self.offset = 0
+
+proc stepToPastImpl(self: var HistoryTrackPos) =
+  let hi = stream.high
+  self.offset =
+    if self.offset == hi: hi
+    else: self.offset + 1
+proc stepToNowImpl(self: var HistoryTrackPos) =
+  self.offset =
+    if self.offset == 0: 0
+    else: self.offset - 1
+
+template getHistoryRecord(self: HistoryTrackPos): untyped =
+  stream[stream.high - self.offset]
+
+template genStep(pastOrNext){.dirty.} =
+  proc `stepTo pastOrNext`*(self: var HistoryTrackPos, n: var Node) =
+    self.`stepTo pastOrNext Impl`
+    var tup: tuple[prompt, info: kstring]
+
+    tup = self.getHistoryRecord
+    if tup.prompt == "":  # is output over input
+      # skip this one
+      self.`stepTo pastOrNext Impl`
+      tup = self.getHistoryRecord
+
+    n.innerHtml = tup.info
+
+genStep Past
+genStep Now
+
+var historyInputPos: HistoryTrackPos
+
 # TODO: arrow-up / arrow-down for history
 proc pushHistory(prompt: kstring, exp: string) =
   stream.add (prompt, kstring exp)
+
+  historyInputPos.reset
 
   # auto scroll down when the inputing line is to go down the view
   let last = historyNode.lastChild
@@ -104,12 +144,18 @@ proc createDom(): VNode =
     ,
     block:
       proc onKeydown(ev: Event, n: VNode) =
-        if KeyboardEvent(ev).keyCode == 13:
+        case KeyboardEvent(ev).key  # .keyCode is deprecated
+        of "Enter":
           var input = $n.dom.textContent
           pushHistory(prompt, input)
           interactivePython(input)
           n.dom.innerHTML = kstring""
-          ev.preventDefault
+        of "ArrowUp":
+          historyInputPos.stepToPast n.dom
+        of "ArrowDown":
+          historyInputPos.stepToNow n.dom
+        else: return
+        ev.preventDefault
     )
 
 setRenderer createDom, clientPostRenderCallback=postRenderCallback
