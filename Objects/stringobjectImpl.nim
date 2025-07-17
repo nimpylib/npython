@@ -50,3 +50,6 @@ implStrMagic New(tp: PyObject, obj: PyObject):
     return newTypeError(
       &"__str__ returned non-string (type {result.pyType.name:.200s})")
 
+
+implStrMagic add(i: PyStrObject):
+  newPyStr self.str & i.str
