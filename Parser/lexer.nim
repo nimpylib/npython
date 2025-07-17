@@ -58,7 +58,6 @@ proc newTokenNode*(token: Token,
   else:
     case token
     of contentTokenSet:
-      assert content != ""
       result = TokenNode(token: token, content: content)
     else:
       assert content == ""
