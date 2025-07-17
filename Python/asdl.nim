@@ -360,7 +360,7 @@ genAsdlTypes:
 
     Delete(expr* targets),
     Assign(expr* targets, expr value),
-    AugAssign(expr target, operator op, expr value),
+    AugAssign(expr target, operator op, expr value), # augmented asgn (in-place op)
     # 'simple' indicates that we annotate simple name without parens
     AnnAssign(expr target, expr annotation, expr? value, int simple),
 

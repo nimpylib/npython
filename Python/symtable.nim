@@ -218,6 +218,11 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
           visit assignNode.targets[0]
           visit assignNode.value
 
+        of AsdlStmtTk.AugAssign:
+          let binOpNode = AstAugAssign(astNode)
+          visit binOpNode.target
+          visit binOpNode.value
+
         of AsdlStmtTk.For:
           let forNode = AstFor(astNode)
           if not (forNode.target.kind == AsdlExprTk.Name):
