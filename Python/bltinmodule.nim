@@ -2,7 +2,7 @@ import strformat
 {.used.}  # this module contains toplevel code, so never `importButNotUsed`
 import neval
 import builtindict
-import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject]
+import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject, notimplementedobject]
 import ../Utils/[utils, macroutils, compat]
 
 
@@ -106,6 +106,7 @@ implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build
   tpMagic(Type, new)(@[pyTypeObjectType, name, newPyTuple(@[]), f.toPyDict()])
 
 
+registerBltinObject("NotImplemented", pyNotImplemented)
 registerBltinObject("None", pyNone)
 registerBltinObject("type", pyTypeObjectType)
 registerBltinObject("range", pyRangeObjectType)

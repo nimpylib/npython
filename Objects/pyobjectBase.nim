@@ -10,6 +10,7 @@ type
     NULL,
     Object,
     None,
+    NotImplemented,
     BaseError, # exception
     Int,
     Float,
