@@ -1028,21 +1028,20 @@ ast atom, [AsdlExpr]:
 
   of Token.NUMBER:
     # float
-    for c in child1.tokenNode.content:
-      if not (c in '0'..'9'):
-        let f = parseFloat(child1.tokenNode.content)
-        let pyFloat = newPyFloat(f)
-        result = newAstConstant(pyFloat)
+    if not child1.tokenNode.content.allCharsInSet({'0'..'9'}):
+      let f = parseFloat(child1.tokenNode.content)
+      let pyFloat = newPyFloat(f)
+      result = newAstConstant(pyFloat)
     # int
-    if result.isNil:
+    else:
       let pyInt = newPyInt(child1.tokenNode.content)
       result = newAstConstant(pyInt)
 
   of Token.STRING:
-    var strSeq: seq[string]
+    var str: string
     for child in parseNode.children:
-      strSeq.add(child.tokenNode.content)
-    let pyString = newPyString(strSeq.join())
+      str.add(child.tokenNode.content)
+    let pyString = newPyString(str)
     result = newAstConstant(pyString)
 
   of Token.True:
