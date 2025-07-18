@@ -7,6 +7,8 @@ when NimMajor > 1:
 else:
   from std/os import `/../`, parentDir
 import ./os_findExe_patch
+when defined(windows):
+  from std/strutils import stripLineEnd
 
 ## see CPython/configure.ac
 
@@ -20,7 +22,11 @@ else:
     bind srcdir_git
     let res = gorgeEx(git.exe & " --git-dir " & srcdir_git & " " & sub)
     assert res.exitCode == 0, res.output
-    res.output
+    when defined(windows):
+      var outp = res.output
+      outp.stripLineEnd
+      outp
+    else: res.output
 
 const
   version = git.exec"rev-parse --short HEAD"
