@@ -1,7 +1,8 @@
 import ./pyobject
 import ./stringobject
+import ./exceptions
 
-declarePyType NotImplemented(tpToken):
+declarePyType NotImplemented():
   discard
 
 let pyNotImplemented* = newPyNotImplementedSimple()  ## singleton
@@ -16,3 +17,5 @@ method `$`*(self: PyNotImplementedObject): string =
 implNotImplementedMagic repr:
   newPyString self.dollar
 
+implNotImplementedMagic New(tp: PyObject):
+  return pyNotImplemented
