@@ -70,3 +70,18 @@ proc getSliceItems*(slice: PySliceObject, src, dest: ptr seq[PyObject]): PyObjec
       dest[].add(src[][start])
       start += step
   pyNone
+
+declarePyType Ellipsis(tpToken):
+  discard
+
+let pyEllipsis* = newPyEllipsisSimple()
+
+proc dollar(self: PyEllipsisObject): string = "Ellipsis"
+method `$`*(self: PyEllipsisObject): string =
+  self.dollar
+
+implEllipsisMagic repr:
+  newPyString self.dollar
+
+implEllipsisMagic New(tp: PyObject):
+  return pyEllipsis
