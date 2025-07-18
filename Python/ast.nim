@@ -7,7 +7,10 @@ import strformat
 
 import asdl
 import ../Parser/[token, parser]
-import ../Objects/[pyobject, noneobject, numobjects, boolobjectImpl, stringobjectImpl]
+import ../Objects/[pyobject, noneobject,
+  numobjects, boolobjectImpl, stringobjectImpl,
+  sliceobject  # pyEllipsis
+  ]
 import ../Utils/[utils, compat]
 
 
@@ -1053,8 +1056,10 @@ ast atom, [AsdlExpr]:
   of Token.None:
     result = newAstConstant(pyNone)
 
+  of Token.Ellipsis:
+    result = newAstConstant(pyEllipsis)
   else:
-    raiseSyntaxError("ellipsis not implemented")
+    unreachable()
 
   assert result != nil
   setNo(result, parseNode.children[0])
