@@ -253,7 +253,7 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
     let obj = if multiArg: nnkBracketExpr.newTree(
       ident("args"),
       newIntLitNode(idx),
-    ) else: oriParams[idx+1][0]
+    ) else: oriParams[idx+2][0]
     let name = child[0]
     let tp = child[1]
     if tp.strVal == "PyObject":  # won't bother checking 
