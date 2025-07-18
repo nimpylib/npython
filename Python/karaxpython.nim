@@ -50,6 +50,10 @@ template oneReplLineNode(editNodeClasses;
         (flex, kstring"1"),  # without this, it becomes uneditable
         (border, kstring"none"),
         (outline, kstring"none"),
+        (wordBreak, kstring"break-all"),  # break anywhere, excluding CJK
+        #(lineBreak, kstring"anywhere"),  # break anywhere, for CJK, not sup by karax
+        #(wordWrap, kstring"anywhere"),   # alias of overflow-wrap,  not sup by karax
+        (whiteSpace, kstring"pre-wrap"),  # Preserve spaces and allow wrapping
         suitHeight,
       )):
         editExpr
