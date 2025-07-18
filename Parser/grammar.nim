@@ -41,7 +41,7 @@ type
     cursor: int
 
 
-const grammarLines = slurp("Grammar").split("\n")
+const grammarLines = slurp("Grammar").splitLines()
 
 
 var 
