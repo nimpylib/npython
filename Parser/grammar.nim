@@ -41,7 +41,9 @@ type
     cursor: int
 
 
-const grammarLines = slurp("Grammar").splitLines()
+const
+  grammarFilepath = "Grammar"
+  grammarLines = slurp(grammarFilepath).splitLines()
 
 
 var 
@@ -485,7 +487,12 @@ proc matchH(grammar: Grammar): GrammarNode =
 
 
 proc lexGrammar = 
-  let lines = grammarLines
+  template lines: untyped = grammarLines
+  template badGrammar(msg) =
+    quit(
+      &"lexerGrammer: Unknown syntax at {grammarFilepath}:{lineIdx}:{line}. " &
+      msg
+    )
   var 
     lineIdx = 0
   while lineIdx < lines.len():
@@ -495,7 +502,7 @@ proc lexGrammar =
       continue
     let colonIdx = line.find(':')
     if colonIdx == -1:
-      quit("Unknown syntax at {lineIdx}: {line}")
+      badGrammar"expect colon but found none"
     let name = line[0..<colonIdx]
 
     var
@@ -505,7 +512,7 @@ proc lexGrammar =
       colIdx = startColIdx
       grammarString = ""
     if startColIdx == line.len():
-      quit("Unknown syntax at {lineIdx}: {line}")
+      badGrammar"nothing found after the colon"
     while true:
       while colIdx < line.len():
         # `)(` will lead to bug, assume not gonna happen
