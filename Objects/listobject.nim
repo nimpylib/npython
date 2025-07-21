@@ -1,4 +1,4 @@
-
+import std/sequtils
 import strformat
 import strutils
 
@@ -28,22 +28,50 @@ genSequenceMagics "list",
   newPyListSimple, [mutable: read], [reprLockWithMsg"[...]", mutable: read],
   lsSeqToStr
 
+proc len*(self: PyListObject): int{.inline.} = self.items.len
+
 implListMagic setitem, [mutable: write]:
   if arg1.ofPyIntObject:
-    let idx = getIndex(PyIntObject(arg1), self.items.len)
+    let idx = getIndex(PyIntObject(arg1), self.len)
     self.items[idx] = arg2
     return pyNone
   if arg1.ofPySliceObject:
-    return newTypeError newPyAscii("store to slice not implemented")
+    let slice = arg1.PySliceObject
+    let iterableToLoop = arg2
+    case slice.stepAsInt
+    of 1, -1:
+      var ls: seq[PyObject]
+      pyForIn it, iterableToLoop:
+        ls.add it
+      self.items[slice.toNimSlice(self.len)] = ls
+    else:
+      let (iterable, nextMethod) = getIterableWithCheck(iterableToLoop)
+      if iterable.isThrownException:
+        return iterable
+      for i in iterInt(slice, self.len):
+        let it = nextMethod(iterable)
+        if it.isStopIter:
+          break
+        if it.isThrownException:
+          return it
+        self.items[i] = it
+    return pyNone
   return newIndexTypeError(newPyAscii"list", arg1)
 
 implListMagic delitem, [mutable: write]:
   if other.ofPyIntObject:
-    let idx = getIndex(PyIntObject(other), self.items.len)
+    let idx = getIndex(PyIntObject(other), self.len)
     self.items.delete idx
     return pyNone
   if other.ofPySliceObject:
-    return newTypeError newPyAscii("delete slice not implemented")
+    let slice = PySliceObject(other)
+    case slice.stepAsInt:
+    of 1, -1:
+      self.items.delete slice.toNimSlice(self.len)
+    else:
+      for i in iterInt(slice, self.len):
+        self.items.delete i
+    return pyNone
   return newIndexTypeError(newPyAscii"list", other)
 
 
