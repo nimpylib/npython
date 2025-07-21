@@ -4,7 +4,7 @@ import strutils
 
 import pyobject
 import baseBundle
-import sliceobject
+import ./sliceobjectImpl
 import iterobject
 import ./tupleobject
 import ../Utils/[utils, compat]

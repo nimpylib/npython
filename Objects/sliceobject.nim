@@ -34,40 +34,7 @@ proc newPySlice*(start, stop, step: PyObject): PyObject =
   slice
 
 
-template I(obj: PySliceObject; attr; defVal: int): int =
-  if obj.attr == pyNone: defVal
-  else:
-    obj.attr.PyIntObject.toInt #  TODO: overflow
-template CI(obj: PySliceObject; attr; defVal, size: int): int =
-  var res = obj.I(attr, defVal)
-  if res < 0: res.inc size
-  res
-
-proc stepAsInt*(slice: PySliceObject): int = slice.I(step, 1)
-proc stopAsInt*(slice: PySliceObject, size: int): int = slice.CI(stop, size, size)
-proc startAsInt*(slice: PySliceObject, size: int): int = slice.CI(start, 0, size)
-
-proc toNimSlice*(sliceStep1: PySliceObject, size: int): Slice[int] =
-  let step = sliceStep1.stepAsInt 
-  let n1 = step < 0
-  let
-    stop = sliceStep1.stopAsInt size
-    start = sliceStep1.startAsInt size
-  assert step.abs == 1
-  if n1: stop+1 .. start
-  else: start .. stop-1
-
-iterator iterInt*(slice: PySliceObject, size: int): int =
-  let
-    step = slice.stepAsInt
-    start = slice.startAsInt size
-    stop = slice.stopAsInt size
-  let neg = step < 0
-  if neg:
-    for i in countdown(start, stop+1, step): yield i
-  else:
-    for i in   countup(start, stop-1, step): yield i
-
+# slice.indices defined in ./sliceobjectImpl
 
 proc calLen*(self: PySliceObject): int =
   ## Get the length of the slice.
