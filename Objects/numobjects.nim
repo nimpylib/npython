@@ -1044,12 +1044,12 @@ implFloatMagic hash:
 
 
 # used in list and tuple
-template getIndex*(obj: PyIntObject, size: int): int = 
+template getIndex*(obj: PyIntObject, size: int, sizeOpIdx: untyped = `<=`): int =
   # todo: if overflow, then thrown indexerror
   var idx = obj.toInt
   if idx < 0:
     idx = size + idx
-  if (idx < 0) or (size <= idx):
+  if (idx < 0) or (sizeOpIdx(size, idx)):
     let msg = "index out of range. idx: " & $idx & ", len: " & $size
     return newIndexError newPyAscii(msg)
   idx
