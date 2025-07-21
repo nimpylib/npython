@@ -29,7 +29,7 @@ template getItems(s: PyObject, elseDo): HashSet =
   else: elseDo
 
 template getItems(s: PyObject): HashSet =
-  getItems s: return newNotImplementedError""   # TODO
+  getItems s: return newNotImplementedError newPyAscii""   # TODO
 
 
 template getItemsMayIter(s: PyObject): HashSet =
@@ -83,7 +83,7 @@ template genSet(S, mutRead, mutReadRepr){.dirty.} =
   `impl S Magic` init:
     if 1 < args.len:
       let msg = $S & fmt" expected at most 1 args, got {args.len}"
-      return newTypeError(msg)
+      return newTypeError newPyStr(msg)
     if self.items.len != 0:
       self.items.clear()
     if args.len == 1:
@@ -146,7 +146,7 @@ implSetMethod `discard`(item: PyObject), [mutable: write]:
 
 proc removeImpl(self: PySetObject, item: PyObject): PyObject =
   if self.items.missingOrExcl(item):
-    newKeyError(PyStrObject(item.callMagic(repr)).str)
+    newKeyError(PyStrObject(item.callMagic(repr)))
   else:
     pyNone
 
@@ -162,6 +162,6 @@ implSetMethod remove(item: PyObject), [mutable: write]:
 implSetMethod pop(), [mutable: write]:
   if self.items.len == 0:
     let msg = "pop from empty set"
-    return newKeyError(msg)
+    return newKeyError(newPyAscii msg)
   self.items.pop
 

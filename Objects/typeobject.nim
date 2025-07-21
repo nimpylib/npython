@@ -37,7 +37,7 @@ implTypeGetter dict:
   newPyDictProxy(self.dict)
 
 implTypeSetter dict:
-  newTypeError(fmt"can't set attributes of built-in/extension type {self.name}")
+  newTypeError(newPyStr fmt"can't set attributes of built-in/extension type {self.name}")
 
 pyTypeObjectType.getsetDescr["__dict__"] = (tpGetter(Type, dict), tpSetter(Type, dict))
 
@@ -75,7 +75,7 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
   if not nameObj.ofPyStrObject:
     let typeStr = nameObj.pyType.name
     let msg = fmt"attribute name must be string, not {typeStr}"
-    return newTypeError(msg)
+    return newTypeError(newPyStr msg)
   let name = PyStrObject(nameObj)
   let typeDict = self.getTypeDict
   if typeDict.isNil:
@@ -95,14 +95,14 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
   if not descr.isNil:
     return descr
 
-  return newAttributeError($self.pyType.name, $name)
+  return newAttributeError(self.pyType.name, $name)
   
 # generic getattr
 proc setAttr(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cdecl .} =
   if not nameObj.ofPyStrObject:
     let typeStr = nameObj.pyType.name
     let msg = fmt"attribute name must be string, not {typeStr}"
-    return newTypeError(msg)
+    return newTypeError(newPyStr msg)
   let name = PyStrObject(nameObj)
   let typeDict = self.getTypeDict
   if typeDict.isNil:
@@ -169,7 +169,7 @@ proc initTypeDict(tp: PyTypeObject) =
    
   # bltin methods
   for name, meth in tp.bltinMethods.pairs:
-    let namePyStr = newPyString(name)
+    let namePyStr = newPyAscii(name)
     d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
 
   tp.dict = d
@@ -192,7 +192,7 @@ implTypeMagic call:
   let newFunc = self.magicMethods.New
   if newFunc.isNil:
     let msg = fmt"cannot create '{self.name}' instances because __new__ is not set"
-    return newTypeError(msg)
+    return newTypeError(newPyStr msg)
   let newObj = newFunc(@[PyObject(self)] & args)
   if newObj.isThrownException:
     return newObj
@@ -290,7 +290,7 @@ implTypeMagic New(metaType: PyTypeObject, name: PyStrObject,
                   bases: PyTupleObject, dict: PyDictObject):
   assert metaType == pyTypeObjectType
   assert bases.len == 0
-  let tp = newPyType(name.str)
+  let tp = newPyType($name.str)
   tp.kind = PyTypeToken.Type
   tp.magicMethods.New = tpMagic(Instance, new)
   updateSlots(tp, dict)

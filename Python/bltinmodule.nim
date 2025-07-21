@@ -7,13 +7,13 @@ import ../Utils/[utils, macroutils, compat]
 
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
-  let nameStr = newPyString(name)
+  let nameStr = newPyAscii(name)
   assert (not bltinDict.hasKey(nameStr))
   bltinDict[nameStr] = newPyNimFunc(fun, nameStr)
 
 
 proc registerBltinObject(name: string, obj: PyObject) = 
-  let nameStr = newPyString(name)
+  let nameStr = newPyAscii(name)
   assert (not bltinDict.hasKey(nameStr))
   bltinDict[nameStr] = obj
 
@@ -68,7 +68,7 @@ proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
   for obj in args:
     let objStr = obj.callMagic(str)
     errorIfNotString(objStr, "__str__")
-    echoCompat PyStrObject(objStr).str
+    echoCompat $PyStrObject(objStr).str
   pyNone
 registerBltinFunction("print", builtinPrint)
 

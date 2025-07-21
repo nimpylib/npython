@@ -48,7 +48,7 @@ implMethodDescrMagic get:
   if other.pyType != self.dType:
     let msg = fmt"descriptor {self.name} for {self.dType.name} objects " &
       fmt"doesn't apply to {other.pyType.name} object"
-    return newTypeError(msg)
+    return newTypeError(newPyStr msg)
   let owner = other
   case self.kind
   of NFunc.BltinFunc:

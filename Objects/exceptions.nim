@@ -102,12 +102,11 @@ template newProcTmpl(excpName) =
     excp.thrown = true
     excp
 
-
-  proc `new excpName Error`*(msgStr:string): PyBaseErrorObject{.inline.} = 
+  proc `new excpName Error`*(msgStr: PyStrObject): PyBaseErrorObject{.inline.} = 
     let excp = `newPy excpName ErrorSimple`()
     excp.tk = ExceptionToken.`excpName`
     excp.thrown = true
-    excp.msg = newPyString(msgStr)
+    excp.msg = msgStr
     excp
 
 
@@ -121,16 +120,17 @@ macro genNewProcs: untyped =
 
 genNewProcs
 
-
-template newAttributeError*(tpName, attrName: string): PyExceptionObject = 
-  let msg = tpName & " has no attribute " & attrName
+template newAttributeError*(tpName, attrName: PyStrObject): PyExceptionObject = 
+  let msg = tpName & newPyAscii" has no attribute " & attrName
   newAttributeError(msg)
 
+template newAttributeError*(tpName, attrName: string): PyExceptionObject = 
+  newAttributeError(tpName.newPyStr, attrName.newPyStr)
 
 
-template newIndexTypeError*(typeName:string, obj:PyObject): PyExceptionObject = 
-  let name = $obj.pyType.name
-  let msg = typeName & " indices must be integers or slices, not " & name
+template newIndexTypeError*(typeName: PyStrObject, obj:PyObject): PyExceptionObject = 
+  let name = obj.pyType.name
+  let msg = typeName & newPyAscii(" indices must be integers or slices, not ") & newPyStr name
   newTypeError(msg)
 
 
@@ -159,13 +159,13 @@ template errorIfNotString*(pyObj: untyped, methodName: string) =
     if not pyObj.ofPyStrObject:
       let typeName {. inject .} = pyObj.pyType.name
       let msg = methodName & fmt" returned non-string (type {typeName})"
-      return newTypeError(msg)
+      return newTypeError newPyStr(msg)
 
 template errorIfNotBool*(pyObj: untyped, methodName: string) = 
     if not pyObj.ofPyBoolObject:
       let typeName {. inject .} = pyObj.pyType.name
       let msg = methodName & fmt" returned non-bool (type {typeName})"
-      return newTypeError(msg)
+      return newTypeError(newPyStr msg)
 
 
 template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) = 
@@ -174,13 +174,13 @@ template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) =
     let iterFunc = obj.getMagic(iter)
     if iterFunc.isNil:
       let msg = obj.pyType.name & " object is not iterable"
-      retTuple = (newTypeError(msg), nil)
+      retTuple = (newTypeError(newPyStr msg), nil)
       break body
     let iterObj = iterFunc(obj)
     let iternextFunc = iterObj.getMagic(iternext)
     if iternextFunc.isNil:
       let msg = fmt"iter() returned non-iterator of type " & iterObj.pyType.name
-      retTuple = (newTypeError(msg), nil)
+      retTuple = (newTypeError(newPyStr msg), nil)
       break body
     retTuple = (iterobj, iternextFunc)
   retTuple
@@ -193,7 +193,7 @@ template checkArgNum*(expected: int, name="") =
       msg = name & " takes exactly " & $expected & fmt" argument ({args.len} given)"
     else:
       msg = "expected " & $expected & fmt" argument ({args.len} given)"
-    return newTypeError(msg)
+    return newTypeError(newPyStr msg)
 
 
 template checkArgNumAtLeast*(expected: int, name="") = 
@@ -203,4 +203,4 @@ template checkArgNumAtLeast*(expected: int, name="") =
       msg = name & " takes at least " & $expected & fmt" argument ({args.len} given)"
     else:
       msg = "expected at least " & $expected & fmt" argument ({args.len} given)"
-    return newTypeError(msg)
+    return newTypeError(newPyStr msg)

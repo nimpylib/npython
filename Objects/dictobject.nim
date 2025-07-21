@@ -39,7 +39,7 @@ template checkHashableTmpl(obj) =
   if hashFunc.isNil:
     let tpName = obj.pyType.name
     let msg = "unhashable type: " & tpName
-    return newTypeError(msg)
+    return newTypeError newPyStr(msg)
 
 
 implDictMagic contains, [mutable: read]:
@@ -48,21 +48,23 @@ implDictMagic contains, [mutable: read]:
     result = self.table.getOrDefault(other, nil)
   except DictError:
     let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
-    return newTypeError(msg)
+    return newTypeError newPyAscii(msg)
   if result.isNil:
     return pyFalseObj
   else:
     return pyTrueObj
 
 implDictMagic repr, [mutable: read, reprLockWithMsg"{...}"]:
-  var ss: seq[string]
+  var ss: seq[UnicodeVariant]
   for k, v in self.table.pairs:
     let kRepr = k.callMagic(repr)
     let vRepr = v.callMagic(repr)
     errorIfNotString(kRepr, "__str__")
     errorIfNotString(vRepr, "__str__")
-    ss.add fmt"{PyStrObject(kRepr).str}: {PyStrObject(vRepr).str}"
-  return newPyString("{" & ss.join(", ") & "}")
+    ss.add newUnicodeUnicodeVariant PyStrObject(kRepr).str.toRunes &
+      toRunes": " &
+      PyStrObject(vRepr).str.toRunes
+  return newPyString(toRunes"{" & ss.joinAsRunes(", ") & toRunes"}")
 
 
 implDictMagic len, [mutable: read]:
@@ -78,16 +80,16 @@ implDictMagic getitem, [mutable: read]:
     result = self.table.getOrDefault(other, nil)
   except DictError:
     let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
-    return newTypeError(msg)
+    return newTypeError newPyAscii(msg)
   if not (result.isNil):
     return result
 
-  var msg: string
+  var msg: PyStrObject
   let repr = other.pyType.magicMethods.repr(other)
   if repr.isThrownException:
-    msg = "exception occured when generating key error msg calling repr"
+    msg = newPyAscii"exception occured when generating key error msg calling repr"
   else:
-    msg = PyStrObject(repr).str
+    msg = PyStrObject(repr)
   return newKeyError(msg)
 
 
@@ -97,7 +99,7 @@ implDictMagic setitem, [mutable: write]:
     self.table[arg1] = arg2
   except DictError:
     let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
-    return newTypeError(msg)
+    return newTypeError newPyAscii(msg)
   pyNone
 
 implDictMethod copy(), [mutable: read]:

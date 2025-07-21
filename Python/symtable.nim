@@ -185,8 +185,8 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
         let genNode = AstComprehension(gen)
         toVisitPerSte.add(genNode.target)
       # the iterator. Need to add here to let symbol table make room for the localVar
-      ste.addDeclaration(newPyString(".0"))
-      ste.argVars[newPyString(".0")] = 0
+      ste.addDeclaration(newPyAscii(".0"))
+      ste.argVars[newPyAscii(".0")] = 0
     else:
       unreachable
 
@@ -251,7 +251,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
 
         of AsdlStmtTk.Assert:
           let assertNode = AstAssert(astNode)
-          ste.addUsed(newPyString("AssertionError"))
+          ste.addUsed(newPyAscii("AssertionError"))
           visit assertNode.test
           visit assertNode.msg
 

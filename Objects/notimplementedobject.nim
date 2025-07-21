@@ -15,7 +15,7 @@ method `$`*(self: PyNotImplementedObject): string =
   self.dollar
 
 implNotImplementedMagic repr:
-  newPyString self.dollar
+  newPyAscii self.dollar
 
 implNotImplementedMagic New(tp: PyObject):
   return pyNotImplemented

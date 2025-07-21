@@ -62,7 +62,7 @@ proc parseCompileEval*(input: string, lexer: Lexer,
       globals = prevF.globals
     else:
       globals = newPyDict()
-    let fun = newPyFunc(newPyString("Bla"), co, globals)
+    let fun = newPyFunc(newPyAscii("Bla"), co, globals)
     let f = newPyFrame(fun)
     var retObj = f.evalFrame
     if retObj.isThrownException:

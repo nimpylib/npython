@@ -470,8 +470,9 @@ proc lMod(v, w: PyIntObject, modRes: var PyIntObject): bool =
      (modRes.sign == Positive and w.sign == Negative):
     modRes = modRes + w
 
+let divZeroError = newPyAscii"division by zero"
 template retZeroDiv =
-  return newZeroDivisionError"division by zero"
+  return newZeroDivisionError divZeroError
 
 proc `%`*(a, b: PyIntObject): PyObject =
   var res: PyIntObject
@@ -734,9 +735,9 @@ proc newPyInt(i: int): PyIntObject =
   result.digits.add uint32(ii shr 32)
   result.normalize
 ]#
-proc fromStr(s: string): PyIntObject =
+proc fromStr[C: char|Rune](s: openArray[C]): PyIntObject =
   result = newPyIntSimple()
-  var sign = s[0] == '-'
+  var sign = s[0] == C'-'
   # assume s not empty
   result.digits.add 0
   for i in (sign.int)..<s.len:
@@ -791,7 +792,7 @@ proc toFloat*(pyInt: PyIntObject): float =
   parseFloat($pyInt)
 
 
-proc newPyInt*(str: string): PyIntObject = 
+proc newPyInt*[C: Rune|char](str: openArray[C]): PyIntObject = 
   fromStr(str)
 
 proc newPyFloat*(pyInt: PyIntObject): PyFloatObject = 
@@ -813,7 +814,7 @@ template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) =
     result = newFloat.callMagic(methodName, other)
   else:
     let msg = methodnameStr & fmt" not supported by int and {other.pyType.name}"
-    result = newTypeError(msg)
+    result = newTypeError(newPyAscii msg)
 
 
 implIntMagic add:
@@ -840,7 +841,7 @@ implIntMagic floorDiv:
    let newFloat = newPyFloat(self)
    return newFloat.callMagic(floorDiv, other)
  else:
-   return newTypeError(fmt"floor divide not supported by int and {other.pyType.name}")
+   return newTypeError(newPyString fmt"floor divide not supported by int and {other.pyType.name}")
 
 implIntMagic Mod:
   intBinaryTemplate(`%`, pow, "%")
@@ -872,7 +873,7 @@ implIntMagic lt:
     result = other.callMagic(ge, self)
   else:
     let msg = fmt"< not supported by int and {other.pyType.name}"
-    result = newTypeError(msg)
+    result = newTypeError(newPyStr msg)
 
 
 implIntMagic eq:
@@ -890,14 +891,14 @@ implIntMagic eq:
       result = other.callMagic(Not)
   else:
     let msg = fmt"== not supported by int and {other.pyType.name}"
-    result = newTypeError(msg)
+    result = newTypeError(newPyStr msg)
 
 implIntMagic str:
-  newPyString($self)
+  newPyAscii($self)
 
 
 implIntMagic repr:
-  newPyString($self)
+  newPyAscii($self)
 
 
 implIntMagic hash:
@@ -915,17 +916,17 @@ implIntMagic New:
   of PyTypeToken.Str:
     let str = cast[PyStrObject](arg).str
     try:
-      return newPyInt(str)
+      return str.doBothKindOk newPyInt
     except ValueError:
       let msg = fmt"invalid literal for int() with base 10: '{str}'"
-      return newValueError(msg)
+      return newValueError(newPyStr msg)
   of PyTypeToken.Bool:
     if cast[PyBoolObject](arg).b:
       return newPyInt(1)
     else:
       return newPyInt(0)
   else:
-    return newTypeError(fmt"Int argument can't be '{arg.pyType.name}'")
+    return newTypeError(newPyStr fmt"Int argument can't be '{arg.pyType.name}'")
 
 template castOtherTypeTmpl(methodName) = 
   var casted {. inject .} : PyFloatObject
@@ -935,7 +936,7 @@ template castOtherTypeTmpl(methodName) =
     casted = newPyFloat(PyIntObject(other))
   else:
     let msg = methodName & fmt" not supported by float and {other.pyType.name}"
-    return newTypeError(msg)
+    return newTypeError(newPyStr msg)
 
 macro castOther(code:untyped):untyped = 
   let fullName = code.name.strVal
@@ -1032,11 +1033,11 @@ implFloatMagic gt, [castOther]:
 
 
 implFloatMagic str:
-  newPyString($self)
+  newPyAscii($self)
 
 
 implFloatMagic repr:
-  newPyString($self)
+  newPyAscii($self)
 
 implFloatMagic hash:
   newPyInt(hash(self.v))
@@ -1050,7 +1051,7 @@ template getIndex*(obj: PyIntObject, size: int): int =
     idx = size + idx
   if (idx < 0) or (size <= idx):
     let msg = "index out of range. idx: " & $idx & ", len: " & $size
-    return newIndexError(msg)
+    return newIndexError newPyAscii(msg)
   idx
 
 

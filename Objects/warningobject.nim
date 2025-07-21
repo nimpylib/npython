@@ -66,7 +66,7 @@ implWarningMessageMagic init:
 ]#
 
 template callReprOrStr(obj: PyObject, reprOrStr): string =
-  obj.getMagic(reprOrStr)(obj).PyStrObject.str
+  $obj.getMagic(reprOrStr)(obj).PyStrObject.str
 
 proc `$`*(self: PyWarningMessageObject): string =
   ("{message : $#, category : $#, filename : $#, lineno : $#, " &

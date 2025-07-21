@@ -24,16 +24,16 @@ template newMagicTmpl(excpName: untyped, excpNameStr: string) =
     if self.msg.isNil:
       msg = "" # could be improved
     elif self.msg.ofPyStrObject:
-      msg = PyStrObject(self.msg).str
+      msg = $PyStrObject(self.msg)
     else:
       # ensure this is either an throwned exception or string for user-defined type
       let msgObj = self.msg.callMagic(repr)
       if msgObj.isThrownException:
         msg = "evaluating __repr__ failed"
       else:
-        msg = PyStrObject(msgObj).str
+        msg = $PyStrObject(msgObj)
     let str = $self.tk & "Error: " & msg
-    newPyString(str)
+    newPyAscii(str)
 
   # this is for initialization at Python level
   `impl excpName ErrorMagic` New:
@@ -70,7 +70,7 @@ proc isExceptionType*(obj: PyObject): bool =
 
 
 proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionObject = 
-  let excpObj = newSyntaxError(e.msg)
+  let excpObj = newSyntaxError newPyStr(e.msg)
   # don't have code name
   excpObj.traceBacks.add (PyObject fileName, PyObject nil, e.lineNo, e.colNo)
   excpObj

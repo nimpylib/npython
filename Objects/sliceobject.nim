@@ -21,7 +21,7 @@ proc newPySlice*(start, stop, step: PyObject): PyObject =
       let indexFun = attr.pyType.magicMethods.index
       if indexFun.isNil:
         let msg = "slice indices must be integers or None or have an __index__ method"
-        return newTypeError(msg)
+        return newTypeError newPyAscii(msg)
       else:
         slice.attr = indexFun(attr)
 
@@ -30,7 +30,7 @@ proc newPySlice*(start, stop, step: PyObject): PyObject =
   setAttrTmpl(step)
   
   if slice.step.ofPyIntObject and (PyIntObject(slice.step).toInt == 0):
-    return newValueError("slice step cannot be zero")
+    return newValueError newPyAscii("slice step cannot be zero")
   slice
 
 
@@ -81,7 +81,7 @@ method `$`*(self: PyEllipsisObject): string =
   self.dollar
 
 implEllipsisMagic repr:
-  newPyString self.dollar
+  newPyAscii self.dollar
 
 implEllipsisMagic New(tp: PyObject):
   return pyEllipsis
