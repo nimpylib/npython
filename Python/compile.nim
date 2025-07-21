@@ -488,6 +488,10 @@ compileMethod AugAssign:
   let opCode = astNode.op.toInplaceOpCode
   c.addOp(newInstr(opCode, astNode.lineNo.value))
 
+compileMethod Delete:
+  for i in astNode.targets:
+    c.compile(i)
+
 compileMethod For:
   assert astNode.orelse.len == 0
   let start = newBasicBlock(BlockType.For)
@@ -789,6 +793,10 @@ compileMethod Subscript:
     c.compile(astNode.value)
     c.compile(astNode.slice)
     c.addOp(OpCode.StoreSubscr, lineNo)
+  elif astNode.ctx of AstDel:
+    c.compile(astNode.value)
+    c.compile(astNode.slice)
+    c.addOp(OpCode.DeleteSubscr, lineNo)
   else:
     unreachable
   
@@ -803,6 +811,8 @@ compileMethod Name:
     c.addLoadOp(astNode.id, lineNo)
   elif astNode.ctx of AstStore:
     c.addStoreOp(astNode.id, lineNo)
+  #elif astNode.ctx of AstDel:
+  #  c.addOp(newArgInstr(OpCode.DeleteName, astNode.id, lineNo))
   else:
     unreachable # no other context implemented
 

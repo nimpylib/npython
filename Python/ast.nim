@@ -264,6 +264,13 @@ method setStore(astNode: AstTuple) =
   for elm in astNode.elts:
     elm.setStore()
 
+method setDelete(astNode: AstNodeBase) {.base.} =
+  if not (astNode of AsdlExpr):
+    unreachable
+  raiseSyntaxError("can't delete", AsdlExpr(astNode))
+method setDelete(astNode: AstSubscript) = 
+  astnode.ctx = newAstDel()
+
 # single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
 ast single_input, [AstInteractive]:
   result = newAstInteractive()
@@ -539,9 +546,18 @@ Vbarequal
   Circumflexequal
   ]#
 
-proc astDelStmt(parseNode: ParseNode): AsdlStmt = 
-  raiseSyntaxError("del not implemented")
-  
+# del_stmt: 'del' exprlist
+ast del_stmt, [AsdlStmt]:
+  var node = newAstDelete()
+  setNo(node, parseNode.children[0])
+  let exprlist = parseNode.children[1]
+
+  let ls = astExprList(exprlist)
+  setDelete ls
+  node.targets.add(ls)
+  node
+
+
 # pass_stmt: 'pass'
 ast pass_stmt, [AstPass]:
   result = newAstPass()

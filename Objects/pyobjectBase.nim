@@ -107,6 +107,7 @@ type
     # subscription
     getitem: BinaryMethod
     setitem: TernaryMethod
+    delitem: BinaryMethod
 
     # descriptor protocol
     # what to do when getting or setting attributes of its intances
