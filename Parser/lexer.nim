@@ -8,6 +8,8 @@ import tables
 import parseutils
 
 import token
+import ./lexerTypes
+export lexerTypes except lineNo, indentStack
 import ../Utils/[utils, compat]
 
 type
@@ -15,16 +17,6 @@ type
   Source = ref object
     lines: seq[string]
 
-  Mode* {.pure.} = enum
-    Single
-    File
-    Eval
-
-  Lexer* = ref object
-    indentStack: seq[int] # Stack to track indentation levels
-    lineNo: int
-    tokenNodes*: seq[TokenNode] # might be consumed by parser
-    fileName*: string
 
 template indentLevel(lexer: Lexer): int = lexer.indentStack[^1]
 
