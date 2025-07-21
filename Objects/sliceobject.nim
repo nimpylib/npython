@@ -61,7 +61,7 @@ proc getSliceItems*[T](slice: PySliceObject, src: openArray[T], dest: var (seq[T
   template setIndex(name: untyped, defaultValue: int) = 
     let `name Obj` = slice.`name`
     if `name Obj`.ofPyIntObject:
-      name = getIndex(PyIntObject(`name Obj`), src.len)
+      name = getIndex(PyIntObject(`name Obj`), src.len, `<`)
     else:
       assert `name Obj`.ofPyNoneObject
       name = defaultValue
