@@ -1,13 +1,18 @@
 import pyobject
-import boolobject
+import ./stringobject
+import ./exceptions
 
 declarePyType None(tpToken):
   discard
 
-let pyNone* = newPyNoneSimple()
+let pyNone* = newPyNoneSimple()  ## singleton
 
-implNoneMagic eq:
-  if other.ofPyNoneObject:
-    return pyTrueObj
-  else:
-    return pyFalseObj
+proc isPyNone*(o: PyObject): bool = o == pyNone
+
+const sNone = "None"
+method `$`*(_: PyNoneObject): string = sNone
+
+implNoneMagic repr: newPyAscii sNone
+
+implNoneMagic New(tp: PyObject):
+  return pyNone
