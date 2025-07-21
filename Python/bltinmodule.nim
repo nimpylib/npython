@@ -2,7 +2,8 @@ import strformat
 {.used.}  # this module contains toplevel code, so never `importButNotUsed`
 import neval
 import builtindict
-import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject, notimplementedobject]
+import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject,
+  notimplementedobject, sliceobjectImpl]
 import ../Utils/[utils, macroutils, compat]
 
 
@@ -111,6 +112,7 @@ registerBltinObject("Ellipsis", pyEllipsis)
 registerBltinObject("None", pyNone)
 registerBltinObject("type", pyTypeObjectType)
 registerBltinObject("range", pyRangeObjectType)
+registerBltinObject("slice", pySliceObjectType)
 registerBltinObject("list", pyListObjectType)
 registerBltinObject("tuple", pyTupleObjectType)
 registerBltinObject("dict", pyDictObjectType)
