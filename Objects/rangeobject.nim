@@ -18,7 +18,7 @@ implRangeMagic len:
 
 implRangeMagic repr:
   # todo: make it the same as CPython
-  newPyString(fmt"range({self.start}, {self.ending}, {self.step}, {self.length})")
+  newPyAscii(fmt"range({self.start}, {self.ending}, {self.step}, {self.length})")
 
 
 implRangeMagic init:
@@ -27,7 +27,7 @@ implRangeMagic init:
       # CPython uses duck typing here, anything behaves like an int
       # can be passed as argument. Too early for NPython to consider this.
       let msg = "range() only support int arguments"
-      return newTypeError(msg)
+      return newTypeError newPyAscii(msg)
   var start, ending, step: PyIntObject
   case args.len
   of 1:
@@ -44,10 +44,10 @@ implRangeMagic init:
     step = PyIntObject(args[2])
     if step.zero:
       let msg = "range() step must not be 0"
-      return newValueError(msg)
+      return newValueError newPyAscii(msg)
   else:
     let msg = "range() expected 1-3 arguments"
-    return newTypeError(msg)
+    return newTypeError newPyAscii(msg)
   var length: PyIntObject
   # might need to refine this if duck typing is used
   # range(0, 2, 3): l = 1

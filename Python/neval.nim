@@ -64,7 +64,7 @@ template doInplace(opName: untyped) =
         # PY-DIFF: not iadd, but +=
         typ1{.inject.} = op1.pyType.name
         typ2{.inject.} = op2.pyType.name
-      nres = newTypeError(
+      nres = newTypeError newPyStr(
         &"unsupported operand type(s) for '{opStr}': '{typ1}' and '{typ2}'"
       )
       sSetTop nres
@@ -331,7 +331,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               template incompatibleLengthError(gotLen: int) = 
                 let got {. inject .} = $gotLen
                 let msg = fmt"not enough values to unpack (expected {oparg}, got {got})"
-                let excp = newValueError(msg)
+                let excp = newValueError newPyStr(msg)
                 handleException(excp)
               let s = sPop()
               if s.ofPyTupleObject():
@@ -464,7 +464,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 if not targetExcp.isExceptionType:
                   let msg = "catching classes that do not inherit " & 
                             "from BaseException is not allowed"
-                  handleException(newTypeError(msg))
+                  handleException(newTypeError newPyAscii(msg))
                 let currentExcp = PyExceptionObject(sTop())
                 sPush matchExcp(PyTypeObject(targetExcp), currentExcp)
               else:
@@ -513,7 +513,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 obj = bltinDict[name]
               else:
                 let msg = fmt"name '{name.str}' is not defined" 
-                handleException(newNameError(msg))
+                handleException(newNameError newPyStr(msg))
               sPush obj
 
             of OpCode.SetupFinally:
@@ -527,7 +527,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               if obj.isNil:
                 let name = f.code.localVars[opArg]
                 let msg = fmt"local variable {name} referenced before assignment"
-                let excp = newUnboundLocalError(msg)
+                let excp = newUnboundLocalError(newPyStr msg)
                 handleException(excp)
               sPush obj
 
@@ -538,7 +538,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               case opArg
               of 0:
                 if (not hasTryBlock) or getTopBlock.context.isNil:
-                  let excp = newRunTimeError("No active exception to reraise")
+                  let excp = newRunTimeError(newPyAscii"No active exception to reraise")
                   handleException(excp)
                 else:
                   handleException(getTopBlock.context)
@@ -579,7 +579,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 let callFunc = funcObjNoCast.pyType.magicMethods.call
                 if callFunc.isNil:
                   let msg = fmt"{funcObjNoCast.pyType.name} is not callable"
-                  retObj = newTypeError(msg)
+                  retObj = newTypeError(newPyStr msg)
                 else:
                   retObj = callFunc(funcObjNoCast, args)
               if retObj.isThrownException:
@@ -618,7 +618,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               if c.refObj.isNil:
                 let name = f.code.cellVars[opArg]
                 let msg = fmt"local variable {name} referenced before assignment"
-                let excp = newUnboundLocalError(msg)
+                let excp = newUnboundLocalError(newPyStr(msg))
                 handleException(excp)
               sPush c.refObj
 
@@ -633,12 +633,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             else:
               let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"
-              return newNotImplementedError(msg) # no need to handle
+              return newNotImplementedError(newPyAscii msg) # no need to handle
         except OutOfMemDefect:
-          excpObj = newMemoryError("Out of Memory")
+          excpObj = newMemoryError(newPyAscii"Out of Memory")
           handleException(excpObj)
         except InterruptError:
-          excpObj = newKeyboardInterruptError("")
+          excpObj = newKeyboardInterruptError(newPyAscii"Keyboard Interrupt")
           handleException(excpObj)
 
       # exception handler, return exception or re-enter the loop with new instruction index
@@ -674,14 +674,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
 when defined(js):
   proc pyImport*(name: PyStrObject): PyObject =
-    newRunTimeError("Can't import in js mode")
+    newRunTimeError(newPyAscii"Can't import in js mode")
 else:
   import os
   proc pyImport*(name: PyStrObject): PyObject =
-    let filepath = pyConfig.path.joinPath(name.str).addFileExt("py")
+    let filepath = pyConfig.path.joinPath($name.str).addFileExt("py")
     if not filepath.fileExists:
       let msg = fmt"File {filepath} not found"
-      return newImportError(msg)
+      return newImportError(newPyStr(msg))
     let input = readFile(filepath)
     let compileRes = compile(input, filepath)
     if compileRes.isThrownException:
@@ -714,12 +714,12 @@ proc newPyFrame*(fun: PyFunctionObject,
   # handle wrong number of args
   if code.argScopes.len < args.len:
     let msg = fmt"{fun.name.str}() takes {code.argScopes.len} positional arguments but {args.len} were given"
-    return newTypeError(msg)
+    return newTypeError(newPyStr msg)
   elif args.len < code.argScopes.len:
     let diff = code.argScopes.len - args.len
     let msg = fmt"{fun.name.str}() missing {diff} required positional argument: " & 
               fmt"{code.argNames[^diff..^1]}. {args.len} args are given."
-    return newTypeError(msg)
+    return newTypeError(newPyStr(msg))
   let frame = newPyFrame()
   frame.back = back
   frame.code = code
@@ -757,7 +757,7 @@ proc newPyFrame*(fun: PyFunctionObject,
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):
     echo co
-  let fun = newPyFunc(newPyString("<module>"), co, newPyDict())
+  let fun = newPyFunc(newPyAscii("<module>"), co, newPyDict())
   let f = newPyFrame(fun)
   f.evalFrame
 

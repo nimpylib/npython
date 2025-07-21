@@ -601,7 +601,7 @@ compileMethod Assert:
   var ending = newBasicBlock()
   c.compile(astNode.test)
   c.addOp(newJumpInstr(OpCode.PopJumpIfTrue, ending, lineNo))
-  c.addLoadOp(newPyString("AssertionError"), lineNo)
+  c.addLoadOp(newPyAscii("AssertionError"), lineNo)
   if not astNode.msg.isNil:
     c.compile(astNode.msg)
     c.addOp(newArgInstr(OpCode.CallFunction, 1, lineNo))
@@ -714,7 +714,7 @@ compileMethod ListComp:
   let body = newBasicBlock()
   let ending = newBasicBlock()
   c.addOp(newArgInstr(OpCode.BuildList, 0, lineNo))
-  c.addLoadOp(newPyString(".0"), astNode.lineNo.value) # the implicit iterator argument
+  c.addLoadOp(newPyAscii(".0"), astNode.lineNo.value) # the implicit iterator argument
   c.addBlock(body)
   c.addOp(newJumpInstr(OpCode.ForIter, ending, lineNo))
   c.compile(genNode.target)
@@ -725,7 +725,7 @@ compileMethod ListComp:
   c.addBlock(ending)
   c.addOp(OpCode.ReturnValue, lineNo)
 
-  c.makeFunction(c.units.pop, newPyString("listcomp"), lineNo)
+  c.makeFunction(c.units.pop, newPyAscii("listcomp"), lineNo)
   # prepare the first arg of the function
   c.compile(genNode.iter)
   c.addOp(OpCode.GetIter, lineNo)

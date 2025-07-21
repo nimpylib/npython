@@ -31,7 +31,7 @@ template handleNilFunOfGetFun(obj, methodName, handleExcp) =
     let objTypeStr = $obj.pyType.name
     let methodStr = astToStr(methodName)
     let msg = "No " & methodStr & " method for " & objTypeStr & " defined"
-    let excp = newTypeError(msg)
+    let excp = newTypeError(newPyStr msg)
     when handleExcp:
       handleException(excp)
     else:
@@ -213,7 +213,7 @@ template checkTypeTmpl(obj, tp, tpObj, methodName) =
     let got {. inject .}= obj.pyType.name
     let mName {. inject .}= methodName
     let msg = fmt"{expected} is requred for {mName} (got {got})"
-    return newTypeError(msg)
+    return newTypeError newPyStr(msg)
 
 proc isSeqObject(n: NimNode): bool =
   n.kind == nnkBracketExpr and n[0].eqIdent"seq" and n[1].eqIdent"PyObject"
@@ -416,7 +416,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
 proc reprLockImpl(s, code: NimNode): NimNode =
   let reprEnter = quote do:
     if self.reprLock:
-      return newPyString(`s`)
+      return newPyAscii(`s`)
     self.reprLock = true
 
   let reprLeave = quote do: 
@@ -454,7 +454,7 @@ macro mutable*(kind, code: untyped): untyped =
     enterNode = quote do:
       if 0 < self.readNum or self.writeLock:
         let msg = "Write failed because object is been read or written."
-        return newLockError(msg)
+        return newLockError newPyAscii(msg)
       self.writeLock = true
     leaveNode = quote do:
         self.writeLock = false
@@ -462,7 +462,7 @@ macro mutable*(kind, code: untyped): untyped =
     enterNode = quote do:
       if self.writeLock:
         let msg = "Read failed because object is been written."
-        return newLockError(msg)
+        return newLockError newPyAscii(msg)
       inc self.readNum
     leaveNode = quote do:
       dec self.readNum

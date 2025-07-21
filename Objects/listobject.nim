@@ -34,8 +34,8 @@ implListMagic setitem, [mutable: write]:
     self.items[idx] = arg2
     return pyNone
   if arg1.ofPySliceObject:
-    return newTypeError("store to slice not implemented")
-  return newIndexTypeError("list", arg1)
+    return newTypeError newPyAscii("store to slice not implemented")
+  return newIndexTypeError(newPyAscii"list", arg1)
 
 
 implListMethod append(item: PyObject), [mutable: write]:
@@ -104,7 +104,7 @@ implListMethod insert(idx: PyIntObject, item: PyObject), [mutable: write]:
 implListMethod pop(), [mutable: write]:
   if self.items.len == 0:
     let msg = "pop from empty list"
-    return newIndexError(msg)
+    return newIndexError newPyAscii(msg)
   self.items.pop
 
 implListMethod remove(target: PyObject), [mutable: write]:

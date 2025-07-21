@@ -34,7 +34,7 @@ template genCollectMagics*(items,
 
 
   implNameMagic repr, mutReadRepr:
-    var ss: seq[string]
+    var ss: seq[UnicodeVariant]
     for item in self.items:
       var itemRepr: PyStrObject
       let retObj = item.callMagic(repr)
@@ -91,7 +91,7 @@ template genSequenceMagics*(nameStr,
   implNameMagic init:
     if 1 < args.len:
       let msg = nameStr & fmt" expected at most 1 args, got {args.len}"
-      return newTypeError(msg)
+      return newTypeError newPyAscii(msg)
     if self.items.len != 0:
       self.items.setLen(0)
     if args.len == 1:
@@ -117,7 +117,7 @@ template genSequenceMagics*(nameStr,
       else:
         return newObj
       
-    return newIndexTypeError(nameStr, other)
+    return newIndexTypeError(newPyStr nameStr, other)
 
   implNameMethod index(target: PyObject), mutRead:
     for idx, item in self.items:
@@ -127,7 +127,7 @@ template genSequenceMagics*(nameStr,
       if retObj == pyTrueObj:
         return newPyInt(idx)
     let msg = fmt"{target} is not in " & nameStr
-    newValueError(msg)
+    newValueError(newPyStr msg)
 
   implNameMethod count(target: PyObject), mutRead:
     var count: int
@@ -139,17 +139,17 @@ template genSequenceMagics*(nameStr,
         inc count
     newPyInt(count)
 
-proc tupleSeqToString(ss: openArray[string]): string =
+proc tupleSeqToString(ss: openArray[UnicodeVariant]): UnicodeVariant =
   ## one-element tuple must be out as "(1,)"
-  result = "("
+  result = newUnicodeUnicodeVariant "("
   case ss.len
   of 0: discard
   of 1:
-    result.add ss[0]
-    result.add ','
+    result.unicodeStr.add ss[0].toRunes
+    result.unicodeStr.add ','
   else:
-    result.add ss.join", "
-  result.add ')'
+    result.unicodeStr.add ss.joinAsRunes", "
+  result.unicodeStr.add ')'
 
 genSequenceMagics "tuple",
   implTupleMagic, implTupleMethod,

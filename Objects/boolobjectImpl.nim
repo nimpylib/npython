@@ -61,9 +61,9 @@ implBoolMagic eq:
 
 implBoolMagic repr:
   if self.b:
-    return newPyString("True")
+    return newPyAscii("True")
   else:
-    return newPyString("False")
+    return newPyAscii("False")
 
 implBoolMagic hash:
   newPyInt(Hash(self.b))

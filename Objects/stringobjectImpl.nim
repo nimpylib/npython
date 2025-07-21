@@ -1,17 +1,10 @@
-import hashes
+
 import std/strformat
 import pyobject
 import baseBundle
 import stringobject
 
 export stringobject
-
-proc hash*(self: PyStrObject): Hash {. inline, cdecl .} = 
-  hash(self.str)
-
-
-proc `==`*(self, other: PyStrObject): bool {. inline, cdecl .} = 
-  self.str == other.str
 
 
 # redeclare this for these are "private" macros
@@ -31,9 +24,11 @@ implStrMagic eq:
 implStrMagic str:
   self
 
+implStrMagic len:
+  newPyInt self.len
 
 implStrMagic repr:
-  newPyString($self)
+  newPyString(repr self)
 
 
 implStrMagic hash:
@@ -47,9 +42,9 @@ implStrMagic New(tp: PyObject, obj: PyObject):
     return obj.callMagic(repr)
   result = fun(obj)
   if not result.ofPyStrObject:
-    return newTypeError(
+    return newTypeError newPyStr(
       &"__str__ returned non-string (type {result.pyType.name:.200s})")
 
 
 implStrMagic add(i: PyStrObject):
-  newPyStr self.str & i.str
+  self & i
