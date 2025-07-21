@@ -8,6 +8,7 @@ import tables
 import parseutils
 
 import token
+import ./string_parser
 import ./lexerTypes
 export lexerTypes except lineNo, indentStack
 import ../Utils/[utils, compat]
@@ -143,7 +144,8 @@ proc getNextToken(
     if idx + l + 1 == line.len: # pairing `"` not found
       raiseSyntaxError("Invalid string syntax")
     else:
-      result = newTokenNode(Token.String, lexer.lineNo, idx, line[idx+1..idx+l])
+      let s = lexer.decode_unicode_with_escapes(line[idx+1..idx+l])
+      result = newTokenNode(Token.String, lexer.lineNo, idx, s)
       idx += l + 2
 
   of '\n':
