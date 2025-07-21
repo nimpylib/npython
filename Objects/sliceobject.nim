@@ -1,6 +1,6 @@
 import pyobject
 import baseBundle
-
+import ../Utils/rangeLen
 
 declarePyType Slice(tpToken):
   start: PyObject
@@ -34,8 +34,22 @@ proc newPySlice*(start, stop, step: PyObject): PyObject =
   slice
 
 
+proc calLen*(self: PySliceObject): int =
+  ## Get the length of the slice.
+  ## .. note:: python's slice has no `__len__`.
+  ##   this is just a convenience method for internal use.
+  template intOrNone(obj: PyObject, defaultValue: int): int =
+    if obj.ofPyIntObject:
+      PyIntObject(obj).toInt
+    else:
+      defaultValue
+  rangeLen[int](
+    intOrNone(self.start, 0),
+    intOrNone(self.stop, 0),
+    intOrNone(self.step, 1)
+  )
 
-proc getSliceItems*(slice: PySliceObject, src, dest: ptr seq[PyObject]): PyObject = 
+proc getSliceItems*[T](slice: PySliceObject, src: openArray[T], dest: var (seq[T]|string)): PyObject =
   var start, stop, step: int
   let stepObj = slice.step
   if stepObj.ofPyIntObject:
@@ -47,27 +61,27 @@ proc getSliceItems*(slice: PySliceObject, src, dest: ptr seq[PyObject]): PyObjec
   template setIndex(name: untyped, defaultValue: int) = 
     let `name Obj` = slice.`name`
     if `name Obj`.ofPyIntObject:
-      name = getIndex(PyIntObject(`name Obj`), src[].len)
+      name = getIndex(PyIntObject(`name Obj`), src.len)
     else:
       assert `name Obj`.ofPyNoneObject
       name = defaultValue
   var startDefault, stopDefault: int
   if 0 < step:
     startDefault = 0
-    stopDefault = src[].len
+    stopDefault = src.len
   else:
-    startDefault = src[].len - 1
+    startDefault = src.len - 1
     stopDefault = -1
   setIndex(start, startDefault)
   setIndex(stop, stopDefault)
 
   if 0 < step:
     while start < stop:
-      dest[].add(src[][start])
+      dest.add(src[start])
       start += step
   else:
     while stop < start:
-      dest[].add(src[][start])
+      dest.add(src[start])
       start += step
   pyNone
 

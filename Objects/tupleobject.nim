@@ -111,7 +111,7 @@ template genSequenceMagics*(nameStr,
     if other.ofPySliceObject:
       let slice = PySliceObject(other)
       let newObj = newPyNameSimple()
-      let retObj = slice.getSliceItems(self.items.addr, newObj.items.addr)
+      let retObj = slice.getSliceItems(self.items, newObj.items)
       if retObj.isThrownException:
         return retObj
       else:
