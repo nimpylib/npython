@@ -60,16 +60,34 @@ template cat[A, B](a: openArray[A], b: openArray[B]): seq[Rune] =
   s.add(b)
   s
 
-proc `&`*(a, b: UnicodeVariant): UnicodeVariant =
-  case (a.ascii.uint8 shl 1) or b.ascii.uint8
-  of 0:
-    newUnicodeUnicodeVariant(a.unicodeStr & b.unicodeStr)
-  of 1:
-    newUnicodeUnicodeVariant(cat(a.unicodeStr, b.asciiStr))
-  of 2:
-    newUnicodeUnicodeVariant(cat(a.asciiStr, b.unicodeStr))
-  else: # of 3
-    newAsciiUnicodeVariant(a.asciiStr & b.asciiStr)
+macro doKindsWith2It*(self, other: UnicodeVariant, do0_3): untyped =
+  result = nnkCaseStmt.newTree(quote do:
+    ((`self`.ascii.uint8 shl 1) or `other`.ascii.uint8)
+  )
+  do0_3.expectLen 4
+  template alias(name, val): NimNode =
+    newProc(name, @[ident"untyped"], val, procType=nnkTemplateDef)
+  template ofI(i: int, attr1, attr2) =
+    let iNode = newIntLitNode(i)
+    let doSth = do0_3[i]
+    var ofStmt = nnkOfBranch.newTree iNode
+    var blk = newStmtList()
+    blk.add alias(ident"it1", self.newDotExpr(attr1))
+    blk.add alias(ident"it2", other.newDotExpr(attr2))
+    blk.add doSth
+    ofStmt.add blk
+    result.add ofStmt
+  let
+    u = ident"unicodeStr"
+    a = ident"asciiStr"
+  ofI 0, u, u
+  ofI 1, u, a
+  ofI 2, a, u
+  ofI 3, a, a
+  result.add nnkElse.newTree(
+    quote do: raiseAssert"unreachable"
+  )
+
 
 proc asRuneSeq(self: string): seq[Rune] =
   result = (when declared(newSeqUninit): newSeqUninit else: newSeq)[Rune](self.len)
@@ -115,22 +133,17 @@ proc hash*(self: UnicodeVariant): Hash {. inline, cdecl .} =
 
 proc `==`*(self, other: UnicodeVariant): bool {. inline, cdecl .} =
   template cmpAttr(a, b) =
-    if self.a.len > other.b.len: return false
-    for i, c in self.a:
-      if uint32(c) != uint32(other.b[i]):
+    if a.len > b.len: return false
+    for i, c in a:
+      if uint32(c) != uint32(b[i]):
         return false
     return true
 
-  case ((self.ascii.uint8 shl 1) or other.ascii.uint8)
-  of 0:
-    return self.unicodeStr == other.unicodeStr
-  of 1:
-    cmpAttr(unicodeStr, asciiStr)
-  of 2:
-    cmpAttr(asciiStr, unicodeStr)
-  else: # of 3
-    return self.asciiStr == other.asciiStr
-
+  doKindsWith2It(self, other):
+    return it1 == it2
+    cmpAttr(it1, it2)
+    cmpAttr(it1, it2)
+    return it1 == it2
 
 declarePyType Str(tpToken):
   str: UnicodeVariant
