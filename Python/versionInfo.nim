@@ -4,6 +4,10 @@ const
   Minor* = 1
   Patch* = 1
 
+  PyMajor*{.intdefine.} = 3
+  PyMinor*{.intdefine.} = 13
+  PyPatch*{.intdefine.} = 0
+
 const sep = '.'
 template asVersion(major, minor, patch: int): string =
   $major & sep & $minor & sep & $patch
