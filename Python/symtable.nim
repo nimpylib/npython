@@ -223,6 +223,10 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
           visit binOpNode.target
           visit binOpNode.value
 
+        of AsdlStmtTk.Delete:
+          let binOpNode = AstDelete(astNode)
+          visitSeq binOpNode.targets
+
         of AsdlStmtTk.For:
           let forNode = AstFor(astNode)
           if not (forNode.target.kind == AsdlExprTk.Name):

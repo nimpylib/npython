@@ -37,6 +37,15 @@ implListMagic setitem, [mutable: write]:
     return newTypeError newPyAscii("store to slice not implemented")
   return newIndexTypeError(newPyAscii"list", arg1)
 
+implListMagic delitem, [mutable: write]:
+  if other.ofPyIntObject:
+    let idx = getIndex(PyIntObject(other), self.items.len)
+    self.items.delete idx
+    return pyNone
+  if other.ofPySliceObject:
+    return newTypeError newPyAscii("delete slice not implemented")
+  return newIndexTypeError(newPyAscii"list", other)
+
 
 implListMethod append(item: PyObject), [mutable: write]:
   self.items.add(item)
