@@ -37,7 +37,7 @@ proc parseCompileEval*(input: string, lexer: Lexer,
       rootCst = parseWithState(input, lexer, Mode.Single, rootCst)
     except SyntaxError:
       let e = SyntaxError(getCurrentException())
-      let excpObj = fromBltinSyntaxError(e, newPyStr(Fstdin))
+      let excpObj = fromBltinSyntaxError(e, newPyAscii(Fstdin))
       excpObj.printTb
       finished = true
       return true
