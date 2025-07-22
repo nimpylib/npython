@@ -29,8 +29,6 @@ genSequenceMagics "list",
   newPyListSimple, [mutable: read], [reprLockWithMsg"[...]", mutable: read],
   lsSeqToStr
 
-proc len*(self: PyListObject): int{.inline.} = self.items.len
-
 implListMagic setitem, [mutable: write]:
   if arg1.ofPyIntObject:
     let idx = getIndex(PyIntObject(arg1), self.len)
@@ -149,7 +147,7 @@ implListMethod pop(), [mutable: write]:
 implListMethod remove(target: PyObject), [mutable: write]:
   var retObj: PyObject
   allowSelfReadWhenBeforeRealWrite:
-    retObj = indexPyListObjectMethod(selfNoCast, @[target])
+    retObj = tpMethod(List, index)(selfNoCast, @[target])
   if retObj.isThrownException:
     return retObj
   assert retObj.ofPyIntObject
