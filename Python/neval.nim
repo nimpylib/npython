@@ -10,7 +10,7 @@ import builtindict
 import traceback
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
-                   setobject, notimplementedobject,
+                   setobject, notimplementedobject, boolobjectImpl,
                    exceptionsImpl, moduleobject, methodobject]
 import ../Utils/utils
 
@@ -102,13 +102,7 @@ template doBinaryContain: PyObject =
 
 # "fast" because check if it's a bool object first and save the callMagic(bool)
 template getBoolFast(obj: PyObject): bool = 
-  var ret: bool
-  if obj.ofPyBoolObject:
-    ret = PyBoolObject(obj).b
-  # if user defined class tried to return non bool, 
-  # the magic method will return an exception
-  let boolObj = top.callMagic(bool, handleExcp=true)
-  PyBoolObject(boolObj).b
+  PyObject_IsTrue(obj)
 
 # if declared as a local variable, js target will fail. See gh-10651
 when defined(js):

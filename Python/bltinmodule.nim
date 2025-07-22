@@ -108,6 +108,7 @@ implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build
 
 
 registerBltinObject("NotImplemented", pyNotImplemented)
+registerBltinObject("bool", pyBoolObjectType)
 registerBltinObject("Ellipsis", pyEllipsis)
 registerBltinObject("None", pyNone)
 registerBltinObject("type", pyTypeObjectType)
