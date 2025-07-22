@@ -8,6 +8,7 @@ import ./sliceobjectImpl
 import ./hash
 import iterobject
 import ./tupleobject
+import ./dictobject
 import ../Utils/[utils, compat]
 
 declarePyType List(reprLock, mutable, tpToken):
@@ -27,7 +28,7 @@ genSequenceMagics "list",
   implListMagic, implListMethod,
   ofPyListObject, PyListObject,
   newPyListSimple, [mutable: read], [reprLockWithMsg"[...]", mutable: read],
-  lsSeqToStr
+  lsSeqToStr, initWithDictUsingPairs=true
 
 implListMagic setitem, [mutable: write]:
   if arg1.ofPyIntObject:
