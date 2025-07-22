@@ -3,7 +3,7 @@ import strformat
 import neval
 import builtindict
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject,
-  notimplementedobject, sliceobjectImpl]
+  notimplementedobject, sliceobjectImpl, exceptions]
 import ../Utils/[utils, macroutils, compat]
 
 
@@ -93,6 +93,20 @@ implBltinFunc len(obj: PyObject):
 implBltinFunc hash(obj: PyObject): obj.callMagic(hash)
 
 implBltinFunc iter(obj: PyObject): obj.callMagic(iter)
+proc builtinNext*(args: seq[PyObject]): PyObject {. cdecl .} =
+  template callNext(obj): PyObject =
+    obj.callMagic(iternext)
+  checkArgNumAtLeast 1
+  let obj = args[0]
+  if args.len == 1:
+    return callNext obj
+  checkArgNum 2
+  let defVal = args[1]
+  result = obj.callNext
+  if result.isStopIter:
+    return defVal
+
+registerBltinFunction("next", builtinNext)
 
 implBltinFunc repr(obj: PyObject): obj.callMagic(repr)
 
