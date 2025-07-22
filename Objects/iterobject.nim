@@ -31,3 +31,25 @@ template pyForIn*(it; iterableToLoop: PyObject; doWithIt) =
     if it.isThrownException:
       return it
     doWithIt
+
+
+type ItorPy = iterator(): PyObject
+declarePyType NimIteratorIter():
+  itor: ItorPy
+
+implNimIteratorIterMagic iter:
+  self
+
+implNimIteratorIterMagic iternext:
+  result = self.itor()
+  if self.itor.finished():
+    return newStopIterError()
+
+proc newPyNimIteratorIter*(itor: ItorPy): PyNimIteratorIterObject = 
+  result = newPyNimIteratorIterSimple()
+  result.itor = itor
+
+template genPyNimIteratorIter*(iterable): PyNimIteratorIterObject =
+  bind newPyNimIteratorIter
+  newPyNimIteratorIter iterator(): PyObject =
+    for i in iterable: yield i
