@@ -95,7 +95,7 @@ proc newCompilerUnit(st: SymTable,
 proc newCompiler(root: AsdlModl, fileName: PyStrObject): Compiler =
   result = new Compiler
   result.st = newSymTable(root)
-  result.units.add(newCompilerUnit(result.st, root, newPyStr("<module>")))
+  result.units.add(newCompilerUnit(result.st, root, newPyAscii"<module>"))
   result.fileName = fileName
 
 
@@ -713,7 +713,7 @@ compileMethod ListComp:
   let lineNo = astNode.lineNo.value
   assert astNode.generators.len == 1
   let genNode = AstComprehension(astNode.generators[0])
-  c.units.add(newCompilerUnit(c.st, astNode, newPyStr("<listcomp>")))
+  c.units.add(newCompilerUnit(c.st, astNode, newPyAscii"<listcomp>"))
   # empty list
   let body = newBasicBlock()
   let ending = newBasicBlock()

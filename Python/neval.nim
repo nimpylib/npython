@@ -305,13 +305,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                   handleException(reprObj)
 
                 # todo: optimization - build a cache
-                let printFunction = PyNimFuncObject(bltinDict[newPyStr("print")])
+                let printFunction = PyNimFuncObject(bltinDict[newPyAscii"print"])
                 let retObj = tpMagic(NimFunc, call)(printFunction, @[reprObj])
                 if retObj.isThrownException:
                   handleException(retObj)
 
             of OpCode.LoadBuildClass:
-              sPush bltinDict[newPyStr("__build_class__")]
+              sPush bltinDict[newPyAscii"__build_class__"]
               
             of OpCode.ReturnValue:
               return sPop()
