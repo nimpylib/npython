@@ -1,6 +1,6 @@
 import strformat
 
-import strutils
+
 import tables
 import macros
 
@@ -29,17 +29,26 @@ proc hasKey*(dict: PyDictObject, key: PyObject): bool =
 proc `[]`*(dict: PyDictObject, key: PyObject): PyObject = 
   return dict.table[key]
 
+proc del*(dict: PyDictObject, key: PyObject) =
+  ## do nothing if key not exists
+  dict.table.del key
+
+proc clear*(dict: PyDictObject) = dict.table.clear
 
 proc `[]=`*(dict: PyDictObject, key, value: PyObject) = 
   dict.table[key] = value
 
 
-template checkHashableTmpl(obj) = 
+template checkHashableTmpl(res; obj) =
   let hashFunc = obj.pyType.magicMethods.hash
   if hashFunc.isNil:
     let tpName = obj.pyType.name
     let msg = "unhashable type: " & tpName
-    return newTypeError newPyStr(msg)
+    res = newTypeError newPyStr(msg)
+    return
+
+template checkHashableTmpl(obj) =
+  result.checkHashableTmpl(obj)
 
 
 implDictMagic contains, [mutable: read]:
@@ -49,10 +58,7 @@ implDictMagic contains, [mutable: read]:
   except DictError:
     let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
     return newTypeError newPyAscii(msg)
-  if result.isNil:
-    return pyFalseObj
-  else:
-    return pyTrueObj
+  return newPyBool(not result.isNil)
 
 implDictMagic repr, [mutable: read, reprLockWithMsg"{...}"]:
   var ss: seq[UnicodeVariant]
@@ -73,34 +79,86 @@ implDictMagic len, [mutable: read]:
 implDictMagic New:
   newPyDict()
   
-
-implDictMagic getitem, [mutable: read]:
-  checkHashableTmpl(other)
-  try:
-    result = self.table.getOrDefault(other, nil)
-  except DictError:
-    let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
-    return newTypeError newPyAscii(msg)
-  if not (result.isNil):
-    return result
-
+template keyError(other: PyObject): PyObject =
   var msg: PyStrObject
   let repr = other.pyType.magicMethods.repr(other)
   if repr.isThrownException:
     msg = newPyAscii"exception occured when generating key error msg calling repr"
   else:
     msg = PyStrObject(repr)
-  return newKeyError(msg)
+  newKeyError(msg)
 
+let badHashMsg = 
+  newPyAscii"__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
+
+template handleBadHash(res; body){.dirty.} =
+  try:
+    body
+  except DictError:
+    res = newTypeError badHashMsg
+    return
+
+proc getitemImpl(self: PyDictObject, other: PyObject): PyObject =
+  checkHashableTmpl(other)
+  result.handleBadHash:
+    result = self.table.getOrDefault(other, nil)
+  if not (result.isNil):
+    return result
+  return keyError other
+implDictMagic getitem, [mutable: read]: self.getitemImpl other
 
 implDictMagic setitem, [mutable: write]:
   checkHashableTmpl(arg1)
-  try:
+  result.handleBadHash:
     self.table[arg1] = arg2
-  except DictError:
-    let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
-    return newTypeError newPyAscii(msg)
   pyNone
+
+proc pop*(self: PyDictObject, other: PyObject, res: var PyObject): bool =
+  ## - if `other` not in `self`, `res` is set to KeyError;
+  ## - if in, set to value of that key;
+  ## - if `DictError`_ raised, `res` is set to TypeError
+  res.checkHashableTmpl(other)
+  res.handleBadHash:
+    if self.table.pop(other, res):
+      return true
+  res = keyError other
+  return false
+
+proc delitemImpl*(self: PyDictObject, other: PyObject): PyObject =
+  ## internal use. (in typeobject)
+  if self.pop(other, result):
+    return pyNone
+  assert not result.isNil
+
+implDictMagic delitem, [mutable: write]:
+  self.delitemImpl other
+
+implDictMethod get, [mutable: write]:
+  checkargnumatleast 1
+  let key = args[0]
+  checkhashabletmpl(key)
+  if args.len == 1:
+    return self.getitemimpl key
+  checkargnum 2
+  let defval = args[1]
+  result.handleBadHash:
+    return self.table.getOrDefault(key, defVal)
+  # XXX: Python's dict.get(k, v) doesn't discard TypeError
+
+implDictMethod pop, [mutable: write]:
+  checkargnumatleast 1
+  let key = args[0]
+  checkhashabletmpl(key)
+  if args.len == 1:
+    return self.delitemimpl key
+  checkargnum 2
+  let defval = args[1]
+  if self.pop(key, result):
+    return
+  # XXX: Python's dict.pop(k, v) discard TypeError, KeyError
+  return defval
+
+implDictMethod clear(), [mutable: write]: self.clear()
 
 implDictMethod copy(), [mutable: read]:
   let newT = newPyDict()
