@@ -780,6 +780,8 @@ compileMethod Attribute:
     c.addOp(newArgInstr(OpCode.LoadAttr, opArg, lineNo))
   elif astNode.ctx of AstStore:
     c.addOp(newArgInstr(OpCode.StoreAttr, opArg, lineNo))
+  elif astNode.ctx of AstDel:
+    c.addOp(newArgInstr(OpCode.DeleteAttr, opArg, lineNo))
   else:
     unreachable
 

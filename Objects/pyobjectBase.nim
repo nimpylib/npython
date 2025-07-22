@@ -101,6 +101,7 @@ type
     init: BltinMethod
     getattr: BinaryMethod
     setattr: TernaryMethod
+    delattr: BinaryMethod
     hash: UnaryMethod
     call: BltinMethod 
 
