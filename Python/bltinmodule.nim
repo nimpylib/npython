@@ -3,7 +3,7 @@ import strformat
 import neval
 import builtindict
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject,
-  notimplementedobject, sliceobjectImpl, exceptions]
+  notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions]
 import ../Utils/[utils, macroutils, compat]
 
 

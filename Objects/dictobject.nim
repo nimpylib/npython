@@ -19,11 +19,11 @@ declarePyType Dict(tpToken, reprLock, mutable):
   table: Table[PyObject, PyObject]
 
 
-proc newPyDict* : PyDictObject = 
+proc newPyDict*(table=initTable[PyObject, PyObject]()) : PyDictObject = 
   result = newPyDictSimple()
-  result.table = initTable[PyObject, PyObject]()
+  result.table = table
 
-proc hasKey*(dict: PyDictObject, key: PyObject): bool = 
+proc hasKey*(dict: PyDictObject, key: PyObject): bool =
   return dict.table.hasKey(key)
 proc contains*(dict: PyDictObject, key: PyObject): bool = dict.hasKey key
 
@@ -101,15 +101,16 @@ implDictMagic len, [mutable: read]:
   newPyInt(self.table.len)
 
 implDictMagic hash: unhashable self
-
-implDictMagic New:
-  newPyDict()
-
 implDictMagic eq:
   newPyBool(
     other.ofPyDictObject() and
     self.table == other.PyDictObject.table
   )
+implDictMagic Or(E: PyDictObject), [mutable: read]:
+  let res = newPyDict self.table
+  for (k, v) in E.table.pairs:
+    res.table[k] = v
+  res
 
 template keyError(other: PyObject): PyObject =
   var msg: PyStrObject
@@ -175,7 +176,6 @@ implDictMethod get, [mutable: write]:
   let defval = args[1]
   result.handleBadHash:
     return self.table.getOrDefault(key, defVal)
-  # XXX: Python's dict.get(k, v) doesn't discard TypeError
 
 implDictMethod pop, [mutable: write]:
   checkargnumatleast 1
@@ -189,6 +189,21 @@ implDictMethod pop, [mutable: write]:
     return
   # XXX: Python's dict.pop(k, v) discard TypeError, KeyError
   return defval
+
+implDictMethod setdefault, [mutable: write]:
+  checkargnumatleast 1
+  let key = args[0]
+  checkhashabletmpl(key)
+  let defVal = if args.len == 1: pyNone
+  else:
+    checkargnum 2
+    args[1]
+
+  result.handleBadHash:
+    if key in self:
+      return self[key]
+    self[key] = defVal
+    return defval
 
 implDictMethod clear(), [mutable: write]: self.clear()
 
@@ -204,3 +219,5 @@ implDictMethod copy(), [mutable: read]:
 proc update*(d1, d2: PyDictObject) = 
   for k, v in d2.table.pairs:
     d1[k] = v
+
+# .__init__, .update, .keys, etc method is defined in ./dictobjectImpl
