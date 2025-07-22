@@ -3,10 +3,14 @@ import pyobject
 declarePyType Bool(tpToken):
   b: bool
 
-proc newPyBool(b: bool): PyBoolObject = 
+proc newPyBoolInner(b: bool): PyBoolObject = 
   result = newPyBoolSimple()
   result.b = b
 
 
-let pyTrueObj* = newPyBool(true)
-let pyFalseObj* = newPyBool(false)
+let pyTrueObj* = newPyBoolInner(true)  ## singleton
+let pyFalseObj* = newPyBoolInner(false)  ## singleton
+
+proc newPyBool*(b: bool): PyBoolObject =
+  if b: pyTrueObj
+  else: pyFalseObj
