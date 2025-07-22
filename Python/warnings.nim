@@ -1,7 +1,7 @@
 ## `_warnings`
 
 import std/strformat
-import ../utils/compat
+import ../Utils/compat
 import ../Objects/[warningobject, stringobject, numobjects, pyobjectBase]
 export warningobject
 
