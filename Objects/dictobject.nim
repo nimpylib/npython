@@ -76,6 +76,8 @@ implDictMagic repr, [mutable: read, reprLockWithMsg"{...}"]:
 implDictMagic len, [mutable: read]:
   newPyInt(self.table.len)
 
+implDictMagic hash: unhashable self
+
 implDictMagic New:
   newPyDict()
   

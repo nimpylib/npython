@@ -3,6 +3,8 @@
 import strformat
 import strutils
 import std/sets
+import std/hashes
+
 import pyobject
 import baseBundle
 import ./iterobject
@@ -16,6 +18,8 @@ declarePyType Set(reprLock, mutable, tpToken):
 
 declarePyType FrozenSet(reprLock, tpToken):
   items: HashSet[PyObject]
+  setHash: bool
+  hash: Hash
 
 template setSeqToStr(ss): string =
   if ss.len == 0:
@@ -77,9 +81,6 @@ template genSet(S, mutRead, mutReadRepr){.dirty.} =
     setSeqToStr
 
 
-  `impl S Magic` hash:
-    hashImpl items
-
   `impl S Magic` init:
     if 1 < args.len:
       let msg = $S & fmt" expected at most 1 args, got {args.len}"
@@ -109,6 +110,9 @@ template genSet(S, mutRead, mutReadRepr){.dirty.} =
 genSet Set, [mutable: read], [mutable: read, reprLock]
 genSet FrozenSet, [], [reprLock]
 
+proc hash*(self: PyFrozenSetObject): Hash = self.hashCollection
+implFrozenSetMagic hash: newPyInt hash(self)
+implSetMagic hash: unhashable self
 
 implSetMethod update(args), [mutable: write]:
   for other in args:

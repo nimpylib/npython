@@ -5,6 +5,7 @@ import strutils
 import pyobject
 import baseBundle
 import ./sliceobjectImpl
+import ./hash
 import iterobject
 import ./tupleobject
 import ../Utils/[utils, compat]
@@ -74,6 +75,7 @@ implListMagic delitem, [mutable: write]:
     return pyNone
   return newIndexTypeError(newPyAscii"list", other)
 
+implListMagic hash: unhashable self
 
 implListMethod append(item: PyObject), [mutable: write]:
   self.items.add(item)
