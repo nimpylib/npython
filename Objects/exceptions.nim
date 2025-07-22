@@ -143,12 +143,13 @@ template newIndexTypeError*(typeName: PyStrObject, obj:PyObject): PyExceptionObj
   newTypeError(msg)
 
 
-proc isStopIter*(obj: PyObject): bool = 
+proc isExceptionOf*(obj: PyObject, tk: ExceptionToken): bool =
   if not obj.ofPyExceptionObject:
     return false
   let excp = PyExceptionObject(obj)
-  return (excp.tk == ExceptionToken.StopIter) and (excp.thrown)
+  return (excp.tk == tk) and (excp.thrown)
 
+proc isStopIter*(obj: PyObject): bool = obj.isExceptionOf StopIter
 
 method `$`*(e: PyExceptionObject): string = 
   result = "Error: " & $e.tk & " "
