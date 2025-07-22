@@ -25,9 +25,13 @@ template genCollectMagics*(items,
   ofPyNameObject, PyNameObject,
   mutRead, mutReadRepr, seqToStr){.dirty.} =
 
+  template len*(self: PyNameObject): int = self.items.len
+  template `[]`*(self: PyNameObject, i: int): PyObject = self.items[i]
+  iterator items*(self: PyNameObject): PyObject =
+    for i in  self.items: yield i
 
   implNameMagic contains, mutRead:
-    for item in self.items:
+    for item in self:
       let retObj =  item.callMagic(eq, other)
       if retObj.isThrownException:
         return retObj
@@ -38,7 +42,7 @@ template genCollectMagics*(items,
 
   implNameMagic repr, mutReadRepr:
     var ss: seq[UnicodeVariant]
-    for item in self.items:
+    for item in self:
       var itemRepr: PyStrObject
       let retObj = item.callMagic(repr)
       errorIfNotString(retObj, "__repr__")
@@ -48,7 +52,7 @@ template genCollectMagics*(items,
 
 
   implNameMagic len, mutRead:
-    newPyInt(self.items.len)
+    newPyInt(self.len)
 
 
 template genSequenceMagics*(nameStr,
@@ -109,8 +113,8 @@ template genSequenceMagics*(nameStr,
 
   implNameMagic getitem:
     if other.ofPyIntObject:
-      let idx = getIndex(PyIntObject(other), self.items.len)
-      return self.items[idx]
+      let idx = getIndex(PyIntObject(other), self.len)
+      return self[idx]
     if other.ofPySliceObject:
       let slice = PySliceObject(other)
       let newObj = newPyNameSimple()
@@ -179,6 +183,3 @@ proc hash*(self: PyTupleObject): Hash = self.hashCollection
 
 implTupleMagic hash:
   newPyInt hash(self)
-
-proc len*(t: PyTupleObject): int {. cdecl inline .} = 
-  t.items.len
