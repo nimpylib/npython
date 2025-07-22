@@ -5,7 +5,7 @@
 # let alone using global variables so
 # we return exception object directly with a thrown flag inside
 # This might be a bit slower but we are not pursueing ultra performance anyway
-
+import std/enumutils
 import strformat
 
 import pyobject
@@ -32,6 +32,12 @@ type ExceptionToken* {. pure .} = enum
   Memory,
   KeyboardInterrupt,
 
+proc getTokenName*(excp: ExceptionToken): string = excp.symbolName
+proc getBltinName*(excp: ExceptionToken): string =
+  case excp
+  of Base: "Exception"
+  of StopIter: "StopIteration"
+  else: excp.getTokenName & "Error"
 
 type TraceBack* = tuple
   fileName: PyObject  # actually string
@@ -40,7 +46,7 @@ type TraceBack* = tuple
   colNo: int  # optional, for syntax error
 
 
-declarePyType BaseError(tpToken):
+declarePyType BaseError(tpToken, typeName("Exception")):
   tk: ExceptionToken
   thrown: bool
   msg: PyObject  # could be nil
@@ -59,18 +65,22 @@ proc ofPyExceptionObject*(obj: PyObject): bool {. cdecl, inline .} =
 
 macro declareErrors: untyped = 
   result = newStmtList()
-  var tokenStr: string
   for i in 1..int(ExceptionToken.high):
-    let tokenStr = $ExceptionToken(i)
+    let tok = ExceptionToken(i)
+    let tokenStr = tok.getTokenName
 
     let typeNode = nnkStmtList.newTree(
       nnkCommand.newTree(
         newIdentNode("declarePyType"),
         nnkCall.newTree(
           newIdentNode(tokenStr & "Error"),
-          nnkCall.newTree(
+          newCall(
             newIdentNode("base"),
-            newIdentNode("BaseError")
+            bindSym("BaseError")
+          ),
+          newCall(
+            ident"typeName",
+            ident tok.getBltinName  # or it'll be e.g. "stopitererror"
           )
         ),
         nnkStmtList.newTree(
@@ -112,9 +122,8 @@ template newProcTmpl(excpName) =
 
 macro genNewProcs: untyped = 
   result = newStmtList()
-  var tokenStr: string
   for i in ExceptionToken.low..ExceptionToken.high:
-    let tokenStr = $ExceptionToken(i)
+    let tokenStr = ExceptionToken(i).getTokenName
     result.add(getAst(newProcTmpl(ident(tokenStr))))
 
 
@@ -187,6 +196,7 @@ template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) =
 
 
 template checkArgNum*(expected: int, name="") = 
+  bind fmt, newTypeError, newPyStr
   if args.len != expected:
     var msg: string
     if name != "":
@@ -197,6 +207,7 @@ template checkArgNum*(expected: int, name="") =
 
 
 template checkArgNumAtLeast*(expected: int, name="") = 
+  bind fmt, newTypeError, newPyStr
   if args.len < expected:
     var msg: string
     if name != "":
