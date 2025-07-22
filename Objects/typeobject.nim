@@ -114,13 +114,22 @@ proc setAttr(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cd
     if not descrSet.isNil:
       return descr.descrSet(self, value)
       
+  template retAttributeError =  
+    return newAttributeError($self.pyType.name, $name)
   if self.hasDict:
     let instDict = PyDictObject(self.getDict)
-    instDict[name] = value
+    if value.isNil:
+      let res = instDict.delitemImpl(name)
+      if res != pyNone:
+        assert res.pyType != pyTypeErrorObjectType
+        retAttributeError
+    else:
+      instDict[name] = value
     return pyNone
+  retAttributeError
 
-  return newAttributeError($self.pyType.name, $name)
-
+proc delAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
+  setAttr(self, nameObj, nil)
 
 proc addGeneric(t: PyTypeObject) = 
   template nilMagic(magicName): bool = 
@@ -139,6 +148,7 @@ proc addGeneric(t: PyTypeObject) =
   trySetSlot(eq, defaultEq)
   trySetSlot(getattr, getAttr)
   trySetSlot(setattr, setAttr)
+  trySetSlot(delattr, delAttr)
   trySetSlot(repr, reprDefault)
   trySetSlot(hash, hashDefault)
   trySetSlot(str, t.magicMethods.repr)

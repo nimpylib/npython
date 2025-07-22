@@ -268,7 +268,9 @@ method setDelete(astNode: AstNodeBase) {.base.} =
   if not (astNode of AsdlExpr):
     unreachable
   raiseSyntaxError("can't delete", AsdlExpr(astNode))
-method setDelete(astNode: AstSubscript) = 
+method setDelete(astNode: AstSubscript) =
+  astnode.ctx = newAstDel()
+method setDelete(astNode: AstAttribute) =
   astnode.ctx = newAstDel()
 
 # single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE

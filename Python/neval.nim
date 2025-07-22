@@ -256,6 +256,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               let obj = sPop()
               discard obj.callMagic(delitem, idx, handleExcp=true)
 
+            of OpCode.DeleteAttr:
+              let name = names[opArg]
+              let obj = sPop()
+              discard obj.callMagic(delattr, name, handleExcp=true)
+
             of OpCode.BinarySubscr:
               doBinary(getitem)
 
