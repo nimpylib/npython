@@ -3,6 +3,10 @@ import ./pyobject
 import ./baseBundle
 import ../Utils/utils
 
+proc unhashable*(obj: PyObject): PyObject = newTypeError newPyAscii(
+  "unhashable type '" & obj.pyType.name & '\''
+)
+
 proc rawHash*(obj: PyObject): Hash =
   ## for type.__hash__
   hash(obj.id)
