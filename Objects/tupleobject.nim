@@ -19,6 +19,8 @@ proc newPyTuple*(items: seq[PyObject]): PyTupleObject =
   # shallow copy
   result.items = items
 
+proc newPyTuple*(items: openArray[PyObject]): PyTupleObject{.inline.} = 
+  newPyTuple @items  
 
 template genCollectMagics*(items,
   implNameMagic, newPyNameSimple,
@@ -59,7 +61,7 @@ template genSequenceMagics*(nameStr,
     implNameMagic, implNameMethod;
     ofPyNameObject, PyNameObject,
     newPyNameSimple; mutRead, mutReadRepr;
-    seqToStr): untyped{.dirty.} =
+    seqToStr; initWithDictUsingPairs=false): untyped{.dirty.} =
 
   bind genCollectMagics
   genCollectMagics items,
@@ -102,8 +104,14 @@ template genSequenceMagics*(nameStr,
     if self.items.len != 0:
       self.items.setLen(0)
     if args.len == 1:
-      pyForIn i, args[0]:
-        self.items.add i
+      let arg = args[0]
+      template loop(a) =
+        pyForIn i, a:
+          self.items.add i
+      when initWithDictUsingPairs:
+        if arg.ofPyDictObject: loop tpMethod(Dict, items)(arg)
+        else: loop arg
+      else: loop arg
     pyNone
 
 
