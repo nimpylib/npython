@@ -15,7 +15,7 @@ export hash
 # currently not ordered
 # nim ordered table has O(n) delete time
 # todo: implement an ordered dict 
-declarePyType dict(reprLock, mutable):
+declarePyType Dict(tpToken, reprLock, mutable):
   table: Table[PyObject, PyObject]
 
 
@@ -80,7 +80,13 @@ implDictMagic hash: unhashable self
 
 implDictMagic New:
   newPyDict()
-  
+
+implDictMagic eq:
+  newPyBool(
+    other.ofPyDictObject() and
+    self.table == other.PyDictObject.table
+  )
+
 template keyError(other: PyObject): PyObject =
   var msg: PyStrObject
   let repr = other.pyType.magicMethods.repr(other)
