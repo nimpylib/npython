@@ -5,10 +5,10 @@ import tables
 import macros
 
 import pyobject 
-import listobject
+# import listobject (do not import, or it'll cause recursive import)
 import baseBundle
 import ../Utils/utils
-
+import ./[iterobject, tupleobject]
 import ./hash
 export hash
 
@@ -25,6 +25,30 @@ proc newPyDict* : PyDictObject =
 
 proc hasKey*(dict: PyDictObject, key: PyObject): bool = 
   return dict.table.hasKey(key)
+proc contains*(dict: PyDictObject, key: PyObject): bool = dict.hasKey key
+
+template borIter(name, nname; R=PyObject){.dirty.} =
+  iterator name*(dict: PyDictObject): R =
+    for i in dict.table.nname: yield i
+template borIter(name){.dirty.} = borIter(name, name)
+
+borIter items, keys
+borIter keys
+borIter values
+borIter pairs, pairs, (PyObject, PyObject)
+
+implDictMagic iter, [mutable: read]:
+  genPyNimIteratorIter self.keys()
+implDictMethod keys(), [mutable: read]:
+  genPyNimIteratorIter self.keys()
+implDictMethod values(), [mutable: read]:
+  genPyNimIteratorIter self.values()
+
+iterator pyItems(dict: PyDictObject): PyTupleObject =
+  for (k, v) in dict.pairs:
+    yield newPyTuple([k, v])
+implDictMethod items(), [mutable: read]:
+  genPyNimIteratorIter self.pyItems
 
 proc `[]`*(dict: PyDictObject, key: PyObject): PyObject = 
   return dict.table[key]
@@ -175,12 +199,6 @@ implDictMethod copy(), [mutable: read]:
 
 # in real python this would return a iterator
 # this function is used internally
-proc keys*(d: PyDictObject): PyListObject = 
-  result = newPyList()
-  for key in d.table.keys:
-    let rebObj = tpMethod(List, append)(result, @[key])
-    if rebObj.isThrownException:
-      unreachable("No chance for append to thrown exception")
 
 
 proc update*(d1, d2: PyDictObject) = 
