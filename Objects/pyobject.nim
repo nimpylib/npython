@@ -512,18 +512,30 @@ template methodMacroTmpl(name: untyped, nameStr: string) =
 macro methodMacroTmpl*(name: untyped): untyped = 
   getAst(methodMacroTmpl(name, name.strVal))
 
-macro declarePyType*(prototype, fields: untyped): untyped = 
+macro declarePyType*(prototype, fields: untyped): untyped =
+  ## `prototype` is of nnkCall format,
+  ##   whose arguments call contains:
+  ##   - base: BASE
+  ##   - typeName: TYPE_NAME;
+  ##     TYPE_NAME defaults to lowerAscii of `prototype[0]`
+  ##   - tpToken, dict, mutable, reprLock
   prototype.expectKind(nnkCall)
   fields.expectKind(nnkStmtList)
   var tpToken, mutable, dict, reprLock: bool
   var baseTypeStr = "PyObject"
+  var typeName: string
   # parse options the silly way
   for i in 1..<prototype.len:
     let option = prototype[i]
     if option.kind == nnkCall:
-      assert option[0].strVal == "base"
-      baseTypeStr = "Py" & option[1].strVal & "Object"
-      continue
+      case option[0].strVal
+      of "base":
+        baseTypeStr = "Py" & option[1].strVal & "Object"
+        continue
+      of "typeName":
+        typeName = option[1].strVal
+        continue
+
     option.expectKind(nnkIdent)
     let property = option.strVal
     if property == "tpToken":
@@ -617,8 +629,10 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       `newPy name Simple`()
     `py name ObjectType`.magicMethods.New = `newPy name Default`
 
+  if typeName == "":
+    typeName = nameIdent.strVal.toLowerAscii
   result.add(getAst(initTypeTmpl(nameIdent, 
-    nameIdent.strVal.toLowerAscii, 
+    typeName, 
     newLit(tpToken), 
     newLit(dict)
     )))
