@@ -151,7 +151,7 @@ proc astTestlistComp(parseNode: ParseNode): seq[AsdlExpr]
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr
 proc astSubscriptlist(parseNode: ParseNode): AsdlSlice
 proc astSubscript(parseNode: ParseNode): AsdlSlice
-proc astExprList(parseNode: ParseNode): AsdlExpr
+proc astExprList(parseNode: ParseNode): seq[AsdlExpr]
 proc astTestList(parseNode: ParseNode): AsdlExpr
 proc astDictOrSetMaker(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
@@ -552,9 +552,9 @@ ast del_stmt, [AsdlStmt]:
   setNo(node, parseNode.children[0])
   let exprlist = parseNode.children[1]
 
-  let ls = astExprList(exprlist)
-  setDelete ls
-  node.targets.add(ls)
+  for i in astExprList(exprlist):
+    node.targets.add(i)
+    setDelete i
   node
 
 
@@ -715,14 +715,23 @@ ast while_stmt, [AstWhile]:
   if not (parseNode.children.len == 4):
     raiseSyntaxError("Else clause in while not implemented", parseNode.children[4])
 
+proc astExprListInFor(e: var AsdlExpr, node: ParseNode) =
+  if not (node.children.len == 1):
+    raiseSyntaxError("unpacking in for loop not implemented", node)
+  let child = node.children[0]
+  if not (child.tokenNode.token == Token.expr):
+    raiseSyntaxError("unpacking in for loop not implemented", child)
+  e = astExprList(node)[0]
+  e.setStore
+  # e=newTuple(astExprList(node))
+
 # for_stmt  'for' exprlist 'in' testlist ':' suite ['else' ':' suite]
 ast for_stmt, [AsdlStmt]:
   if not (parseNode.children.len == 6):
     raiseSyntaxError("for with else not implemented", parseNode.children[6])
   let forNode = newAstFor()
   setNo(forNode, parseNode.children[0])
-  forNode.target = astExprList(parseNode.children[1])
-  forNode.target.setStore
+  forNode.target.astExprListInFor(parseNode.children[1])
   forNode.iter = astTestlist(parseNode.children[3])
   forNode.body = astSuite(parseNode.children[5])
   result = forNode
@@ -1184,15 +1193,12 @@ ast subscript, [AsdlSlice]:
 
 
 # exprlist: (expr|star_expr) (',' (expr|star_expr))* [',']
-# currently only used in `for` stmt, so assume only one child
-ast exprlist, [AsdlExpr]:
-  if not (parseNode.children.len == 1):
-    raiseSyntaxError("unpacking in for loop not implemented", parseNode.children[1])
-  let child = parseNode.children[0]
-  if not (child.tokenNode.token == Token.expr):
-    raiseSyntaxError("unpacking in for loop not implemented", child)
-  astExpr(child)
-  
+ast exprlist, [seq[AsdlExpr]]:
+  ## current `ast star_expr` not impl
+  for i in 0..<((parseNode.children.len + 1) div 2):
+    let child = parseNode.children[2*i]
+    result.add astExpr(child)
+
 # testlist: test (',' test)* [',']
 ast testlist, [AsdlExpr]:
   var elms: seq[AsdlExpr]
@@ -1284,8 +1290,7 @@ ast sync_comp_for, [seq[AsdlComprehension]]:
   if parseNode.children.len == 5:
     raiseSyntaxError("Complex comprehension not implemented", parseNode.children[5])
   let comp = newAstComprehension()
-  comp.target = astExprList(parseNode.children[1])
-  comp.target.setStore()
+  comp.target.astExprListInFor(parseNode.children[1])
   comp.iter = astOrTest(parseNode.children[3])
   result.add comp
   
