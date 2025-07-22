@@ -18,6 +18,7 @@ type
     Type,
     Tuple,
     List,
+    Dict,
     Str,
     Code,
     NimFunc,
