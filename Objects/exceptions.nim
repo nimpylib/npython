@@ -195,16 +195,20 @@ template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) =
     retTuple = (iterobj, iternextFunc)
   retTuple
 
+template errArgNum*(argsLen, expected: int; name="")=
+  bind fmt, newTypeError, newPyStr
+  var msg: string
+  let sargsLen{.inject.} = $argsLen
+  if name != "":
+    msg = name & " takes exactly " & $expected & fmt" argument ({sargsLen} given)"
+  else:
+    msg = "expected " & $expected & fmt" argument ({sargsLen} given)"
+  return newTypeError(newPyStr msg)
 
 template checkArgNum*(expected: int, name="") = 
-  bind fmt, newTypeError, newPyStr
+  bind errArgNum
   if args.len != expected:
-    var msg: string
-    if name != "":
-      msg = name & " takes exactly " & $expected & fmt" argument ({args.len} given)"
-    else:
-      msg = "expected " & $expected & fmt" argument ({args.len} given)"
-    return newTypeError(newPyStr msg)
+    errArgNum args.len, expected, name
 
 
 template checkArgNumAtLeast*(expected: int, name="") = 
