@@ -26,6 +26,9 @@ template setSeqToStr(ss): string =
     self.pyType.name & "()"
   else:
     '{' & ss.join", " & '}'
+template frozensetSeqToStr(ss): string =
+  bind setSeqToStr
+  "frozenset(" & setSeqToStr(ss) & ')'
 
 template getItems(s: PyObject, elseDo): HashSet =
   if s.ofPySetObject: PySetObject(s).items
@@ -61,7 +64,7 @@ template genBMe(S, mutRead, pyMethod, nop){.dirty.} =
     if nop(self.items, other.getItems): pyTrueObj
     else: pyFalseObj
 
-template genSet(S, mutRead, mutReadRepr){.dirty.} =
+template genSet(S, setSeqToStr, mutRead, mutReadRepr){.dirty.} =
   proc `newPy S`*: `Py S Object` =
     `newPy S Simple`()
 
@@ -92,6 +95,9 @@ template genSet(S, mutRead, mutReadRepr){.dirty.} =
         self.items.incl i
     pyNone
 
+  `impl S Magic` iter:
+    genPyNimIteratorIter self.items
+
   
   genOp  S, mutRead, Or, `+`
   genMe  S, mutRead, union, `+`
@@ -107,8 +113,8 @@ template genSet(S, mutRead, mutReadRepr){.dirty.} =
   genBMe S, mutRead, issubset, `<=`
   genBMe S, mutRead, issuperset, `>=`
 
-genSet Set, [mutable: read], [mutable: read, reprLock]
-genSet FrozenSet, [], [reprLock]
+genSet Set, setSeqToStr, [mutable: read], [mutable: read, reprLock]
+genSet FrozenSet, frozensetSeqToStr, [], [reprLock]
 
 proc hash*(self: PyFrozenSetObject): Hash = self.hashCollection
 implFrozenSetMagic hash: newPyInt hash(self)
