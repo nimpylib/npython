@@ -1,4 +1,5 @@
-import strutils
+import std/hashes
+import ./hash
 import strformat
 
 import pyobject
@@ -9,6 +10,8 @@ import sliceobject
 
 declarePyType Tuple(reprLock, tpToken):
   items: seq[PyObject]
+  setHash: bool
+  hash: Hash
 
 
 proc newPyTuple*(items: seq[PyObject]): PyTupleObject = 
@@ -157,14 +160,25 @@ genSequenceMagics "tuple",
   newPyTupleSimple, [], [reprLock],
   tupleSeqToString
 
-template hashImpl*(items) =
-  var h = self.id
-  for item in self.items:
-    h = h xor item.id
-  return newPyInt(h)
+template hashCollectionImpl*(items; hashForEmpty): Hash =
+  var result: Hash
+  if items.len == 0:
+    result = hashForEmpty
+  else:
+    for item in items:
+      result = result !& hash(item)
+  !$result
+
+proc hashCollection*[T: PyObject](self: T): Hash =
+  if self.setHash: return self.hash
+  result = self.items.hashCollectionImpl Hash self.pyType.id
+  self.hash = result
+  self.setHash = true
+
+proc hash*(self: PyTupleObject): Hash = self.hashCollection 
 
 implTupleMagic hash:
-  hashImpl items
+  newPyInt hash(self)
 
 proc len*(t: PyTupleObject): int {. cdecl inline .} = 
   t.items.len
