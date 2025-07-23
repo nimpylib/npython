@@ -64,8 +64,8 @@ method `$`*(code: PyCodeObject): string =
     if opCode in hasArgSet:
       line &= fmt"{opArg:<4}"
       case opCode
-      of OpCode.LoadName, OpCode.StoreName, OpCode.LoadAttr, 
-        OpCode.LoadGlobal, OpCode.StoreGlobal:
+      of OpCode.LoadName, OpCode.StoreName, OpCode.DeleteName, OpCode.LoadAttr,
+        OpCode.LoadGlobal, OpCode.StoreGlobal, OpCode.DeleteGlobal:
         line &= fmt" ({code.names[opArg]})"
       of OpCode.LoadConst:
         let constObj = code.constants[opArg]
@@ -76,9 +76,9 @@ method `$`*(code: PyCodeObject): string =
           line &= fmt" ({reprStr})"
         else:
           line &= fmt" ({code.constants[opArg]})"
-      of OpCode.LoadFast, OpCode.StoreFast:
+      of OpCode.LoadFast, OpCode.StoreFast, OpCode.DeleteFast:
         line &= fmt" ({code.localVars[opArg]})"
-      of OpCode.LoadDeref, OpCode.StoreDeref:
+      of OpCode.LoadDeref, OpCode.StoreDeref, OpCode.DeleteDeref:
         if opArg < code.cellVars.len:
           line &= fmt" ({code.cellVars[opArg]})"
         else:
