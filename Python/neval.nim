@@ -204,6 +204,27 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     excpObj = excp
     break normalExecution
 
+  template notDefined(name: string) =
+    let msg = "name '" & name & "' is not defined" 
+    handleException(newNameError newPyStr(msg))
+
+  template genPop(T, toDel){.dirty.} =
+    template pop(se: T, i: OpArg, unused: var PyObject): bool =
+      if i < 0 or i > toDel.high: false
+      else:
+        toDel.del i
+        true
+  genPop (ptr seq[PyObject]), se[]  # fastLocals
+  genPop (seq[PyStrObject]), se # localVars
+  template deleteOrRaise(d, n; nMsg: string; elseDo) =
+    var unused: PyObject
+    if d.pop(n, unused):
+      continue
+    elseDo
+    notDefined(nMsg)
+  template deleteOrRaise(d, n; nMsg) =
+    deleteOrRaise(d, n, nMsg): discard
+
   # the main interpreter loop
   try:
     # exception handler loop
@@ -515,8 +536,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               elif bltinDict.hasKey(name):
                 obj = bltinDict[name]
               else:
-                let msg = fmt"name '{name.str}' is not defined" 
-                handleException(newNameError newPyStr(msg))
+                notDefined $name.str
               sPush obj
 
             of OpCode.SetupFinally:
@@ -536,6 +556,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.StoreFast:
               fastLocals[opArg] = sPop()
+
+            of OpCode.DeleteGlobal:
+              let name = names[opArg]
+              deleteOrRaise f.globals, name, $name.str
+            of OpCode.DeleteFast:
+              deleteOrRaise fastLocals, opArg, $opArg:
+                deleteOrRaise f.code.localVars, opArg, $opArg
+            #of OpCode.DeleteDeref: deleteOrRaise cellVars, opArg #.refObj = sPop
 
             of OpCode.RaiseVarargs:
               case opArg
