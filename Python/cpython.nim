@@ -31,7 +31,7 @@ const Fstdin = "<stdin>"
 
 proc parseCompileEval*(input: string, lexer: Lexer, 
   rootCst: var ParseNode, prevF: var PyFrameObject, finished: var bool
-  ): bool{.discardable.} =
+  ) =
     ## stuff to change, just a compatitable layer for ./jspython
     try:
       rootCst = parseWithState(input, lexer, Mode.Single, rootCst)
@@ -40,18 +40,18 @@ proc parseCompileEval*(input: string, lexer: Lexer,
       let excpObj = fromBltinSyntaxError(e, newPyAscii(Fstdin))
       excpObj.printTb
       finished = true
-      return true
+      return
 
     if rootCst.isNil:
-      return true
+      return
     finished = rootCst.finished
     if not finished:
-      return false
+      return
 
     let compileRes = compile(rootCst, Fstdin)
     if compileRes.isThrownException:
       PyExceptionObject(compileRes).printTb
-      return true
+      return
     let co = PyCodeObject(compileRes)
 
     when defined(debug):

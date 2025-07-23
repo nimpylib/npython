@@ -14,12 +14,12 @@ var finished = true
 var rootCst: ParseNode
 let lexerInst = newLexer("<stdin>")
 var prevF: PyFrameObject
-proc interactivePython(input: string): bool {. exportc, discardable .} =
+proc interactivePython(input: string) {. exportc .} =
   echo input
   if finished:
     rootCst = nil
     lexerInst.clearIndent
-  return parseCompileEval(input, lexerInst, rootCst, prevF, finished)
+  parseCompileEval(input, lexerInst, rootCst, prevF, finished)
 
 let info = getVersionString(verbose=true)
 const gitRepoUrl{.strdefine.} = ""
