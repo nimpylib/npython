@@ -133,6 +133,8 @@ proc parseWithState*(input: string,
                      parseNodeArg: ParseNode = nil,
                      ): ParseNode = 
 
+  ## like `_PyPegen_run_parser_from_string` or
+  ##      `_PyPegen_run_parser(Parser *p)` in Python 3.13
   lexer.lexString(input, mode)
   try:
     var tokenSeq = lexer.tokenNodes

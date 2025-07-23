@@ -8,6 +8,7 @@ type
     Eval
 
   Lexer* = ref object
+    ## For CPython 3.13, this is roughly equal to `tok_state*`
     indentStack: seq[int] # Stack to track indentation levels
     lineNo: int
     tokenNodes*: seq[TokenNode] # might be consumed by parser
