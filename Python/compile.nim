@@ -178,7 +178,8 @@ proc addLoadConst(c: Compiler, pyObject: PyObject, lineNo: int) =
 
 {. pop .}
 
-proc addLoadOp(c: Compiler, nameStr: PyStrObject, lineNo: int) = 
+template genScopeCase(X){.dirty.} =
+ proc `add X Op`(c: Compiler, nameStr: PyStrObject, lineNo: int) = 
   let scope = c.tste.getScope(nameStr)
 
   var
@@ -188,54 +189,28 @@ proc addLoadOp(c: Compiler, nameStr: PyStrObject, lineNo: int) =
   case scope
   of Scope.Local:
     opArg = c.tste.localId(nameStr)
-    opCode = OpCode.LoadFast
+    opCode = OpCode.`X Fast`
   of Scope.Global:
     opArg = c.tste.nameId(nameStr)
-    opCode = OpCode.LoadGlobal
+    opCode = OpCode.`X Global`
   of Scope.Cell:
     opArg = c.tste.cellId(nameStr)
-    opCode = OpCode.LoadDeref
+    opCode = OpCode.`X Deref`
   of Scope.Free:
     opArg = c.tste.freeId(nameStr)
-    opCode = OpCode.LoadDeref
+    opCode = OpCode.`X Deref`
 
   let instr = newArgInstr(opCode, opArg, lineNo)
   c.addOp(instr)
 
-
-proc addLoadOp(c: Compiler, name: AsdlIdentifier, lineNo: int) =
+ proc `add X Op`(c: Compiler, name: AsdlIdentifier, lineNo: int) =
   let nameStr = name.value
-  addLoadOp(c, nameStr, lineNo)
+  `add X Op`(c, nameStr, lineNo)
 
 
-proc addStoreOp(c: Compiler, nameStr: PyStrObject, lineNo: int) = 
-  let scope = c.tste.getScope(nameStr)
-
-  var
-    opArg: int
-    opCode: OpCode
-
-  case scope
-  of Scope.Local:
-    opArg = c.tste.localId(nameStr)
-    opCode = OpCode.StoreFast
-  of Scope.Global:
-    opArg = c.tste.nameId(nameStr)
-    opCode = OpCode.StoreGlobal
-  of Scope.Cell:
-    opArg = c.tste.cellId(nameStr)
-    opCode = OpCode.StoreDeref
-  of Scope.Free:
-    opArg = c.tste.freeId(nameStr)
-    opCode = OpCode.StoreDeref
-
-  let instr = newArgInstr(opCode, opArg, lineNo)
-  c.addOp(instr)
-
-
-proc addStoreOp(c: Compiler, name: AsdlIdentifier, lineNo: int) =
-  let nameStr = name.value
-  addStoreOp(c, nameStr, lineNo)
+genScopeCase Load
+genScopeCase Store
+genScopeCase Delete
 
 
 proc assemble(cu: CompilerUnit, fileName: PyStrObject): PyCodeObject =
@@ -813,8 +788,8 @@ compileMethod Name:
     c.addLoadOp(astNode.id, lineNo)
   elif astNode.ctx of AstStore:
     c.addStoreOp(astNode.id, lineNo)
-  #elif astNode.ctx of AstDel:
-  #  c.addOp(newArgInstr(OpCode.DeleteName, astNode.id, lineNo))
+  elif astNode.ctx of AstDel:
+    c.addDeleteOp(astNode.id, lineNo)
   else:
     unreachable # no other context implemented
 

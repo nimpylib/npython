@@ -86,6 +86,11 @@ proc addDeclaration(ste: SymTableEntry, name: AsdlIdentifier) =
   let nameStr = name.value
   ste.addDeclaration nameStr
 
+proc rmDeclaration(ste: SymTableEntry, name: PyStrObject) =
+  ste.declaredVars.excl name
+proc rmDeclaration(ste: SymTableEntry, name: AsdlIdentifier) =
+  ste.rmDeclaration(name.value)
+
 proc addUsed(ste: SymTableEntry, name: PyStrObject) =
   ste.usedVars.incl name
 
@@ -334,6 +339,10 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
             ste.addDeclaration(nameNode.id)
           of AsdlExprContextTk.Load:
             ste.addUsed(nameNode.id)
+          of AsdlExprContextTk.Del:
+            #ste.rmDeclaration(nameNode.id)
+            # TODO: don't rm decl, but what to do?
+            discard
           else:
             unreachable
 

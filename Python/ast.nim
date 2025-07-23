@@ -272,6 +272,8 @@ method setDelete(astNode: AstSubscript) =
   astnode.ctx = newAstDel()
 method setDelete(astNode: AstAttribute) =
   astnode.ctx = newAstDel()
+method setDelete(astNode: AstName) =
+  astnode.ctx = newAstDel()
 
 # single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
 ast single_input, [AstInteractive]:
