@@ -385,7 +385,8 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
 
       elif astNode of AsdlExceptHandler:
         let excpNode = AstExcepthandler(astNode)
-        assert excpNode.name.isNil
+        if not excpNode.name.isNil:
+          ste.addDeclaration(excpNode.name)
         visitSeq(excpNode.body)
         visit(excpNode.type)
       else:

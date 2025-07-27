@@ -776,11 +776,16 @@ ast except_clause, [AstExceptHandler]:
     return
   of 2:
     result.type = astTest(parseNode.children[1])
-  else:
-    raiseSyntaxError("'except' with name not implemented", parseNode.children[2])
-  
+  of 4:
+    # 'as' NAME
+    result.type = astTest(parseNode.children[1])
+    assert parseNode.children[2].tokenNode.token == Token.`as`
+    let nameNode = parseNode.children[3]
+    if nameNode.tokenNode.token != Token.Name:
+      raiseSyntaxError("invalid syntax", nameNode)
+    result.name = newIdentifier nameNode.tokenNode.content
+  else: unreachable
 
-  
 
 # suite  simple_stmt | NEWLINE INDENT stmt+ DEDENT
 ast suite, [seq[AsdlStmt]]:
