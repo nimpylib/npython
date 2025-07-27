@@ -550,22 +550,36 @@ compileMethod Try:
     let isLast = idx == astNode.handlers.len-1
 
     let handler = AstExcepthandler(handlerObj)
-    assert handler.name.isNil
+    let hLine = handler.lineno.value
     c.addBlock(excpBlocks[idx])
-    if not handler.type.isNil:
+    let noAs = handler.name.isNil
+    if handler.type.isNil:
+      assert noAs
+    else:
       # In CPython duptop is required, here we don't need that, because in each
       # exception match comparison we don't pop the exception, 
       # allowing further comparison
       # c.addop(OpCode.DupTop) 
       c.compile(handler.type)
-      c.addop(newArgInstr(OpCode.CompareOp, int(CmpOp.ExcpMatch), handler.lineNo.value))
+      c.addop(newArgInstr(OpCode.CompareOp, int(CmpOp.ExcpMatch), hLine))
       if isLast:
         c.addop(newJumpInstr(OpCode.PopJumpIfFalse, ending, c.lastLineNo))
       else:
         c.addop(newJumpInstr(OpCode.PopJumpIfFalse, excpBlocks[idx+1], c.lastLineNo))
+    if not noAs:
+      # no need to `c.compile(handler.name)`
+      #  as it's just a identifier
+      c.addop(OpCode.DupTop, hLine)
+      c.addStoreOp(handler.name, hLine)
     # now we are handling the exception, no need for future comparison
-    c.addop(OpCode.PopTop, handler.lineNo.value)
+    c.addop(OpCode.PopTop, hLine)
     c.compileSeq(handler.body)
+    if not noAs:
+      #[name=None; del name  # Mark as artificial]#
+      c.addLoadConst(pyNone, hLine)
+      c.addStoreOp(handler.name, hLine)
+
+      c.addDeleteOp(handler.name, hLine)
     # skip other handlers
     if not isLast:
       c.addop(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
