@@ -25,11 +25,17 @@ proc lexMessage(info: LineInfo, kind: TranslateEscapeErr, _: string){.raises: [S
   else:
     raiseSyntaxError(arg, info.fileName, info.line, info.column)
 
-proc decode_unicode_with_escapes*(L: lexerTypes.Lexer, s: string): string{.
-    raises: [SyntaxError].} =
-  var lex = newLexer[true](s, lexMessage)
+template decode_string_with_escapes(lex; s: string): string =
   lex.lineInfo.fileName = L.fileName
   lex.lineInfo.line = L.lineNo
   lex.translateEscape
 
-
+{.push raises: [SyntaxError].}
+proc decode_unicode_with_escapes*(L: lexerTypes.Lexer, s: string): string =
+  var lex = newLexer[true](s, lexMessage)
+  lex.decode_string_with_escapes s
+  
+proc decode_bytes_with_escapes*(L: lexerTypes.Lexer, s: string): string =
+  var lex = newLexer[false](s, lexMessage)
+  lex.decode_string_with_escapes s
+{.pop.}
