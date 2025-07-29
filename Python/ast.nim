@@ -751,13 +751,20 @@ ast try_stmt, [AstTry]:
   result.body = astSuite(parseNode.children[2])
   for i in 1..((parseNode.children.len-1) div 3):
     let child1 = parseNode.children[i*3]
-    if not (child1.tokenNode.token == Token.except_clause):
-      raiseSyntaxError("else/finally in try not implemented", child1)
-    let handler = astExceptClause(child1)
-    let child3 = parseNode.children[i*3+2]
-    handler.body = astSuite(child3)
-    result.handlers.add(handler)
-  
+    # child2 is colon
+    let body = astSuite(parseNode.children[i*3+2])
+    case child1.tokenNode.token
+    of Token.except_clause:
+      let handler = astExceptClause(child1)
+      handler.body = body
+      result.handlers.add(handler)
+    of Token.`finally`:
+      # child2 is colon
+      result.finalbody = body
+    of Token.`else`:
+      result.orelse = body
+    else:
+      unreachable
 
 ast with_stmt, [AsdlStmt]:
   raiseSyntaxError("with not implemented")

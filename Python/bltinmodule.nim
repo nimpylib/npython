@@ -2,6 +2,7 @@ import strformat
 {.used.}  # this module contains toplevel code, so never `importButNotUsed`
 import neval
 import builtindict
+import ./compile
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject,
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions]
 import ../Utils/[utils, macroutils, compat]

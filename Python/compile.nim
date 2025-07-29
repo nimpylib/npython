@@ -528,9 +528,9 @@ compileMethod Raise:
     c.compile(astNode.exc)
     c.addOp(newArgInstr(OpCode.RaiseVarargs, 1, astNode.lineNo.value))
 
-compileMethod Try:
-  assert astNode.orelse.len == 0
-  assert astNode.finalbody.len == 0
+
+proc codegen_try_except(c: Compiler, astNode: AstTry) =
+  assert astNode.orelse.len == 0, "not impl yet"
   assert 0 < astNode.handlers.len
   # the body here may not be necessary, I'm not sure. Add just in case.
   let body = newBasicBlock()
@@ -587,6 +587,41 @@ compileMethod Try:
   let lastLineNo = c.lastLineNo
   c.addBlock(ending)
   c.addOp(OpCode.PopBlock, lastLineNo)
+
+proc codegen_try_finally(c: Compiler, astNode: AstTry) =
+  let curLine = astNode.lineNo.value
+
+  let lastLineNo = c.lastLineNo
+  let
+    ending = newBasicBlock()
+    exit = newBasicBlock()
+
+  # `try` block
+  c.addOp(newJumpInstr(OpCode.SetupFinally, ending, curLine))
+
+  let body = newBasicBlock()
+  c.addBlock(body)
+
+
+  if astNode.handlers.len != 0:
+    codegen_try_except(c, astNode)
+  else:
+    c.compileSeq astNode.body
+
+  c.addop(newJumpInstr(OpCode.JumpAbsolute, exit, lastLineNo))
+
+  # `finally` block
+  c.addBlock(ending)
+  c.compileSeq astNode.finalbody
+
+  c.addBlock(exit)
+  c.addOp(OpCode.PopBlock, lastLineNo)
+
+compileMethod Try:
+  if astNode.finalbody.len != 0:
+    codegen_try_finally(c, astNode)
+  else:
+    codegen_try_except(c, astNode)
 
 
 compileMethod Assert:
