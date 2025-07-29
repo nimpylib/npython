@@ -144,15 +144,21 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   template sPeek(idx: int): PyObject = 
     valStack[^idx]
 
-  template sSetTop(obj: PyObject) = 
+  template sSetTop(obj: PyObject{atom}) = 
     when defined(debug):
       assert(not obj.pyType.isNil)
     valStack[^1] = obj
+  template sSetTop(obj: PyObject) = 
+    let o = obj
+    sSetTop o
 
-  template sPush(obj: PyObject) = 
+  template sPush(obj: PyObject{atom}) = 
     when defined(debug):
       assert(not obj.pyType.isNil)
     valStack.add obj
+  template sPush(obj: PyObject) = 
+    let o = obj
+    sPush o
 
   template sEmpty: bool = 
     valStack.len == 0
