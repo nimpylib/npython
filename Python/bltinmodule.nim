@@ -4,7 +4,9 @@ import neval
 import builtindict
 import ./compile
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject,
-  notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions]
+  notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
+  byteobjectsImpl,
+  ]
 import ../Utils/[utils, macroutils, compat]
 
 
@@ -161,6 +163,8 @@ registerBltinObject("set", pySetObjectType)
 registerBltinObject("frozenset", pyFrozenSetObjectType)
 registerBltinObject("int", pyIntObjectType)
 registerBltinObject("str", pyStrObjectType)
+registerBltinObject("bytes", pyBytesObjectType)
+registerBltinObject("bytearray", pyByteArrayObjectType)
 registerBltinObject("property", pyPropertyObjectType)
 # not ready to use because no setup code is done when init new types
 # registerBltinObject("staticmethod", pyStaticMethodObjectType)

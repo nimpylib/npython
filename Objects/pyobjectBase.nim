@@ -19,6 +19,7 @@ type
     Tuple,
     List,
     Dict,
+    Bytes,
     Str,
     Code,
     NimFunc,
@@ -96,6 +97,7 @@ type
     len: UnaryMethod
 
     str: UnaryMethod
+    bytes: UnaryMethod
     repr: UnaryMethod
 
     New: BltinFunc  # __new__ is a `staticmethod` in Python
