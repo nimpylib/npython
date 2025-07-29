@@ -8,7 +8,7 @@ import strformat
 import asdl
 import ../Parser/[token, parser]
 import ../Objects/[pyobject, noneobject,
-  numobjects, boolobjectImpl, stringobjectImpl,
+  numobjects, boolobjectImpl, stringobjectImpl, byteobjects,
   sliceobject  # pyEllipsis
   ]
 import ../Utils/[utils, compat]
@@ -1016,6 +1016,14 @@ proc astAtomExpr(parseNode: ParseNode): AsdlExpr =
 #      '[' [testlist_comp] ']' |
 #      '{' [dictorsetmaker] '}' |
 #      NAME | NUMBER | STRING+ | '...' | 'None' | 'True' | 'False')
+
+template resStrOrBytesVia(newObj){.dirty.} =
+    var str: string
+    for child in parseNode.children:
+      str.add(child.tokenNode.content)
+    let pyString = newObj(str)
+    result = newAstConstant(pyString)
+
 ast atom, [AsdlExpr]:
   let child1 = parseNode.children[0]
   case child1.tokenNode.token
@@ -1082,11 +1090,10 @@ ast atom, [AsdlExpr]:
       result = newAstConstant(pyInt)
 
   of Token.STRING:
-    var str: string
-    for child in parseNode.children:
-      str.add(child.tokenNode.content)
-    let pyString = newPyString(str)
-    result = newAstConstant(pyString)
+    resStrOrBytesVia newPyString
+
+  of Token.BYTES:
+    resStrOrBytesVia newPyBytes
 
   of Token.True:
     result = newAstConstant(pyTrueObj)
