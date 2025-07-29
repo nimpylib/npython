@@ -174,11 +174,14 @@ macro registerErrors: untyped =
   result = newStmtList()
   template registerTmpl(name:string, tp:PyTypeObject) = 
     registerBltinObject(name, tp)
+  template reg(excpName, typeName: string){.dirty.} =
+    result.add getAst(registerTmpl(excpName, ident(typeName)))
   for i in 0..int(ExceptionToken.high):
     let tok = ExceptionToken(i)
     let tokenStr = tok.getTokenName
     let excpName = tok.getBltinName
-    let typeName = fmt"py{tokenStr}ErrorObjectType"
-    result.add getAst(registerTmpl(excpName, ident(typeName)))
+    reg excpName, "py" & tokenStr & "ErrorObjectType"
+  for s in subErrs:
+    reg s, "py" & s & "ObjectType"
 
 registerErrors
