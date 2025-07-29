@@ -1,5 +1,5 @@
 
-
+import std/strformat
 
 import ./byteobjects
 import ./pyobject
@@ -23,3 +23,35 @@ template impl(B, mutRead){.dirty.} =
 
 impl Bytes, []
 impl ByteArray, [mutable: read]
+
+# TODO: encoding, errors params
+implBytesMagic New(tp: PyObject, x: PyObject):
+  var bytes: PyObject
+  var fun: UnaryMethod
+  fun = x.getMagic(bytes)
+  if not fun.isNil:
+    result = fun(x)
+    if not result.ofPyBytesObject:
+      return newTypeError newPyString(
+        &"__bytes__ returned non-bytes (type {result.pyType.name:.200s})")
+    return
+  
+  if x.ofPyStrObject:
+    return newTypeError newPyAscii"string argument without an encoding"
+  # Is it an integer?
+  fun = x.getMagic(index)
+  if not fun.isNil:
+    var size: int
+    result = PyNumber_AsSsize_t(x, size)
+    if size == -1 and result.isThrownException:
+      if not result.isExceptionOf Type:
+        return  # OverflowError
+      bytes = PyBytes_FromObject x
+    else:
+      if size < 0:
+        return newValueError newPyAscii"negative count"
+      bytes = newPyBytes size
+  else:
+    bytes = PyBytes_FromObject x
+  return bytes
+
