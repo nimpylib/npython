@@ -6,6 +6,8 @@
 # we return exception object directly with a thrown flag inside
 # This might be a bit slower but we are not pursueing ultra performance anyway
 import std/enumutils
+import std/macrocache
+export macrocache.items
 import strformat
 
 import pyobject
@@ -17,6 +19,7 @@ type ExceptionToken* {. pure .} = enum
   Name,
   NotImplemented,
   Type,
+  Arithmetic,
   Attribute,
   Value,
   Index,
@@ -102,23 +105,22 @@ macro declareErrors: untyped =
 
 declareErrors
 
-
-template newProcTmpl(excpName) = 
+template newProcTmpl(excpName, tok){.dirty.} = 
   # use template for lazy evaluation to use PyString
   # theses two templates are used internally to generate errors (default thrown)
-  proc `new excpName Error`*: PyBaseErrorObject{.inline.} = 
+  proc `new excpName Error`*: `Py excpName ErrorObject`{.inline.} = 
     let excp = `newPy excpName ErrorSimple`()
-    excp.tk = ExceptionToken.`excpName`
+    excp.tk = ExceptionToken.`tok`
     excp.thrown = true
     excp
 
-  proc `new excpName Error`*(msgStr: PyStrObject): PyBaseErrorObject{.inline.} = 
-    let excp = `newPy excpName ErrorSimple`()
-    excp.tk = ExceptionToken.`excpName`
-    excp.thrown = true
+  proc `new excpName Error`*(msgStr: PyStrObject): `Py excpName ErrorObject`{.inline.} = 
+    let excp = `new excpName Error`()
     excp.msg = msgStr
     excp
 
+template newProcTmpl(excpName) = 
+  newProcTmpl(excpName, excpName)
 
 macro genNewProcs: untyped = 
   result = newStmtList()
@@ -129,15 +131,32 @@ macro genNewProcs: untyped =
 
 genNewProcs
 
-template newAttributeError*(tpName, attrName: PyStrObject): PyExceptionObject = 
+var subErrs*{.compileTime.}: seq[string]
+macro declareSubError(E, baseE) =
+  let
+    eeS = E.strVal & "Error"
+    ee = ident eeS
+    bee = ident baseE.strVal & "Error"
+    typ = ident "py" & ee.strVal & "ObjectType"
+    btyp = ident "py" & bee.strVal & "ObjectType"
+  subErrs.add eeS
+  result = quote do:
+    declarePyType `ee`(base(`bee`)): discard
+    newProcTmpl(`E`, `baseE`)
+    `typ`.base = `btyp`
+    `typ`.name = `eeS`
+
+declareSubError Overflow, Arithmetic
+
+template newAttributeError*(tpName, attrName: PyStrObject): untyped =
   let msg = tpName & newPyAscii" has no attribute " & attrName
   newAttributeError(msg)
 
-template newAttributeError*(tpName, attrName: string): PyExceptionObject = 
+template newAttributeError*(tpName, attrName: string): untyped =
   newAttributeError(tpName.newPyStr, attrName.newPyStr)
 
 
-template newIndexTypeError*(typeName: PyStrObject, obj:PyObject): PyExceptionObject = 
+template newIndexTypeError*(typeName: PyStrObject, obj:PyObject): untyped =
   let name = obj.pyType.name
   let msg = typeName & newPyAscii(" indices must be integers or slices, not ") & newPyStr name
   newTypeError(msg)
@@ -220,3 +239,6 @@ template checkArgNumAtLeast*(expected: int, name="") =
     else:
       msg = "expected at least " & $expected & fmt" argument ({args.len} given)"
     return newTypeError(newPyStr msg)
+
+proc PyErr_Format*(exc: PyBaseErrorObject, msg: PyStrObject) =
+  exc.msg = msg
