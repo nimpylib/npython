@@ -1,7 +1,7 @@
 ## bytesobject and bytesarrayobject
 import std/strformat
 import ./pyobject
-
+import ./abstract
 import ./[listobject, tupleobject, stringobject, exceptions, iterobject]
 
 declarePyType Bytes(tpToken):
@@ -77,9 +77,45 @@ proc `[]=`*(s: PyByteLike, i: int, c: char) = s.items[i] = c
 
 proc add*(self: PyByteArrayObject, b: PyByteLike) = self.items.add b.items
 
+template genFromIter(S; T; forInLoop; getLenHint: untyped=len){.dirty.} =
+  proc `PyBytes_From S`*(x: T): PyObject =
+    let size = x.getLenHint
+    var writer = initPyBytesWriter size
+    var value: int
+    forInLoop i, x:
+      let ret = PyNumber_AsClampedSsize_t(i, value)
+      if not ret.isNil:
+        return ret
+      if value < 0 or value > 256:
+        return newValueError newPyAscii"bytes must be in range(0, 256)"
+      writer.add cast[char](value)
+    writer.finish
+
+template sysForIn(x, it, body){.dirty.} =
+  for x in it: body 
+genFromIter List, PyListObject, sysForIn
+genFromIter Tuple, PyTupleObject, sysForIn
+template getLenHint(x): int = 64  # TODO
+genFromIter Iterator, PyObject, pyForIn, getLenHint
 
 
-
+proc PyBytes_FromObject*(x: PyObject): PyObject =
+  if x.pyType == pyBytesObjectType: return x
+  # TODO
+  #[    /* Use the modern buffer interface */
+    if (PyObject_CheckBuffer(x))
+        return _PyBytes_FromBuffer(x);]#
+  if x.pyType == pyListObjectType: return PyBytes_FromList PyListObject x
+  if x.pyType == pyTupleObjectType: return PyBytes_FromTuple PyTupleObject x
+  if not x.ofPyStrObject:
+    let it = PyObject_GetIter(x)
+    if not it.isNil:
+      return PyBytes_FromIterator(it)
+    if not it.isExceptionOf Type:
+      return it
+  return newTypeError newPyStr(
+    fmt"cannot convert '{x.pyType.name:.200s}' object to bytes"
+  )
 
 
     
