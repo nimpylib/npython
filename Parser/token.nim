@@ -14,6 +14,7 @@ const
               ("ENDMARKER" , "Endmarker"),
               ("NAME"      , "Name"),
               ("NUMBER"    , "Number"),
+              ("BYTES"    ,  "Bytes"),
               ("STRING"    , "String"),
               ("NEWLINE"   , "Newline"),
               ("INDENT"    , "Indent"),
@@ -77,7 +78,7 @@ proc readGrammarToken: seq[string] {.compileTime.} =
       var tokenString: string
       discard line.parseUntil(tokenString, ':') # stored in tokenString
       result.add(tokenString)
-      
+
 
 # everything inside pars
 proc readReserveName: HashSet[string] {.compileTime.} = 
@@ -159,7 +160,7 @@ proc genTerminatorSet: set[Token] {. compileTime .} =
 const terminatorSet = genTerminatorSet()
 
 # token nodes that should have a content field
-const contentTokenSet* = {Token.Name, Token.Number, Token.String}
+const contentTokenSet* = {Token.Name, Token.Number, Token.String, Token.Bytes}
 
 type
   TokenNode* = ref object
@@ -167,7 +168,7 @@ type
     of terminatorSet:
       lineNo*: int
       colNo*: int
-      content*: string # only for name, number and string
+      content*: string # only for name, number, bytes, and string
     else:
       discard
 
