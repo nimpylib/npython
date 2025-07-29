@@ -18,6 +18,11 @@ type
   Source = ref object
     lines: seq[string]
 
+const
+  BPrefix = {'b', 'B'}
+  RPrefix = {'r', 'R'}
+  StrLitPrefix = BPrefix + RPrefix + {'u', 'U'}
+  StrLitQuote = {'"', '\''}
 
 template indentLevel(lexer: Lexer): int = lexer.indentStack[^1]
 
@@ -130,23 +135,51 @@ proc getNextToken(
   template newTokenNodeWithNo(Tk): TokenNode = 
       newTokenNode(Token.Tk, lexer.lineNo, idx)
 
-  case line[idx]
-  of 'a'..'z', 'A'..'Z', '_':
+  template addId =
     addToken(Name, "Invalid identifier")
-  of '0'..'9':
-    addToken(Number, "Invalid number")
-  of '"', '\'':
-    let pairingChar = line[idx]
-    
-    if idx == line.len - 1:
-      raiseSyntaxError("Invalid string syntax")
+
+  template asIs(x): untyped = x  
+  template addString(pairingChar: char, escaper: untyped = lexer.decode_unicode_with_escapes, tok=Token.String) =
+    ## PY-DIFF: We use different Token for bytes and str, for s as a String/Bytes Token,
+    ##  `s` is translated content (e.g. `r'\n'` translated to Newline Char),
+    ##  unlike CPython only has String Token and `s[0]` is prefix and `s[1]` is quotation mark, as it's no need to check again
     let l = line.skipUntil(pairingChar, idx+1)
     if idx + l + 1 == line.len: # pairing `"` not found
       raiseSyntaxError("Invalid string syntax")
     else:
-      let s = lexer.decode_unicode_with_escapes(line[idx+1..idx+l])
-      result = newTokenNode(Token.String, lexer.lineNo, idx, s)
+      let s = escaper(line[idx+1..idx+l])
+      result = newTokenNode(tok, lexer.lineNo, idx, s)
       idx += l + 2
+
+  let curChar = line[idx]
+  case curChar
+  of {'a'..'z', 'A'..'Z', '_'} - StrLitPrefix:
+    addId
+  of StrLitPrefix:
+    let prefix = curChar
+    var quote: char
+    template nextIsQuote(): bool =
+      idx < line.high and (quote = line[idx+1]; quote) in StrLitQuote
+    if nextIsQuote():
+      idx += 1
+      case prefix
+      of BPrefix: addString quote, lexer.decode_bytes_with_escapes
+      of RPrefix: addString quote, asIs
+      else: addString quote
+    elif (
+      prefix in BPrefix and quote in RPrefix or
+      quote in BPrefix and prefix in RPrefix
+    ) and nextIsQuote: # raw bytes: br, bR, rb, etc.
+      idx += 1
+      addString quote, asIs
+    else:
+      addId
+  of '0'..'9':
+    addToken(Number, "Invalid number")
+  of StrLitQuote:
+    if idx == line.len - 1:
+      raiseSyntaxError("Invalid string syntax")
+    addString curChar
 
   of '\n':
     result = newTokenNodeWithNo(Newline)
@@ -259,7 +292,7 @@ proc getNextToken(
   of '@':
     addSingleOrDoubleCharToken(At, AtEqual, '=')
   else: 
-    raiseSyntaxError(fmt"Unknown character {line[idx]}")
+    raiseSyntaxError(fmt"Unknown character {curChar}")
   assert result != nil
 
 
