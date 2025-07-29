@@ -134,7 +134,7 @@ implListMethod insert(idx: PyIntObject, item: PyObject), [mutable: write]:
   elif self.items.len < idx:
     intIdx = self.items.len
   else:
-    intIdx = idx.toInt
+    intIdx = idx.toIntOrRetOF
   self.items.insert(item, intIdx)
   pyNone
 
@@ -152,7 +152,7 @@ implListMethod remove(target: PyObject), [mutable: write]:
   if retObj.isThrownException:
     return retObj
   assert retObj.ofPyIntObject
-  let idx = PyIntObject(retObj).toInt
+  let idx = PyIntObject(retObj).toIntOrRetOF
   self.items.delete(idx)
   pyNone
 

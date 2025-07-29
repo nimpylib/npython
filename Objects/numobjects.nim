@@ -780,17 +780,139 @@ method `$`*(f: PyFloatObject): string =
   $f.v
 
 proc toInt*(pyInt: PyIntObject): int = 
-  # XXX: the caller should take care of overflow
-  for i in countdown(pyInt.digits.len-1, 0):
+  ## XXX: the caller should take care of overflow
+  ##  It raises `OverflowDefect` on non-danger build
+  for i in countdown(pyInt.digits.high, 0):
     result = result shl digitBits
     result += int(pyInt.digits[i])
   if pyInt.sign == Negative:
     result *= -1
 
+const PY_ABS_LONG_MIN = cast[uint](int.low) ## \
+## we cannot use `0u - cast[uint](int.low)` unless with rangeChecks:off
+
+proc toInt*(pyInt: PyIntObject, overflow: var IntSign): int =
+  ## if overflow, `overflow` will be `IntSign.Negative` or `IntSign.Positive
+  ##   (depending the sign of the argument)
+  ##   and result be `-1`
+  ##
+  ## Otherwise, `overflow` will be `IntSign.Zero`
+  overflow = Zero
+
+  var x = uint 0
+  var prev{.noInit.}: uint
+  var sign = pyInt.sign
+  result = -1
+  for i in countdown(pyInt.digits.high, 0):
+    prev = x
+    x = (x shl digitBits) or uint(pyInt.digits[i])
+    if x shr digitBits != prev:
+      overflow = sign
+      return
+  #[ Haven't lost any bits, but casting to long requires extra
+    care (see comment above).]#
+  if x <= uint int.high:
+    result = cast[int](x) * ord(sign)
+  elif sign == Negative and x == PY_ABS_LONG_MIN:
+    result = int.low
+  else:
+    overflow = sign
+
+proc toInt*(pyInt: PyIntObject, res: var int): bool =
+  ## returns false on overflow (`x not_in int.low..int.high`)
+  var ovf: IntSign
+  res = pyInt.toInt(ovf)
+  result = ovf == IntSign.Zero
+
+proc PyNumber_Index*(item: PyObject): PyObject =
+  ## returns `PyIntObject` or exception
+  ## 
+  ## CPython's defined at abstract.c
+  if item.ofPyIntObject:
+    return item
+  let fun = item.getMagic(index)
+  if fun.isNil:
+    return newTypeError newPyStr(
+    fmt"'{item.pyType.name:.200s}' object cannot be interpreted as an integer"
+    )
+
+  let i = fun(item)
+  if not i.ofPyIntObject:
+    return newTypeError newPyStr(
+    fmt"__index__ returned non-int (type {item.pyType.name:.200s})"
+    )
+
+proc PyLong_AsSsize_t*(vv: PyIntObject, res: var int): PyOverflowErrorObject =
+  ## returns nil if not overflow
+  if not toInt(vv, res):
+    return newOverflowError(
+      newPyAscii"Python int too large to convert to C ssize_t")
+
+proc asLongAndOverflow*(vv: PyIntObject, ovlf: var bool): int{.inline.} =
+  ## PyLong_AsLongAndOverflow
+  ovlf = not toInt(vv, result)
+
+template toIntOrRetOF*(vv: PyIntObject): int =
+  ## a helper wrapper of `PyLong_AsSsize_t`
+  ## `return` OverflowError for outer function
+  var i: int
+  let ret = PyLong_AsSsize_t(vv, i)
+  if not ret.isNil: return ret
+  i
+
+proc PyLong_AsSsize_t*(v: PyObject, res: var int): PyBaseErrorObject =
+  if not v.ofPyIntObject:
+    res = -1
+    return newTypeError newPyAscii"an integer is required"
+  PyLong_AsSsize_t(PyIntObject v, res)
+
+template PyNumber_AsSsize_tImpl(pyObj: PyObject, res: var int, handleTypeErr, handleValAndOverfMsg){.dirty.} =
+  let value = PyNumber_Index(pyObj)
+  if not value.ofPyIntObject:
+    res = -1
+    handleTypeErr PyTypeErrorObject value
+  else:
+    let ivalue = PyIntObject value
+    if not toInt(ivalue, res):
+      handleValAndOverfMsg ivalue, (
+        let tName{.inject.} = pyObj.pyType.name;
+        newPyStr fmt"cannot fit '{tName:.200s}' into an index-sized integer")
+
+proc PyNumber_AsSsize_t*(pyObj: PyObject, res: var int): PyExceptionObject =
+  ## returns nil if no error; otherwise returns TypeError or OverflowError
+  template handleTypeErr(e: PyTypeErrorObject) = return e
+  template handleOverfMsg(_; msg: PyStrObject) = return newOverflowError msg
+  PyNumber_AsSsize_tImpl pyObj, res, handleTypeErr, handleOverfMsg
+
+proc PyNumber_AsSsize_t*(pyObj: PyObject, res: var PyExceptionObject): int =
+  ## `res` [inout]
+  ##
+  ## CPython's defined at abstract.c
+  template handleTypeErr(e: PyTypeErrorObject) = res = e
+  template handleOverfMsg(_; msg: PyStrObject) =
+    PyErr_Format res, msg
+  PyNumber_AsSsize_tImpl pyObj, result, handleTypeErr, handleOverfMsg
+
+proc PyNumber_AsClampedSsize_t*(pyObj: PyObject, res: var int): PyTypeErrorObject =
+  ## C: `PyNumber_AsSsize_t(pyObj, NULL)`
+  ## clamp result if overflow
+  ## 
+  ## returns nil unless Py's TypeError
+  template handleTypeErr(e: PyTypeErrorObject) = return e
+  template handleExc(i: PyIntObject; _) =
+    res =
+      if i.positive: high int
+      else: low int
+    return
+  PyNumber_AsSsize_tImpl(pyObj, res, handleTypeErr, handleExc)
+
 
 proc toFloat*(pyInt: PyIntObject): float = 
   parseFloat($pyInt)
 
+
+proc newPyInt*[C: char](smallInt: C): PyIntObject =
+  newPyInt int smallInt  # TODO
 
 proc newPyInt*[C: Rune|char](str: openArray[C]): PyIntObject = 
   fromStr(str)
@@ -1045,8 +1167,7 @@ implFloatMagic hash:
 
 # used in list and tuple
 template getIndex*(obj: PyIntObject, size: int, sizeOpIdx: untyped = `<=`): int =
-  # todo: if overflow, then thrown indexerror
-  var idx = obj.toInt
+  var idx = obj.toIntOrRetOF
   if idx < 0:
     idx = size + idx
   if (idx < 0) or (sizeOpIdx(size, idx)):

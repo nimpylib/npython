@@ -117,10 +117,10 @@ when true:
         newObj: PyStrObject
         retObj: PyObject
       if self.str.ascii:
-        newObj = newPyString newAsciiUnicodeVariantOfCap slice.calLen
+        newObj = newPyString newAsciiUnicodeVariantOfCap slice.calLenOrRetOF
         retObj = tgetSliceItems(asciiStr)
       else:
-        newObj = newPyString newUnicodeUnicodeVariantOfCap slice.calLen
+        newObj = newPyString newUnicodeUnicodeVariantOfCap slice.calLenOrRetOF
         retObj = tgetSliceItems(unicodeStr)
       if retObj.isThrownException:
         return retObj

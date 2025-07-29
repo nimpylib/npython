@@ -29,34 +29,41 @@ proc newPySlice*(start, stop, step: PyObject): PyObject =
   setAttrTmpl(stop)
   setAttrTmpl(step)
   
-  if slice.step.ofPyIntObject and (PyIntObject(slice.step).toInt == 0):
+  if slice.step.ofPyIntObject and (PyIntObject(slice.step).toIntOrRetOF == 0):
     return newValueError newPyAscii("slice step cannot be zero")
   slice
 
 
 # slice.indices defined in ./sliceobjectImpl
 
-proc calLen*(self: PySliceObject): int =
+proc calLen*(self: PySliceObject, res: var int): PyOverflowErrorObject =
   ## Get the length of the slice.
   ## .. note:: python's slice has no `__len__`.
   ##   this is just a convenience method for internal use.
   template intOrNone(obj: PyObject, defaultValue: int): int =
     if obj.ofPyIntObject:
-      PyIntObject(obj).toInt
+      PyIntObject(obj).toIntOrRetOF
     else:
       defaultValue
-  rangeLen[int](
+  res=rangeLen[int](
     intOrNone(self.start, 0),
     intOrNone(self.stop, 0),
     intOrNone(self.step, 1)
   )
 
+template calLenOrRetOF*(self: PySliceObject): int =
+  bind calLen
+  var res: int
+  let ret = self.calLen res
+  if not ret.isNil:
+    return ret
+  res
+
 proc getSliceItems*[T](slice: PySliceObject, src: openArray[T], dest: var (seq[T]|string)): PyObject =
   var start, stop, step: int
   let stepObj = slice.step
   if stepObj.ofPyIntObject:
-    # todo: overflow
-    step = PyIntObject(stepObj).toInt
+    step = PyIntObject(stepObj).toIntOrRetOF
   else:
     assert stepObj.ofPyNoneObject
     step = 1
