@@ -163,7 +163,7 @@ proc getNextToken(
     if nextIsQuote():
       idx += 1
       case prefix
-      of BPrefix: addString quote, lexer.decode_bytes_with_escapes
+      of BPrefix: addString quote, lexer.decode_bytes_with_escapes, Token.Bytes
       of RPrefix: addString quote, asIs
       else: addString quote
     elif (
@@ -171,7 +171,7 @@ proc getNextToken(
       quote in BPrefix and prefix in RPrefix
     ) and nextIsQuote: # raw bytes: br, bR, rb, etc.
       idx += 1
-      addString quote, asIs
+      addString quote, asIs, Token.Bytes
     else:
       addId
   of '0'..'9':
