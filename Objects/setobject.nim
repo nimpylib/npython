@@ -19,7 +19,7 @@ declarePyType Set(reprLock, mutable, tpToken):
 declarePyType FrozenSet(reprLock, tpToken):
   items: HashSet[PyObject]
   setHash: bool
-  hash: Hash
+  privateHash: Hash
 
 template setSeqToStr(ss): string =
   if ss.len == 0:
@@ -78,7 +78,7 @@ template genSet(S, setSeqToStr, mutRead, mutReadRepr){.dirty.} =
     newL
   
   genCollectMagics items,
-    `impl S Magic`, `newPy S Simple`,
+    `impl S Magic`,
     `ofPy S Object`, `Py S Object`,
     mutRead, mutReadRepr,
     setSeqToStr
