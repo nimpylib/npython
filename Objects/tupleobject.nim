@@ -14,8 +14,12 @@ declarePyType Tuple(reprLock, tpToken):
   privateHash: Hash
 
 
-proc newPyTuple*(items: seq[PyObject]): PyTupleObject = 
+proc newPyTuple(): PyTupleObject{.inline.} =
+  ## unpublic, used by  `__mul__` method
   result = newPyTupleSimple()
+
+proc newPyTuple*(items: seq[PyObject]): PyTupleObject = 
+  result = newPyTuple()
   # shallow copy
   result.items = items
 
@@ -73,6 +77,11 @@ template genGetitem*(nameStr, implNameMagic, newPyName, mutRead; getter: untyped
       
     return newIndexTypeError(newPyStr nameStr, other)
 
+proc times*[T](s: openArray[T], n: int): seq[T] =
+  result = newSeqOfCap[T](s.len * n)
+  for _ in 1..n:
+    result.add s
+
 template genSequenceMagics*(nameStr,
     implNameMagic, implNameMethod;
     ofPyNameObject, PyNameObject,
@@ -84,6 +93,13 @@ template genSequenceMagics*(nameStr,
     implNameMagic,
     ofPyNameObject, PyNameObject,
     mutRead, mutReadRepr, seqToStr
+
+  implNameMagic mul, mutRead:
+    var n: int
+    let e = PyNumber_AsSsize_t(other, n)
+    if not e.isNil:
+      return e
+    newPyName self.items.times n
 
   implNameMagic add, mutRead:
     var res = newPyName()
@@ -171,7 +187,7 @@ proc tupleSeqToString(ss: openArray[UnicodeVariant]): UnicodeVariant =
 genSequenceMagics "tuple",
   implTupleMagic, implTupleMethod,
   ofPyTupleObject, PyTupleObject,
-  newPyTupleSimple, [], [reprLock],
+  newPyTuple, [], [reprLock],
   tupleSeqToString
 
 template hashCollectionImpl*(items; hashForEmpty): Hash =
