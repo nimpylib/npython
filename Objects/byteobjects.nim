@@ -8,7 +8,7 @@ declarePyType Bytes(tpToken):
   items: string
 
 declarePyType ByteArray(reprLock, mutable):
-  items: string
+  items: seq[char]
 
 type PyBytesWriter* = object
   #overallocate*: bool
@@ -32,46 +32,47 @@ template ofPyByteArrayObject*(obj: PyObject): bool =
   bind pyByteArrayObjectType
   obj.pyType == pyByteArrayObjectType
 
+proc `$`(self: seq[char]): string =
+  result.setLen self.len
+  when declared(copyMem):
+    if self.len > 0:
+      copyMem result[0].addr, self[0].addr, self.len
+  else:
+    for i, c in self: result[i] = c
+
 type PyByteLike = PyBytesObject or PyByteArrayObject
 
 proc len*(s: PyByteLike): int {. inline, cdecl .} = s.items.len
-proc `$`*(s: PyByteLike): string = s.items
+proc `$`*(s: PyByteLike): string = $s.items
 iterator items*(s: PyByteLike): char =
   for i in s.items: yield i
 proc `[]`*(s: PyByteLike, i: int): char = s.items[i]
 
-template impl(B){.dirty.} =
+template impl(B, InitT, newTOfCap){.dirty.} =
 
-  method `$`*(s: `Py B Object`): string = s.items
-  proc `newPy B`*(s: string = ""): `Py B Object` =
+  method `$`*(s: `Py B Object`): string = $s.items
+  proc `newPy B`*(s: InitT = default InitT): `Py B Object` =
     result = `newPy B Simple`()
     result.items = s
   proc `newPy B`*(size: int): `Py B Object` =
-    `newPy B` newString size
+    `newPy B` newTOfCap size
   proc `&`*(s1, s2: `Py B Object`): `Py B Object` =
     `newPy B`(s1.items & s2.items)
 
-impl Bytes
-impl ByteArray
+impl Bytes, string, newString
+impl ByteArray, seq[char], newSeq[char]
 
 
 proc finish*(self: PyBytesWriter): PyObject =
-  var s: string
-  s.setLen self.len
-  when declared(copyMem):
-    copyMem s[0].addr, self.s[0].addr, self.len
-  else:
-    for i, c in self.s: s[i] = c
-
-  if self.use_bytearray: newPyByteArray move s
-  else: newPyBytes move s
+  if self.use_bytearray: newPyByteArray self.s
+  else: newPyBytes $self.s
 
 proc repr*(b: PyBytesObject): string =
   'b' & '\'' & b.items & '\'' # TODO
 
 proc repr*(b: PyByteArrayObject): string =
   "bytearray(" &
-    'b' & '\'' & b.items & '\'' #[TODO]# &
+    'b' & '\'' & $b.items & '\'' #[TODO]# &
   ')'
 proc `[]=`*(s: PyByteLike, i: int, c: char) = s.items[i] = c
 
@@ -118,4 +119,3 @@ proc PyBytes_FromObject*(x: PyObject): PyObject =
   )
 
 
-    
