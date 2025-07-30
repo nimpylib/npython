@@ -68,11 +68,32 @@ macro implBltinFunc(prototype, body:untyped): untyped =
 # haven't thought of how to deal with infinite num of args yet
 # kwargs seems to be neccessary. So stay this way for now
 # luckily it does not require much boilerplate
+
+const NewLine = "\n"
 proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
-  for obj in args:
+  const
+    sep = " "
+    endl = NewLine
+
+  const noWrite = not declared(writeStdoutCompat)
+  when noWrite:
+    var res: string
+    template writeStdoutCompat(s) = res.add s
+  template toStr(obj): string =
     let objStr = obj.callMagic(str)
     errorIfNotString(objStr, "__str__")
-    echoCompat $PyStrObject(objStr).str
+    $PyStrObject(objStr).str
+  if args.len != 0:
+    writeStdoutCompat args[0].toStr
+    if args.len > 1:
+      for i in 1..<args.len:
+        writeStdoutCompat sep
+        writeStdoutCompat args[i].toStr
+  when noWrite:
+    assert endl == NewLine
+    echoCompat res
+  else:
+    writeStdoutCompat endl
   pyNone
 registerBltinFunction("print", builtinPrint)
 
