@@ -1175,6 +1175,14 @@ template getIndex*(obj: PyIntObject, size: int, sizeOpIdx: untyped = `<=`): int 
     return newIndexError newPyAscii(msg)
   idx
 
+template getClampedIndex*(obj: PyIntObject, size: int): int =
+  ## like `getIndex`_ but clamping result in `0..<size`
+  var idx = obj.toIntOrRetOF
+  if idx < 0:
+    idx = size + idx
+  if idx < 0: idx = 0
+  elif size <= idx: idx = size
+  idx
 
 when isMainModule:
   #let a = fromStr("-1234567623984672384623984712834618623")
