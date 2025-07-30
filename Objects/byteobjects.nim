@@ -7,9 +7,13 @@ import ./[listobject, tupleobject, stringobject, exceptions, iterobject]
 import ./numobjects
 declarePyType Bytes(tpToken):
   items: string
+  setHash: bool
+  privateHash: Hash
 
 declarePyType ByteArray(reprLock, mutable):
   items: seq[char]
+
+proc hash*(self: PyBytesObject): Hash = self.hashCollection
 
 type PyBytesWriter* = object
   #overallocate*: bool
@@ -44,13 +48,14 @@ proc `$`(self: seq[char]): string =
 type PyByteLike = PyBytesObject or PyByteArrayObject
 
 proc len*(s: PyByteLike): int {. inline, cdecl .} = s.items.len
-proc hash*(s: PyByteLike): Hash {. inline, cdecl .} = hash s.items
 proc `$`*(s: PyByteLike): string = $s.items
 iterator items*(s: PyByteLike): char =
   for i in s.items: yield i
 iterator ints*(s: PyByteLike): PyIntObject =
   for i in s: yield newPyInt i
+proc contains*(s: PyByteLike, c: char): bool = c in s.items
 proc `[]`*(s: PyByteLike, i: int): char = s.items[i]
+proc getInt*(s: PyByteLike, i: int): PyIntObject = newPyInt s[i]
 
 template impl(B, InitT, newTOfCap){.dirty.} =
 
@@ -75,6 +80,8 @@ proc finish*(self: sink PyBytesWriter, res: PyObject) =
   if self.use_bytearray: PyByteArrayObject(res).items = move self.s
   else: PyBytesObject(res).items = $(move self.s)
 
+proc newPyBytes*(s: seq[char]): PyBytesObject = newPyBytes $s
+
 proc repr*(b: PyBytesObject): string =
   'b' & '\'' & b.items & '\'' # TODO
 
@@ -82,20 +89,37 @@ proc repr*(b: PyByteArrayObject): string =
   "bytearray(" &
     'b' & '\'' & $b.items & '\'' #[TODO]# &
   ')'
-proc `[]=`*(s: PyByteLike, i: int, c: char) = s.items[i] = c
+proc `[]=`*(s: PyByteArrayObject, i: int, c: char) = s.items[i] = c
+proc add*(s: PyByteArrayObject, c: char) = s.items.add c
 
 proc add*(self: PyByteArrayObject, b: PyByteLike) = self.items.add b.items
 proc setLen*(self: PyByteArrayObject, n: int) = self.items.setLen n
 
-template fillFromIterable(writer: PyBytesWriter; x; forInLoop; errSubject: string) =
+template checkCharRangeOrRetVE*(value: int; errSubject="byte") =
+  if value < 0 or value > 256:
+    return newValueError newPyAscii(errSubject & " must be in range(0, 256)")
+
+proc bufferNotImpl*(): PyNotImplementedErrorObject =
+  ## TODO:buffer: delete this once buffer api is implemented
+  newNotImplementedError newPyAscii"not impl for buffer api"
+
+template PyNumber_AsCharOr*(vv: PyObject, errSubject="byte"; orDoIt): char =
+  bind PyNumberAsClampedSsize_t, checkCharRangeOrRetVE
   var value: int
+  block:
+    let it{.inject.} = PyNumber_AsClampedSsize_t(vv, value)
+    if not it.isNil:
+      orDoIt
+  checkCharRangeOrRetVE(value, errSubject)
+  cast[char](value)
+
+template PyNumber_AsCharOrRet*(vv: PyObject, errSubject="byte"): char =
+  PyNumber_AsCharOr(vv, errSubject):
+    return it
+
+template fillFromIterable(writer: PyBytesWriter; x; forInLoop; errSubject: string) =
   forInLoop i, x:
-    let ret = PyNumber_AsClampedSsize_t(i, value)
-    if not ret.isNil:
-      return ret
-    if value < 0 or value > 256:
-      return newValueError newPyAscii(errSubject & " must be in range(0, 256)" & " not " & $value)
-    writer.add cast[char](value)
+    writer.add i.PyNumber_AsCharOrRet(errSubject)
 
 template genFromIter(S; T; forInLoop; getLenHint: untyped=len){.dirty.} =
   proc `PyBytes_From S`(x: T): PyObject =
