@@ -31,7 +31,10 @@ when defined(js):
   import std/jsffi
 
   when defined(nodejs):
-
+    proc processStdoutWrite(s: cstring){.importjs: "process.stdout.write(#)".}
+    proc writeStdoutCompat*(s: string) =
+      bind processStdoutWrite
+      processStdoutWrite cstring s
     type
       InterfaceConstructor = JsObject
       InterfaceConstructorWrapper = object
@@ -145,6 +148,12 @@ when defined(js):
         raise new EOFError
       $(res.to(cstring))
     when defined(deno):
+      proc denoStdoutWriteSync(s: JsObject#[ArrayBufferView]#){.importjs:"Deno.stdout.writeSync(#)".}
+      var TextEncoder{.importcpp.}: JsObject
+      let encoder = jsNew TextEncoder
+      proc writeStdoutCompat*(s: string) =
+        bind denoStdoutWriteSync
+        denoStdoutWriteSync encoder.encode s
       proc cwd(): cstring{.importc: "Deno.cwd".}
       proc getCurrentDir*(): string = $cwd()
       proc quitCompat*(e=0){.importc: "Deno.exit".}
@@ -174,7 +183,10 @@ else:
 
   template addCompat*[T](a, b: seq[T]) = 
     a.add b
-    
+  
+  template writeCompat*(s) =
+    stdout.write s
+
 when not declared(async):
   template mayAsync*(def): untyped = def
   template mayAwait*(x): untyped = x
