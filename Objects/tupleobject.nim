@@ -11,7 +11,7 @@ import sliceobject
 declarePyType Tuple(reprLock, tpToken):
   items: seq[PyObject]
   setHash: bool
-  hash: Hash
+  privateHash: Hash
 
 
 proc newPyTuple*(items: seq[PyObject]): PyTupleObject = 
@@ -23,7 +23,7 @@ proc newPyTuple*(items: openArray[PyObject]): PyTupleObject{.inline.} =
   newPyTuple @items  
 
 template genCollectMagics*(items,
-  implNameMagic, newPyNameSimple,
+  implNameMagic,
   ofPyNameObject, PyNameObject,
   mutRead, mutReadRepr, seqToStr){.dirty.} =
 
@@ -56,21 +56,37 @@ template genCollectMagics*(items,
   implNameMagic len, mutRead:
     newPyInt(self.len)
 
+template genGetitem*(nameStr, implNameMagic, newPyName, mutRead; getter: untyped = `[]`){.dirty.} =
+  bind ofPySliceObject, getIndex, PySliceObject, getSliceItems
+  implNameMagic getitem, mutRead:
+    if other.ofPyIntObject:
+      let idx = getIndex(PyIntObject(other), self.len)
+      return getter(self, idx)
+    if ofPySliceObject(other):
+      let slice = PySliceObject(other)
+      let newObj = newPyName()
+      let retObj = getSliceItems(slice, self.items, newObj.items)
+      if retObj.isThrownException:
+        return retObj
+      else:
+        return newObj
+      
+    return newIndexTypeError(newPyStr nameStr, other)
 
 template genSequenceMagics*(nameStr,
     implNameMagic, implNameMethod;
     ofPyNameObject, PyNameObject,
-    newPyNameSimple; mutRead, mutReadRepr;
+    newPyName; mutRead, mutReadRepr;
     seqToStr; initWithDictUsingPairs=false): untyped{.dirty.} =
 
   bind genCollectMagics
   genCollectMagics items,
-    implNameMagic, newPyNameSimple,
+    implNameMagic,
     ofPyNameObject, PyNameObject,
     mutRead, mutReadRepr, seqToStr
 
   implNameMagic add, mutRead:
-    var res = newPyNameSimple()
+    var res = newPyName()
     if other.ofPyNameObject:
       res.items = self.items & PyNameObject(other).items
       return res
@@ -118,21 +134,7 @@ template genSequenceMagics*(nameStr,
   implNameMagic iter, mutRead: 
     newPySeqIter(self.items)
 
-
-  implNameMagic getitem:
-    if other.ofPyIntObject:
-      let idx = getIndex(PyIntObject(other), self.len)
-      return self[idx]
-    if other.ofPySliceObject:
-      let slice = PySliceObject(other)
-      let newObj = newPyNameSimple()
-      let retObj = slice.getSliceItems(self.items, newObj.items)
-      if retObj.isThrownException:
-        return retObj
-      else:
-        return newObj
-      
-    return newIndexTypeError(newPyStr nameStr, other)
+  genGetitem nameStr, implNameMagic, newPyName, mutRead
 
   implNameMethod index(target: PyObject), mutRead:
     for idx, item in self.items:
@@ -182,9 +184,9 @@ template hashCollectionImpl*(items; hashForEmpty): Hash =
   !$result
 
 proc hashCollection*[T: PyObject](self: T): Hash =
-  if self.setHash: return self.hash
+  if self.setHash: return self.privateHash
   result = self.items.hashCollectionImpl Hash self.pyType.id
-  self.hash = result
+  self.privateHash = result
   self.setHash = true
 
 proc hash*(self: PyTupleObject): Hash = self.hashCollection 
