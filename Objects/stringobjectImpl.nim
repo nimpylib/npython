@@ -87,8 +87,9 @@ proc newPyStrIter*(s: PyStrObject): PyStrIterObject =
   else:
     proc(i: int): PyStrObject = newPyString s.str.unicodeStr[i]
 
-template findExpanded(it1, it2): int = it1.findWithoutMem(it2, key=uint32)
-template findAllExpanded(it1, it2): untyped = it1.findAllWithoutMem(it2, key=uint32)
+template findExpanded(it1, it2): int = uint32.findWithoutMem(it1, it2)
+iterator findAllExpanded[A, B](it1: A, it2: B): int =
+  for i in uint32.findAllWithoutMem(it1, it2): yield i
 
 when true:
   # copied and modified from ./tupleobject.nim
