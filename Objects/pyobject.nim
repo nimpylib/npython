@@ -202,18 +202,51 @@ proc objName2tpObjName(objName: string): string {. compileTime .} =
   result = objName & "Type"
   result[0] = result[0].toLowerAscii
 
-# example here: For a definition like `i: PyIntObject`
-# obj: i
-# tp: PyIntObject like
-# tpObj: pyIntObjectType like
-template checkTypeTmpl(obj, tp, tpObj, methodName) = 
+template typeName*(o: PyObject): string =
+  o.pyType.name
+
+template checkTypeTmplImpl(obj: PyObject{atom}, tp, tpObjName; msgInner="") {.dirty.} = 
   # should use a more sophisticated way to judge type
   if not (obj of tp):
-    let expected {. inject .} = tpObj.name
-    let got {. inject .}= obj.pyType.name
-    let mName {. inject .}= methodName
-    let msg = fmt"{expected} is requred for {mName} (got {got})"
+    let expected = tpObjName
+    let got = obj.typeName
+    let tmsgInner = msgInner
+    let msg = fmt"{expected} is requred{tmsgInner} (got {got})"
     return newTypeError newPyStr(msg)
+template checkTypeTmplImpl(obj: PyObject, tp, tpObjName; msgInner="") = 
+  bind checkTypeTmplImpl
+  let tobj = obj
+  checkTypeTmplImpl(tobj, tp, tpObjName, msgInner)
+
+template checkTypeTmpl(obj, tp, tpObj, methodName) =
+  checkTypeTmplImpl(obj, tp, tpObj.name, " for" & methodName)
+
+template checkTypeOrRetTE*(obj, tp; tpObj: PyTypeObject; methodName: string) =
+  ## example here: For a definition like `i: PyIntObject`
+  ## obj: i
+  ## tp: PyIntObject like
+  ## tpObj: pyIntObjectType like
+  bind checkTypeTmpl
+  checkTypeTmpl obj, tp, tpObj, methodName
+
+template checkTypeOrRetTE*(obj, tp; tpObj: PyTypeObject) =
+  bind checkTypeTmpl
+  checkTypeTmplImpl obj, tp, tpObj.name
+
+macro toTypeObject*[O: PyObject](tp: typedesc[O]): PyTypeObject =
+  ident ($tp).toLowerAscii & "Type"
+
+template checkTypeOrRetTE*(obj, tp) =
+  bind toTypeObject
+  checkTypeOrRetTE obj, tp, toTypeObject(tp)
+
+macro call2AndMoreArg(callee, arg1, arg2, more): untyped =
+  result = newCall(callee, arg1, arg2)
+  for i in more: result.add i
+
+template castTypeOrRetTE*[O: PyObject](obj: PyObject, tp: typedesc[O]; extraArgs: varargs[untyped]): O =
+  call2AndMoreArg(checkTypeOrRetTE, obj, tp, extraArgs)
+  cast[tp](obj)
 
 proc isSeqObject(n: NimNode): bool =
   n.kind == nnkBracketExpr and n[0].eqIdent"seq" and n[1].eqIdent"PyObject"
