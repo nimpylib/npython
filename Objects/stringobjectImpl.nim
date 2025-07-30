@@ -5,6 +5,7 @@ import baseBundle
 import stringobject
 import ./sliceobject
 import ../Utils/sequtils
+import ./abstract
 
 export stringobject
 
@@ -87,9 +88,31 @@ proc newPyStrIter*(s: PyStrObject): PyStrIterObject =
   else:
     proc(i: int): PyStrObject = newPyString s.str.unicodeStr[i]
 
-template findExpanded(it1, it2): int = uint32.findWithoutMem(it1, it2)
-iterator findAllExpanded[A, B](it1: A, it2: B): int =
-  for i in uint32.findAllWithoutMem(it1, it2): yield i
+proc findExpanded[A, B](it1: A, it2: B; start=0, stop = it1.len): int{.inline.} =
+  uint32.findWithoutMem(it1, it2, start, stop)
+iterator findAllExpanded[A, B](it1: A, it2: B, start=0, stop = it1.len): int =
+  for i in uint32.findAllWithoutMem(it1, it2, start, stop): yield i
+
+template implMethodGenTargetAndStartStop*(castTarget) {.dirty.} =
+    checkArgNumAtLeast 1
+    let le = self.len
+    let
+      target = castTarget args[0]
+      start = args.clampedIndexOptArgAt(1, 0, le)
+      stop =  args.clampedIndexOptArgAt(2, le,le)
+
+template asIs(x): untyped = x
+template implMethodGenTargetAndStartStop* {.dirty.} =
+  bind asIs
+  implMethodGenTargetAndStartStop(asIs)
+
+template implMethodGenStrTargetAndStartStop =
+  template castToStr(x): untyped = x.castTypeOrRetTE PyStrObject
+  implMethodGenTargetAndStartStop castToStr
+
+template doFind(cb): untyped =
+  ## helper to avoid too much `...it2, start, stop)` code snippet
+  cb(it1, it2, start, stop)
 
 when true:
   # copied and modified from ./tupleobject.nim
@@ -129,32 +152,35 @@ when true:
         return newObj
 
 
-  implStrMethod index(target: PyStrObject):
+  implStrMethod index:
+    implMethodGenStrTargetAndStartStop
     let res = doKindsWith2It(self.str, target.str):
-      sequtils.find(it1, it2)
-      it1.findExpanded(it2)
-      it1.findExpanded(it2)
-      sequtils.find(it1, it2)
+      doFind find
+      doFind findExpanded
+      doFind findExpanded
+      doFind find
     if res >= 0:
       return newPyInt(res)
     let msg = "substring not found"
     newValueError(newPyAscii msg)
 
-  implStrMethod count(target: PyStrObject):
+  implStrMethod count:
+    implMethodGenStrTargetAndStartStop
     var count: int
     template cntAll(it) =
       for _ in it: count.inc
     doKindsWith2It(self.str, target.str):
-      cntAll it1.findAll(it2)
-      cntAll it1.findAllExpanded(it2)
-      cntAll it1.findAllExpanded(it2)
-      cntAll it1.findAll(it2)
+      cntAll doFind findAll
+      cntAll doFind findAllExpanded
+      cntAll doFind findAllExpanded
+      cntAll doFind findAll
     newPyInt(count)
 
-implStrMethod find(target: PyStrObject):
+implStrMethod find:
+  implMethodGenStrTargetAndStartStop
   let res = doKindsWith2It(self.str, target.str):
-    sequtils.find(it1, it2)
-    it1.findExpanded(it2)
-    it1.findExpanded(it2)
-    sequtils.find(it1, it2)
+    doFind find
+    doFind findExpanded
+    doFind findExpanded
+    doFind find
   newPyInt(res)
