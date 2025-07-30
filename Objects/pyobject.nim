@@ -268,12 +268,12 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
       #  return `checkArgNum(1, "append")` like
       body.add newCall(ident("checkArgNum"), 
                 newIntLitNode(argNum), 
-                newStrLitNode(methodName.strVal)
+                newStrLitNode($methodName)
               )
     else:
       body.add newCall(ident("checkArgNumAtLeast"), 
                 newIntLitNode(argNum - 1), 
-                newStrLitNode(methodName.strVal)
+                newStrLitNode($methodName)
               )
       let remainingArgNode = ident(varargname)
       body.add(quote do:
@@ -348,7 +348,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
     for i in ls:
       name.add i.strVal
     methodName = ident name
-  methodName.expectKind({nnkIdent, nnkSym})
+  methodName.expectKind({nnkIdent, nnkSym, nnkClosedSymChoice})
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)
   pragmas.expectKind(nnkBracket)
@@ -428,7 +428,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
           typeObjNode,
           newIdentNode("registerBltinMethod")
         ),
-        newLit(methodName.strVal),
+        newLit($methodName),
         name
       )
   of MethodKind.Magic:

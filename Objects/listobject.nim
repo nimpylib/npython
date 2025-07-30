@@ -1,4 +1,4 @@
-import std/sequtils
+import std/[sequtils, algorithm]
 import strformat
 import strutils
 
@@ -33,7 +33,7 @@ genSequenceMagics "list",
 
 template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dirty.} =
   ## `beforeAppend` body will be inserted before `append` method's implementation
-  bind times
+  bind times, reverse
   bind ofPySliceObject, PySliceObject, getIterableWithCheck, stepAsInt, toNimSlice,
     iterInt, unhashable, delete
   bind echoCompat
@@ -110,6 +110,9 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
     self.items.setLen 0
     pyNone
 
+  `impl S Method` reverse(), [mutable: write]:
+    reverse(self.items)
+    pyNone
 
   `impl S Method` copy(), [mutable: read]:
     let newL = `newPy S`()
