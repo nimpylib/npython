@@ -21,15 +21,16 @@ proc newPySeqIter*(items: seq[PyObject]): PySeqIterObject =
 
 template pyForIn*(it; iterableToLoop: PyObject; doWithIt) =
   ## pesudo code: `for it in iterableToLoop: doWithIt`
+  ##   but `return` PyBaseErrorObject if python's exception is raised
   let (iterable, nextMethod) = getIterableWithCheck(iterableToLoop)
   if iterable.isThrownException:
-    return iterable
+    return PyBaseErrorObject iterable
   while true:
     let it = nextMethod(iterable)
     if it.isStopIter:
       break
     if it.isThrownException:
-      return it
+      return PyBaseErrorObject it
     doWithIt
 
 
