@@ -646,6 +646,14 @@ compileMethod Import:
   c.addStoreOp(name, lineNo)
   
 
+compileMethod ImportFrom:
+  let lineNo = astNode.lineNo.value
+  let modName = astNode.module
+  c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(modName.value), lineNo))
+  for n in astNode.names:
+    let name = AstAlias(n).name
+    c.addOp(newArgInstr(OpCode.ImportFrom, c.tste.nameId(name.value), lineNo))
+    c.addStoreOp(name, lineNo)
 
 compileMethod Expr:
   let lineNo = astNode.value.lineNo.value

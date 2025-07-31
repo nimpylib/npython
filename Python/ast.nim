@@ -115,7 +115,7 @@ proc astRaiseStmt(parseNode: ParseNode): AstRaise
 proc astImportStmt(parseNode: ParseNode): AsdlStmt
 proc astImportName(parseNode: ParseNode): AsdlStmt
 proc astDottedAsNames(parseNode: ParseNode): seq[AstAlias]
-proc astDottedName(parseNode: ParseNode): AstAlias
+proc astDottedName(parseNode: ParseNode): AsdlIdentifier
 proc astGlobalStmt(parseNode: ParseNode): AsdlStmt
 proc astNonlocalStmt(parseNode: ParseNode): AsdlStmt
 proc astAssertStmt(parseNode: ParseNode): AstAssert
@@ -615,6 +615,54 @@ ast raise_stmt, [AstRaise]:
   else:
     raiseSyntaxError("Fancy raise not implemented", parseNode.children[2])
 
+template handleAlias =
+  if parseNode.children.len != 1:
+    raiseSyntaxError("import alias not implemented")
+  
+# import_as_name  NAME ['as' NAME]
+ast import_as_name, [AstAlias]:
+  handleAlias
+  result = newAstAlias()
+  result.name = newIdentifier(parseNode.children[0].tokenNode.content)
+
+# import_as_names  import_as_name (',' import_as_name)* [',']
+ast import_as_names, [seq[Astalias]]:
+  for i in countup(0, parseNode.children.len, 2):
+    result.add parseNode.children[i].astImportAsName
+
+
+# dotted_as_name  dotted_name ['as' NAME]
+ast dotted_as_name, [AstAlias]:
+  handleAlias
+  result = newAstAlias()
+  result.name = parseNode.children[0].astDottedName
+  
+# dotted_as_names  dotted_as_name (',' dotted_as_name)*
+ast dotted_as_names, [seq[AstAlias]]:
+  if parseNode.children.len != 1:
+    raiseSyntaxError("import multiple modules in one line not implemented", 
+      parseNode.children[1])
+  result.add parseNode.children[0].astDottedAsName
+
+# dotted_name  NAME ('.' NAME)*
+ast dotted_name, [AsdlIdentifier]:
+  if parseNode.children.len != 1:
+    raiseSyntaxError("dotted import name not supported", parseNode.children[1])
+  newIdentifier(parseNode.children[0].tokenNode.content)
+
+
+# import_from ('from' (('.' | '...')* dotted_name | ('.' | '...')+)
+#              'import' ('*' | '(' import_as_names ')' | import_as_names))
+ast import_from, [AsdlStmt]:
+  let node = newAstImportFrom()
+  setNo(node, parseNode.children[0])
+  let m = parseNode.children[1]
+  # TODO:import_from '.'|'..."  import '*'
+  node.module = m.astDottedName
+  let ls = parseNode.children[3]
+  for c in ls.astImportAsNames:
+    node.names.add c
+  node
 
 # import_stmt  import_name | import_from
 ast import_stmt, [AsdlStmt]:
@@ -623,7 +671,7 @@ ast import_stmt, [AsdlStmt]:
   of Token.import_name:
     result = astImportName(child)
   of Token.import_from:
-    raiseSyntaxError("Import from not implemented")
+    result = astImportFrom(child)
   else:
     unreachable("wrong import_stmt")
 
@@ -635,38 +683,6 @@ ast import_name, [AsdlStmt]:
     node.names.add c
   node
   
-  #[
-ast import_from:
-  discard
-  
-ast import_as_name:
-  discard
-]#
-
-# dotted_as_name  dotted_name ['as' NAME]
-ast dotted_as_name, [AstAlias]:
-  if parseNode.children.len != 1:
-    raiseSyntaxError("import alias not implemented")
-  parseNode.children[0].astDottedName
-  
-  
-#ast import_as_names:
-#  discard
-
-  
-# dotted_as_names  dotted_as_name (',' dotted_as_name)*
-ast dotted_as_names, [seq[AstAlias]]:
-  if parseNode.children.len != 1:
-    raiseSyntaxError("import multiple modules in one line not implemented", 
-      parseNode.children[1])
-  result.add parseNode.children[0].astDottedAsName
-  
-# dotted_name  NAME ('.' NAME)*
-ast dotted_name, [AstAlias]:
-  if parseNode.children.len != 1:
-    raiseSyntaxError("dotted import name not supported", parseNode.children[1])
-  result = newAstAlias()
-  result.name = newIdentifier(parseNode.children[0].tokenNode.content)
   
 proc astGlobalStmt(parseNode: ParseNode): AsdlStmt = 
   raiseSyntaxError("global stmt not implemented")
