@@ -275,6 +275,10 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) =
           assert AstImport(astNode).names.len == 1
           ste.addDeclaration(AstAlias(AstImport(astNode).names[0]).name)
 
+        of AsdlStmtTk.ImportFrom:
+          for n in AstImportFrom(astNode).names:
+            ste.addDeclaration(AstAlias(n).name)
+
         of AsdlStmtTk.Expr:
           visit AstExpr(astNode).value
 

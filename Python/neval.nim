@@ -516,6 +516,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               if retObj.isThrownException:
                 handleException(retObj)
               sPush retObj
+            of OpCode.ImportFrom:
+              let module = sTop()
+              let name = names[opArg]
+              let retObj = module.callMagic(getattr, name, handleExcp=true)
+              if retObj.isThrownException:
+                handleException(retObj)
+              # TODO:_PyEval_ImportFrom
+              #  after sys.module impl
+              sPush retObj
 
             of OpCode.JumpIfFalseOrPop:
               let top = sTop()
