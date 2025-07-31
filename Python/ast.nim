@@ -615,15 +615,20 @@ ast raise_stmt, [AstRaise]:
   else:
     raiseSyntaxError("Fancy raise not implemented", parseNode.children[2])
 
-template handleAlias =
-  if parseNode.children.len != 1:
-    raiseSyntaxError("import alias not implemented")
-  
+template identAt(i: int): untyped =
+  newIdentifier(parseNode.children[i].tokenNode.content)
+template identAtOr(i: int; def: AsdlIdentifier): AsdlIdentifier =
+  if parseNode.children.len < i: def
+  else: identAt i
+
+template initAsName =
+  result.asname = identAtOr(2, result.name)
+
 # import_as_name  NAME ['as' NAME]
 ast import_as_name, [AstAlias]:
-  handleAlias
   result = newAstAlias()
-  result.name = newIdentifier(parseNode.children[0].tokenNode.content)
+  result.name = identAt 0
+  initAsName
 
 # import_as_names  import_as_name (',' import_as_name)* [',']
 ast import_as_names, [seq[Astalias]]:
@@ -633,22 +638,21 @@ ast import_as_names, [seq[Astalias]]:
 
 # dotted_as_name  dotted_name ['as' NAME]
 ast dotted_as_name, [AstAlias]:
-  handleAlias
   result = newAstAlias()
   result.name = parseNode.children[0].astDottedName
-  
+  initAsName
+
 # dotted_as_names  dotted_as_name (',' dotted_as_name)*
 ast dotted_as_names, [seq[AstAlias]]:
-  if parseNode.children.len != 1:
-    raiseSyntaxError("import multiple modules in one line not implemented", 
-      parseNode.children[1])
-  result.add parseNode.children[0].astDottedAsName
+  for i in countup(0, parseNode.children.len, 2):
+    let child = parseNode.children[i]
+    result.add child.astDottedAsName
 
 # dotted_name  NAME ('.' NAME)*
 ast dotted_name, [AsdlIdentifier]:
   if parseNode.children.len != 1:
     raiseSyntaxError("dotted import name not supported", parseNode.children[1])
-  newIdentifier(parseNode.children[0].tokenNode.content)
+  identAt(0)  #TODO:dotted_name
 
 
 # import_from ('from' (('.' | '...')* dotted_name | ('.' | '...')+)
@@ -660,8 +664,12 @@ ast import_from, [AsdlStmt]:
   # TODO:import_from '.'|'..."  import '*'
   node.module = m.astDottedName
   let ls = parseNode.children[3]
-  for c in ls.astImportAsNames:
-    node.names.add c
+  if ls.tokenNode.token == Token.Star:
+    # TODO:import_star
+    raiseSyntaxError("`from ... import *` not implemented yet", node)
+  else:
+    for c in ls.astImportAsNames:
+      node.names.add c
   node
 
 # import_stmt  import_name | import_from

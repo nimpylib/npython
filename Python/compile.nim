@@ -639,21 +639,21 @@ compileMethod Assert:
 
 compileMethod Import:
   let lineNo = astNode.lineNo.value
-  if not astNode.names.len == 1:
-    unreachable
-  let name = AstAlias(astNode.names[0]).name
-  c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(name.value), lineNo))
-  c.addStoreOp(name, lineNo)
-  
+  for n in astNode.names:
+    let module = AstAlias(n)
+    let name = module.name
+    c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(name.value), lineNo))
+    c.addStoreOp(module.asname, lineNo)
 
 compileMethod ImportFrom:
   let lineNo = astNode.lineNo.value
   let modName = astNode.module
   c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(modName.value), lineNo))
   for n in astNode.names:
-    let name = AstAlias(n).name
+    let aliasNode = AstAlias(n)
+    let name = aliasNode.name
     c.addOp(newArgInstr(OpCode.ImportFrom, c.tste.nameId(name.value), lineNo))
-    c.addStoreOp(name, lineNo)
+    c.addStoreOp(aliasNode.asname, lineNo)
 
 compileMethod Expr:
   let lineNo = astNode.value.lineNo.value
