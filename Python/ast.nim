@@ -535,20 +535,23 @@ ast augassign, [AsdlOperator]:
   of Token.Plusequal: newAstAdd()
   of Token.Minequal:newAstSub()
   of Token.Starequal: newAstMult()
+  #of Token.Atequal: newAstAt()
   of Token.Slashequal:newAstDiv()
   of Token.Percentequal: newAstMod()
+  #[
+  of Token.Amperequal: newAstAmper()
+  of Token.Vbarequal: newAstVbar()
+  of Token.Circumflexequal: newAstCircumflex()
+  of Token.Leftshiftequal: newAstLeftshift()
+  of Token.Rightshiftequal: newAstRightshift()
+  ]#
   of Token.DoubleSlashequal: newAstFloorDiv()
+  of Token.DoubleStarequal: newAstPow()
   else:
     let msg = fmt"Complex augumented assign operation not implemented: " & $token
     raiseSyntaxError(msg)
   )
 
-
-#[
-Amperequal
-Vbarequal
-  Circumflexequal
-  ]#
 
 # del_stmt: 'del' exprlist
 ast del_stmt, [AsdlStmt]:

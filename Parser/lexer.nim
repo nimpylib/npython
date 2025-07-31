@@ -219,7 +219,7 @@ proc getNextToken(
         result = newTokenNodeWithNo(DoubleStar)
         inc idx
     else:
-      addSingleCharToken(Star)
+      addSingleOrDoubleCharToken(Star, StarEqual, '=')
   of '/':
     if tailing('/'):
       inc idx
@@ -230,7 +230,7 @@ proc getNextToken(
         result = newTokenNodeWithNo(DoubleSlash)
         inc idx
     else:
-      addSingleCharToken(Slash)
+      addSingleOrDoubleCharToken(Slash, SlashEqual, '=')
   of '|':
     addSingleOrDoubleCharToken(Vbar, VbarEqual, '=')
   of '&':

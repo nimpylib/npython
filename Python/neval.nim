@@ -264,14 +264,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             of OpCode.UnaryNot:
               doUnary(Not)
 
-            of OpCode.BinaryPower:
-              doBinary(pow)
-
-            of OpCode.BinaryMultiply:
-              doBinary(mul)
-
-            of OpCode.BinaryModulo:
-              doBinary(Mod)
 
             of OpCode.StoreSubscr:
               let idx = sPop()
@@ -298,6 +290,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             of OpCode.BinarySubtract:
               doBinary(sub)
 
+            of OpCode.BinaryPower:
+              doBinary(pow)
+
+            of OpCode.BinaryMultiply:
+              doBinary(mul)
+
+            of OpCode.BinaryModulo:
+              doBinary(Mod)
+
             of OpCode.BinaryFloorDivide:
               doBinary(floorDiv)
 
@@ -309,6 +310,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.InplaceSubtract:
               doInplace(sub)
+
+            of OpCode.InplacePower:
+              doInplace(pow)
+
+            of OpCode.InplaceMultiply:
+              doInplace(mul)
+
+            of OpCode.InplaceModulo:
+              doInplace(Mod)
 
             of OpCode.InplaceFloorDivide:
               doInplace(floorDiv)
