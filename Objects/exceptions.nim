@@ -183,19 +183,27 @@ template isThrownException*(pyObj: PyObject): bool =
   else:
     false
 
+template retIt = return it
+template errorIfNot*(S; expect: string, pyObj: PyObject, methodName: string, doIt: untyped=retIt) = 
+  if not pyObj.`ofPy S Object`:
+    let typeName {. inject .} = pyObj.pyType.name
+    let texp {.inject.} = expect
+    let msg = methodName & fmt" returned non-{texp} (type {typeName})"
+    let it {.inject.} = newTypeError newPyStr(msg)
+    doIt
 
-template errorIfNotString*(pyObj: untyped, methodName: string) = 
-    if not pyObj.ofPyStrObject:
-      let typeName {. inject .} = pyObj.pyType.name
-      let msg = methodName & fmt" returned non-string (type {typeName})"
-      return newTypeError newPyStr(msg)
+template errorIfNotString*(pyObj: untyped, methodName: string, doIt: untyped=retIt) = 
+  errorIfNot Str, "string", pyObj, methodName, doIt
 
-template errorIfNotBool*(pyObj: untyped, methodName: string) = 
-    if not pyObj.ofPyBoolObject:
-      let typeName {. inject .} = pyObj.pyType.name
-      let msg = methodName & fmt" returned non-bool (type {typeName})"
-      return newTypeError(newPyStr msg)
+template errorIfNot*(S; pyObj: PyObject, methodName: string, doIt: untyped=retIt) = 
+  errorIfNot S, astToStr(S), pyObj, methodName, doIt
+template errorIfNotBool*(pyObj: PyObject, methodName: string, doIt: untyped=retIt) = 
+  errorIfNot bool, pyObj, methodName, doIt
 
+template retIfExc*(e: PyBaseErrorObject) =
+  let exc = e
+  if not exc.isNil:
+    return exc
 
 template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) = 
   var retTuple: (PyObject, UnaryMethod)
