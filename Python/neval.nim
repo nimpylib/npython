@@ -100,9 +100,13 @@ template doBinaryContain: PyObject =
   let res = op1.callMagic(contains, op2, handleExcp=true)
   res
 
-# "fast" because check if it's a bool object first and save the callMagic(bool)
 template getBoolFast(obj: PyObject): bool = 
-  PyObject_IsTrue(obj)
+  ## called "fast" only due to historical reason
+  var b: bool
+  let exc = PyObject_IsTrue(obj, b)
+  if not exc.isNil:
+    handleException(exc)
+  b
 
 # if declared as a local variable, js target will fail. See gh-10651
 when defined(js):
