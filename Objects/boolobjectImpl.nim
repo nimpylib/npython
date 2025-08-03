@@ -54,20 +54,29 @@ implBoolMagic hash:
   newPyInt(Hash(self.b))
 
 
-proc PyObject_IsTrue*(v: PyObject): bool =
-  if v == pyTrueObj: return true
-  if v == pyFalseObj: return false
-  if v == pyNone: return false
+proc PyObject_IsTrue*(v: PyObject, res: var bool): PyBaseErrorObject =
+  template ret(b: bool) =
+    res = b
+    return nil
+  if v == pyTrueObj: ret true
+  if v == pyFalseObj: ret false
+  if v == pyNone: ret false
   let boolMag = v.getMagic(bool)
   if not boolMag.isNil:
-    return boolMag(v).PyBoolObject.b
+    let obj = boolMag(v)
+    errorIfNotBool obj, "__bool__"
+    ret obj.PyBoolObject.b
   elif not v.getMagic(len).isNil:
-    return v.getMagic(len)(v).PyIntObject.positive
+    let obj = v.getMagic(len)(v)
+    errorIfNot int, obj, "__bool__"
+    ret obj.PyIntObject.positive
   # We currently don't define:
   #   as_sequence
   #   as_mapping
-  return true
+  ret true
 
 implBoolMagic New(tp: PyObject, obj: PyObject):
-  newPyBool PyObject_IsTrue obj
+  var b: bool
+  retIfExc PyObject_IsTrue(obj, b)
+  newPyBool b
 
