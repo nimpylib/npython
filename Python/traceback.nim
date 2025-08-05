@@ -32,8 +32,13 @@ proc printTb*(excp: PyExceptionObject) =
     singleExcpStrs.add "Traceback (most recent call last):"
     for tb in cur.traceBacks.reversed:
       singleExcpStrs.add tb.fmtTraceBack
-    singleExcpStrs.add $PyStrObject(tpMagic(BaseError, repr)(cur)).str
+    let msg = $PyStrObject(tpMagic(BaseError, str)(cur)).str
+    var head = excp.pyType.name
+    if msg.len > 0:
+      head.add ": "
+      head.add msg
+    singleExcpStrs.add head
     excpStrs.add singleExcpStrs.join("\n")
     cur = cur.context
   let joinMsg = "\n\nDuring handling of the above exception, another exception occured\n\n"
-  echoCompat excpStrs.reversed.join(joinMsg)
+  errEchoCompat excpStrs.reversed.join(joinMsg)
