@@ -15,31 +15,35 @@ macro genMethodMacros: untyped  =
 
 genMethodMacros
 
+proc BaseException_repr(self: PyBaseErrorObject): PyObject =
+  var msg: string = self.typeName
+  template `add%R`(o) =
+    let s = PyObject_ReprNonNil o
+    retIfExc s
+    msg.add $s
+  if self.args.len == 1:
+    msg.add '('
+    `add%R` self.args[0]
+    msg.add ')'
+  else:
+    `add%R` self.args
+  newPyStr(msg)
+
+proc BaseException_str(self: PyBaseErrorObject): PyObject =
+  if self.args.len == 0: newPyAscii()
+  else: PyObject_StrNonNil(self.args[0])
 
 template newMagicTmpl(excpName: untyped, excpNameStr: string){.dirty.} = 
 
-  `impl excpName ErrorMagic` repr:
-    # must return pyStringObject, used when formatting traceback
-    var msg: string
-    assert not self.args.isNil
-    # ensure this is either an throwned exception or string for user-defined type
-    let msgObj = self.args.callMagic(repr)
-    if msgObj.isThrownException:
-      msg = "evaluating __repr__ failed"
-    else:
-      msg = $PyStrObject(msgObj)
-    let str = $self.tk & "Error: " & msg
-    newPyStr(str)
-  `impl excpName ErrorMagic` str:
-    if self.args.len == 0: newPyAscii()
-    else: PyObject_StrNonNil(self.args[0])
-
+  `impl excpName ErrorMagic` repr: BaseException_repr self
+  `impl excpName ErrorMagic` str: BaseException_str self
 
   # this is for initialization at Python level
   `impl excpName ErrorMagic` New:
     let excp = `newPy excpName ErrorSimple`()
     excp.tk = ExceptionToken.`excpName`
-    excp.args = newPyTuple(args)
+    if args.len > 1:
+      excp.args = newPyTuple(args.toOpenArray(1, args.high))
     excp
 
 
