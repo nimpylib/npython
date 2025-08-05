@@ -37,18 +37,29 @@ implStrMagic repr:
 implStrMagic hash:
   newPyInt(self.hash)
 
+proc reprDefault*(self: PyObject): PyObject {. cdecl .} = 
+  newPyString(fmt"<{self.typeName} object at {self.idStr}>")
+
+proc PyObject_ReprNonNil*(obj: PyObject): PyObject =
+  let fun = obj.getMagic(repr)
+  if fun.isNil:
+    return reprDefault obj
+  result = fun(obj)
+  result.errorIfNotString "__repr__"
+
+template nullOr(obj; elseCall): PyObject =
+  if obj.isNil: newPyAscii"<NULL>"
+  else: elseCall obj
+
+proc PyObject_Repr*(obj: PyObject): PyObject = obj.nullOr PyObject_ReprNonNil
+
 proc PyObject_StrNonNil*(obj: PyObject): PyObject =
   let fun = obj.getMagic(str)
-  if fun.isNil:
-    return obj.callMagic(repr)
+  if fun.isNil: return PyObject_ReprNonNil(obj)
   result = fun(obj)
-  if not result.ofPyStrObject:
-    return newTypeError newPyStr(
-      &"__str__ returned non-string (type {result.pyType.name:.200s})")
+  result.errorIfNotString "__str__"
 
-proc PyObject_Str*(obj: PyObject): PyObject =
-  if obj.isNil: newPyAscii"<NULL>"
-  else: PyObject_StrNonNil obj
+proc PyObject_Str*(obj: PyObject): PyObject = obj.nullOr PyObject_StrNonNil
 
 # TODO: encoding, errors params
 implStrMagic New(tp: PyObject, obj: PyObject):
