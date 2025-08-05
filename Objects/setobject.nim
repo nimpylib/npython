@@ -9,7 +9,7 @@ import pyobject
 import baseBundle
 import ./iterobject
 
-import ./tupleobject
+import ./tupleobjectImpl
 import ../Utils/[utils]
 import ./hash
 

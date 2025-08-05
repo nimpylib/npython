@@ -37,9 +37,7 @@ implStrMagic repr:
 implStrMagic hash:
   newPyInt(self.hash)
 
-# TODO: encoding, errors params
-implStrMagic New(tp: PyObject, obj: PyObject):
-  # ref: unicode_new -> unicode_new_impl -> PyObject_Str
+proc PyObject_StrNonNil*(obj: PyObject): PyObject =
   let fun = obj.getMagic(str)
   if fun.isNil:
     return obj.callMagic(repr)
@@ -47,6 +45,15 @@ implStrMagic New(tp: PyObject, obj: PyObject):
   if not result.ofPyStrObject:
     return newTypeError newPyStr(
       &"__str__ returned non-string (type {result.pyType.name:.200s})")
+
+proc PyObject_Str*(obj: PyObject): PyObject =
+  if obj.isNil: newPyAscii"<NULL>"
+  else: PyObject_StrNonNil obj
+
+# TODO: encoding, errors params
+implStrMagic New(tp: PyObject, obj: PyObject):
+  # ref: unicode_new -> unicode_new_impl -> PyObject_Str
+  PyObject_StrNonNil obj
 
 
 implStrMagic add(i: PyStrObject):

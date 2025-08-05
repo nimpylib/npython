@@ -6,7 +6,7 @@ import ./pyobject
 import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
   iterobject, hash, abstract,
 ]
-import ./tupleobject
+import ./tupleobjectImpl
 from ./listobject import genMutableSequenceMethods
 
 export byteobjects

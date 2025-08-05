@@ -170,6 +170,8 @@ proc newPyString*(str: seq[Rune]): PyStrObject =
   newPyString newUnicodeUnicodeVariant(str)
 proc newPyAscii*(str: string): PyStrObject =
   newPyString newAsciiUnicodeVariant(str)
+let empty = newPyAscii""
+proc newPyAscii*(): PyStrObject = empty  ## empty string
 
 # TODO: make them faster
 proc newPyString*(r: Rune): PyStrObject{.inline.} = newPyString @[r]

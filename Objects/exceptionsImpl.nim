@@ -1,6 +1,6 @@
 import pyobject
 import baseBundle
-import tupleobject
+import ./[tupleobjectImpl, stringobjectImpl]
 import exceptions
 import ../Utils/utils
 
@@ -16,30 +16,30 @@ macro genMethodMacros: untyped  =
 genMethodMacros
 
 
-template newMagicTmpl(excpName: untyped, excpNameStr: string) = 
+template newMagicTmpl(excpName: untyped, excpNameStr: string){.dirty.} = 
 
   `impl excpName ErrorMagic` repr:
     # must return pyStringObject, used when formatting traceback
     var msg: string
-    if self.msg.isNil:
-      msg = "" # could be improved
-    elif self.msg.ofPyStrObject:
-      msg = $PyStrObject(self.msg)
+    assert not self.args.isNil
+    # ensure this is either an throwned exception or string for user-defined type
+    let msgObj = self.args.callMagic(repr)
+    if msgObj.isThrownException:
+      msg = "evaluating __repr__ failed"
     else:
-      # ensure this is either an throwned exception or string for user-defined type
-      let msgObj = self.msg.callMagic(repr)
-      if msgObj.isThrownException:
-        msg = "evaluating __repr__ failed"
-      else:
-        msg = $PyStrObject(msgObj)
+      msg = $PyStrObject(msgObj)
     let str = $self.tk & "Error: " & msg
-    newPyAscii(str)
+    newPyStr(str)
+  `impl excpName ErrorMagic` str:
+    if self.args.len == 0: newPyAscii()
+    else: PyObject_StrNonNil(self.args[0])
+
 
   # this is for initialization at Python level
   `impl excpName ErrorMagic` New:
     let excp = `newPy excpName ErrorSimple`()
     excp.tk = ExceptionToken.`excpName`
-    excp.msg = newPyTuple(args) 
+    excp.args = newPyTuple(args)
     excp
 
 
@@ -70,7 +70,13 @@ proc isExceptionType*(obj: PyObject): bool =
 
 
 proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionObject = 
-  let excpObj = newSyntaxError newPyStr(e.msg)
+  let smsg = newPyStr(e.msg)
+  let excpObj = newSyntaxError smsg
+  excpObj.lineno = newPyInt e.lineNo
+  #TODO:end_lineno
+  excpObj.filename = fileName
+  excpObj.end_offset = newPyInt e.colNo
+  excpObj.msg = smsg
   # don't have code name
   excpObj.traceBacks.add (PyObject fileName, PyObject nil, e.lineNo, e.colNo)
   excpObj

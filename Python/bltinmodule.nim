@@ -5,7 +5,7 @@ import builtindict
 import ./compile
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject,
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
-  byteobjectsImpl,
+  byteobjectsImpl, noneobjectImpl,
   ]
 import ../Utils/[utils, macroutils, compat]
 
@@ -80,8 +80,8 @@ proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
     var res: string
     template writeStdoutCompat(s) = res.add s
   template toStr(obj): string =
-    let objStr = obj.callMagic(str)
-    errorIfNotString(objStr, "__str__")
+    let objStr = PyObject_StrNonNil obj
+    retIfExc(objStr)
     $PyStrObject(objStr).str
   if args.len != 0:
     writeStdoutCompat args[0].toStr

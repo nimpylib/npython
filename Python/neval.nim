@@ -214,9 +214,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     excpObj = excp
     break normalExecution
 
-  template notDefined(name: string) =
-    let msg = "name '" & name & "' is not defined" 
-    handleException(newNameError newPyStr(msg))
+  template notDefined(nam: PyStrObject) =
+    let msg = newPyAscii"name '" & nam & newPyAscii"' is not defined" 
+    let nameErr = newNameError msg
+    nameErr.name = nam
+    handleException(nameErr)
 
   template genPop(T, toDel){.dirty.} =
     template pop(se: T, i: OpArg, unused: var PyObject): bool =
@@ -226,7 +228,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         true
   genPop (ptr seq[PyObject]), se[]  # fastLocals
   genPop (seq[PyStrObject]), se # localVars
-  template deleteOrRaise(d, n; nMsg: string; elseDo) =
+  template deleteOrRaise(d, n; nMsg: PyStrObject; elseDo) =
     var unused: PyObject
     if d.pop(n, unused):
       continue
@@ -565,7 +567,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               elif bltinDict.hasKey(name):
                 obj = bltinDict[name]
               else:
-                notDefined $name.str
+                notDefined name
               sPush obj
 
             of OpCode.SetupFinally:
@@ -588,10 +590,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.DeleteGlobal:
               let name = names[opArg]
-              deleteOrRaise f.globals, name, $name.str
+              deleteOrRaise f.globals, name, name
             of OpCode.DeleteFast:
-              deleteOrRaise fastLocals, opArg, $opArg:
-                deleteOrRaise f.code.localVars, opArg, $opArg
+              let name = names[opArg]
+              deleteOrRaise fastLocals, opArg, name:
+                deleteOrRaise f.code.localVars, opArg, name
             #of OpCode.DeleteDeref: deleteOrRaise cellVars, opArg #.refObj = sPop
 
             of OpCode.RaiseVarargs:
@@ -740,8 +743,11 @@ else:
   proc pyImport*(name: PyStrObject): PyObject =
     let filepath = pyConfig.path.joinPath($name.str).addFileExt("py")
     if not filepath.fileExists:
-      let msg = fmt"File {filepath} not found"
-      return newImportError(newPyStr(msg))
+      let fp = newPyStr filePath
+      let msg = newPyAscii"File " & fp & newPyAscii" not found"
+      let exc = newImportError(msg)
+      exc.name = fp
+      return exc
     let input = readFile(filepath)
     let compileRes = compile(input, filepath)
     if compileRes.isThrownException:

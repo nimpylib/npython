@@ -3,7 +3,7 @@ import std/strformat
 import std/hashes
 import ./pyobject
 import ./abstract
-import ./[listobject, tupleobject, stringobject, exceptions, iterobject]
+import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
 import ./numobjects
 declarePyType Bytes(tpToken):
   items: string
