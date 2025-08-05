@@ -100,11 +100,12 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
 
   `impl S Magic` hash: unhashable self
 
-  `impl S Method` append(item: PyObject), [mutable: write]:
+  proc add*(self: `Py S Object`, item: PyObject): PyObject =
     beforeAppend
     self.items.add(item.mapper)
     pyNone
 
+  `impl S Method` append(item: PyObject), [mutable: write]: self.add item
 
   `impl S Method` clear(), [mutable: write]:
     self.items.setLen 0

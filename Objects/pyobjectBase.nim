@@ -225,10 +225,14 @@ proc newPyType*(name: string): PyTypeObject =
 proc hasDict*(obj: PyObject): bool {. inline .} = 
   obj of PyObjectWithDict
 
+proc getDictUnsafe*(obj: PyObject): PyObject {. cdecl .} = 
+  ## assuming obj.hasDict
+  PyObjectWithDict(obj).dict
+  
 proc getDict*(obj: PyObject): PyObject {. cdecl .} = 
   if not obj.hasDict:
     unreachable("obj has no dict. Use hasDict before getDict")
-  PyObjectWithDict(obj).dict
+  obj.getDictUnsafe
 
 proc isClass*(obj: PyObject): bool {. cdecl .} = 
   obj.pyType.kind == PyTypeToken.Type

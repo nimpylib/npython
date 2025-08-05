@@ -98,22 +98,17 @@ proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
 registerBltinFunction("print", builtinPrint)
 
 
-proc keysList(d: PyDictObject): PyListObject = 
-  ## inner usage
-  result = newPyList()
-  for key in d.keys():
-    let rebObj = tpMethod(List, append)(result, @[key])
-    if rebObj.isThrownException:
-      unreachable("No chance for append to thrown exception")
-
 implBltinFunc dir(obj: PyObject):
   # why in CPython 0 argument becomes `locals()`? no idea
   # get mapping proxy first then talk about how do deal with __dict__ of type
-  var mergedDict = newPyDict()
-  mergedDict.update(obj.getTypeDict)
+  var res = newPyList()
+  template add(k) =
+    let ret = res.add k
+    assert ret.isPyNone
+  for k in obj.getTypeDict.keys(): add k
   if obj.hasDict:
-    mergedDict.update(PyDictObject(obj.getDict))
-  mergedDict.keysList
+    for k in (PyDictObject(obj.getDictUnsafe)).keys: add k
+  res
 
 
 implBltinFunc id(obj: PyObject):
