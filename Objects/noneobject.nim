@@ -1,6 +1,5 @@
 import pyobject
 import ./stringobject
-import ./exceptions
 
 declarePyType None(tpToken):
   discard
@@ -14,5 +13,3 @@ method `$`*(_: PyNoneObject): string = sNone
 
 implNoneMagic repr: newPyAscii sNone
 
-implNoneMagic New(tp: PyObject):
-  return pyNone

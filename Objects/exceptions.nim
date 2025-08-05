@@ -7,33 +7,43 @@
 # This might be a bit slower but we are not pursueing ultra performance anyway
 import std/enumutils
 import std/macrocache
+import std/tables
 export macrocache.items
-import strformat
+from std/strutils import split
+import std/strformat
 
-import pyobject
-import stringobject
+import ./[pyobject, stringobject, noneobject, tupleobject]
 
 
 type ExceptionToken* {. pure .} = enum
   Base,
   Name,
-  NotImplemented,
   Type,
   Arithmetic,
   Attribute,
   Value,
-  Index,
+  Lookup,
   StopIter,
   Lock,
   Import,
-  UnboundLocal,
-  Key,
   Assertion,
-  ZeroDivision,
   Runtime,
-  Syntax,
+  Syntax, #TODO:SyntaxError: shall be with many attributes
   Memory,
-  KeyboardInterrupt,
+  KeyboardInterrupt,  #TODO:BaseException shall be subclass of BaseException
+
+const ExcAttrs = toTable {
+  # values will be `split(',')`
+  Name: "name",
+  Attribute: "name,obj",
+  StopIter: "value",
+  Import: "msg,name,name_from,path",
+  Syntax: "end_lineno,end_offset,filename,lineno,msg,offset,print_file_and_line,text"
+}
+iterator extraAttrs(tok: ExceptionToken): NimNode =
+  ExcAttrs.withValue(tok, value):
+    for n in value.split(','):
+      yield ident n
 
 proc getTokenName*(excp: ExceptionToken): string = excp.symbolName
 proc getBltinName*(excp: ExceptionToken): string =
@@ -52,7 +62,7 @@ type TraceBack* = tuple
 declarePyType BaseError(tpToken, typeName("Exception")):
   tk: ExceptionToken
   thrown: bool
-  msg: PyObject  # could be nil
+  args: PyTupleObject  # could not be nil
   context: PyBaseErrorObject  # if the exception happens during handling another exception
   # used for tracebacks, set in neval.nim
   traceBacks: seq[TraceBack]
@@ -65,13 +75,24 @@ type
 proc ofPyExceptionObject*(obj: PyObject): bool {. cdecl, inline .} = 
   obj.ofPyBaseErrorObject
 
+macro setAttrsNone(tok: static[ExceptionToken], self) =
+  result = newStmtList()
+  for n in extraAttrs(tok):
+    result.add newAssignment(
+      newDotExpr(self, n),
+      bindSym"pyNone"
+    )
 
 macro declareErrors: untyped = 
   result = newStmtList()
   for i in 1..int(ExceptionToken.high):
     let tok = ExceptionToken(i)
     let tokenStr = tok.getTokenName
-
+    var attrs = newStmtList()
+    for n in extraAttrs(tok):
+      attrs.add newCall(n, newStmtList bindSym"PyObject")
+    if attrs.len == 0:  # no extra attr
+      attrs.add nnkDiscardStmt.newTree(newEmptyNode())
     let typeNode = nnkStmtList.newTree(
       nnkCommand.newTree(
         newIdentNode("declarePyType"),
@@ -86,11 +107,7 @@ macro declareErrors: untyped =
             ident tok.getBltinName  # or it'll be e.g. "stopitererror"
           )
         ),
-        nnkStmtList.newTree(
-          nnkDiscardStmt.newTree(
-            newEmptyNode()
-          )
-        )
+        attrs
       )
     )
 
@@ -112,11 +129,12 @@ template newProcTmpl(excpName, tok){.dirty.} =
     let excp = `newPy excpName ErrorSimple`()
     excp.tk = ExceptionToken.`tok`
     excp.thrown = true
+    setAttrsNone ExceptionToken.tok, excp
     excp
 
   proc `new excpName Error`*(msgStr: PyStrObject): `Py excpName ErrorObject`{.inline.} = 
     let excp = `new excpName Error`()
-    excp.msg = msgStr
+    excp.args = newPyTuple [PyObject msgStr]
     excp
 
 template newProcTmpl(excpName) = 
@@ -147,14 +165,18 @@ macro declareSubError(E, baseE) =
     `typ`.name = `eeS`
 
 declareSubError Overflow, Arithmetic
+declareSubError ZeroDivision, Arithmetic
+declareSubError Index, Lookup
+declareSubError Key, Lookup
+declareSubError UnboundLocal, Name
+declareSubError NotImplemented, Runtime
 
-template newAttributeError*(tpName, attrName: PyStrObject): untyped =
-  let msg = tpName & newPyAscii" has no attribute " & attrName
-  newAttributeError(msg)
-
-template newAttributeError*(tpName, attrName: string): untyped =
-  newAttributeError(tpName.newPyStr, attrName.newPyStr)
-
+template newAttributeError*(tobj: PyObject, attrName: PyStrObject): untyped =
+  let msg = newPyStr(tobj.pyType.name) & newPyAscii" has no attribute " & attrName
+  let exc = newAttributeError(msg)
+  exc.name = attrName
+  exc.obj = tobj
+  exc
 
 template newIndexTypeError*(typeName: PyStrObject, obj:PyObject): untyped =
   let name = obj.pyType.name
@@ -172,8 +194,8 @@ proc isStopIter*(obj: PyObject): bool = obj.isExceptionOf StopIter
 
 method `$`*(e: PyExceptionObject): string = 
   result = "Error: " & $e.tk & " "
-  if not e.msg.isNil:
-    result &= $e.msg
+  # not e.args.isNil
+  result &= $e.args
 
 
 
@@ -203,6 +225,11 @@ template errorIfNotBool*(pyObj: PyObject, methodName: string, doIt: untyped=retI
 template retIfExc*(e: PyBaseErrorObject) =
   let exc = e
   if not exc.isNil:
+    return exc
+
+template retIfExc*(e: PyObject) =
+  let exc = e
+  if exc.isThrownException:
     return exc
 
 template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) = 
@@ -248,5 +275,7 @@ template checkArgNumAtLeast*(expected: int, name="") =
       msg = "expected at least " & $expected & fmt" argument ({args.len} given)"
     return newTypeError(newPyStr msg)
 
-proc PyErr_Format*(exc: PyBaseErrorObject, msg: PyStrObject) =
-  exc.msg = msg
+proc PyErr_Format*[E: PyBaseErrorObject](exc: E, msg: PyStrObject) =
+  exc.args = newPyTuple [PyObject msg]
+  when compiles(exc.msg):
+    exc.msg = msg

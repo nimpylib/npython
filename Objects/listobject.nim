@@ -7,7 +7,7 @@ import baseBundle
 import ./sliceobjectImpl
 import ./hash
 import iterobject
-import ./tupleobject
+import ./tupleobjectImpl
 import ./dictobject
 import ../Utils/[utils, compat]
 

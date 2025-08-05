@@ -5,11 +5,11 @@ import macros
 import pyobject
 import exceptions
 import stringobject
-import boolobject
+import ./boolobject
+export boolobject
 import numobjects
 import ./noneobject
 
-export boolobject
 
 method `$`*(obj: PyBoolObject): string = 
   $obj.b

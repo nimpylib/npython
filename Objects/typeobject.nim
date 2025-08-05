@@ -95,7 +95,7 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
   if not descr.isNil:
     return descr
 
-  return newAttributeError(self.pyType.name, $name)
+  return newAttributeError(self, name)
   
 # generic getattr
 proc setAttr(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cdecl .} =
@@ -115,7 +115,7 @@ proc setAttr(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cd
       return descr.descrSet(self, value)
       
   template retAttributeError =  
-    return newAttributeError($self.pyType.name, $name)
+    return newAttributeError(self, name)
   if self.hasDict:
     let instDict = PyDictObject(self.getDict)
     if value.isNil:
