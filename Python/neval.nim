@@ -562,12 +562,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             of OpCode.LoadGlobal:
               let name = names[opArg]
               var obj: PyObject
-              if f.globals.hasKey(name):
-                obj = f.globals[name]
-              elif bltinDict.hasKey(name):
-                obj = bltinDict[name]
-              else:
-                notDefined name
+              f.globals.withValue(name, value):
+                obj = value[]
+              do:
+                bltinDict.withValue(name, value):
+                  obj = value[]
+                do:
+                  notDefined name
               sPush obj
 
             of OpCode.SetupFinally:
