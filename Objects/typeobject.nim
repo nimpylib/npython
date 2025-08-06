@@ -81,16 +81,16 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
   if typeDict.isNil:
     unreachable("for type object dict must not be nil")
   var descr: PyObject
-  if typeDict.hasKey(name):
-    descr = typeDict[name]
+  typeDict.withValue(name, value):
+    descr = value[]
     let descrGet = descr.pyType.magicMethods.get
     if not descrGet.isNil:
       return descr.descrGet(self)
 
   if self.hasDict:
     let instDict = PyDictObject(self.getDict)
-    if instDict.hasKey(name):
-      return instDict[name]
+    instDict.withValue(name, val):
+      return val[]
 
   if not descr.isNil:
     return descr
@@ -108,8 +108,8 @@ proc setAttr(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cd
   if typeDict.isNil:
     unreachable("for type object dict must not be nil")
   var descr: PyObject
-  if typeDict.hasKey(name):
-    descr = typeDict[name]
+  typeDict.withValue(name, val):
+    descr = val[]
     let descrSet = descr.pyType.magicMethods.set
     if not descrSet.isNil:
       return descr.descrSet(self, value)

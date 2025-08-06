@@ -103,9 +103,9 @@ proc localId*(ste: SymTableEntry, localName: PyStrObject): int =
 
 proc nameId*(ste: SymTableEntry, nameStr: PyStrObject): int =
   # add entries for attribute lookup
-  if ste.names.hasKey(nameStr):
-    return ste.names[nameStr]
-  else:
+  ste.names.withValue(nameStr, value):
+    return value[]
+  do:
     result = ste.names.len
     ste.names[nameStr] = result
 
