@@ -9,6 +9,7 @@ import pyobject
 import baseBundle
 import ../Utils/utils
 import ./[iterobject, tupleobject]
+from ./stringobject import PyStrObject
 import ./hash
 export hash
 
@@ -24,8 +25,11 @@ proc newPyDict*(table=initTable[PyObject, PyObject]()) : PyDictObject =
   result.table = table
 
 proc hasKey*(dict: PyDictObject, key: PyObject): bool =
-  return dict.table.hasKey(key)
-proc contains*(dict: PyDictObject, key: PyObject): bool = dict.hasKey key
+  ## may raises DictError where Python raises TypeError
+  dict.table.hasKey(key)
+proc contains*(dict: PyDictObject, key: PyObject): bool =
+  ## may raises DictError where Python raises TypeError
+  dict.hasKey key
 
 template borIter(name, nname; R=PyObject){.dirty.} =
   iterator name*(dict: PyDictObject): R =
@@ -62,13 +66,30 @@ proc clear*(dict: PyDictObject) = dict.table.clear
 proc `[]=`*(dict: PyDictObject, key, value: PyObject) = 
   dict.table[key] = value
 
+template retE(e) = return e
+# TODO: overload all bltin types?
+template withValue*(dict: PyDictObject, key: PyStrObject; value; body) =
+  ## we know `str.__eq__` and `str.__hash__` never raises
+  dict.table.withValue(key, value): body
+template withValue*(dict: PyDictObject, key: PyStrObject; value; body, elseBody) =
+  ## we know `str.__eq__` and `str.__hash__` never raises
+  dict.table.withValue(key, value, body, elseBody)
+
+template withValue*(dict: PyDictObject, key: PyObject; value; body) =
+  ## `return` exception if error occurs on calling `__hash__` or `__eq__`
+  bind withValue, retE, handleHashExc
+  handleHashExc retE:
+    dict.table.withValue(key, value): body
+template withValue*(dict: PyDictObject, key: PyObject; value; body, elseBody) =
+  ## `return` exception if error occurs on calling `__hash__` or `__eq__`
+  bind withValue, retE, handleHashExc
+  handleHashExc retE:
+    dict.table.withValue(key, value, body, elseBody)
 
 template checkHashableTmpl(res; obj) =
   let hashFunc = obj.pyType.magicMethods.hash
   if hashFunc.isNil:
-    let tpName = obj.pyType.name
-    let msg = "unhashable type: " & tpName
-    res = newTypeError newPyStr(msg)
+    res = unhashable obj
     return
 
 template checkHashableTmpl(obj) =
@@ -77,12 +98,10 @@ template checkHashableTmpl(obj) =
 
 implDictMagic contains, [mutable: read]:
   checkHashableTmpl(other)
-  try:
-    result = self.table.getOrDefault(other, nil)
-  except DictError:
-    let msg = "__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
-    return newTypeError newPyAscii(msg)
-  return newPyBool(not result.isNil)
+  var res: bool
+  handleHashExc retE:
+    res = self.table.hasKey(other)
+  newPyBool(res)
 
 implDictMagic repr, [mutable: read, reprLockWithMsg"{...}"]:
   var ss: seq[UnicodeVariant]
@@ -112,33 +131,58 @@ implDictMagic Or(E: PyDictObject), [mutable: read]:
     res.table[k] = v
   res
 
-template keyError(other: PyObject): PyObject =
-  var msg: PyStrObject
+template keyError(other: PyObject): PyBaseErrorObject =
   let repr = other.pyType.magicMethods.repr(other)
   if repr.isThrownException:
-    msg = newPyAscii"exception occured when generating key error msg calling repr"
+    PyBaseErrorObject repr
   else:
-    msg = PyStrObject(repr)
-  newKeyError(msg)
-
-let badHashMsg = 
-  newPyAscii"__hash__ method doesn't return an integer or __eq__ method doesn't return a bool"
+    PyBaseErrorObject newKeyError PyStrObject(repr)
 
 template handleBadHash(res; body){.dirty.} =
-  try:
+  template setRes(e) = res = e
+  handleHashExc setRes:
     body
-  except DictError:
-    res = newTypeError badHashMsg
-    return
 
-proc getitemImpl(self: PyDictObject, other: PyObject): PyObject =
-  checkHashableTmpl(other)
-  result.handleBadHash:
-    result = self.table.getOrDefault(other, nil)
-  if not (result.isNil):
-    return result
-  return keyError other
-implDictMagic getitem, [mutable: read]: self.getitemImpl other
+proc getItem*(dict: PyDictObject, key: PyObject): PyObject =
+  ## unlike PyDict_GetItem (which suppresses all errors for historical reasons),
+  ## returns KeyError if missing `key`, TypeError if `key` unhashable
+  checkHashableTmpl(key)
+  dict.withValue(key, value):
+    return value[]
+  do:
+    return keyError key
+
+type GetItemRes*{.pure.} = enum
+  ## order value is the same as Python's
+  Error = -1
+  Missing = 0
+  Get = 1
+
+proc getItemRef*(dict: PyDictObject, key: PyObject, res: var PyObject, exc: var PyBaseErrorObject): GetItemRes =
+  ## `PyDict_GetItemRef`:
+  ## if `key` missing, set res to nil and return KeyError
+  result = GetItemRes.Error
+  exc.checkHashableTmpl(key)
+  exc.handleBadHash:
+    dict.table.withValue(key, value):
+      res = value[]
+      result = GetItemRes.Get
+    do:
+      res = nil
+      exc = keyError key
+      result = GetItemRes.Missing
+
+proc getOpionalItem*(dict: PyDictObject; key: PyObject): PyObject =
+  ## like PyDict_GetItemWithError, can be used as `PyMapping_GetOptionalItem`:
+  ##   returns nil if missing `key`, TypeError if `key` unhashable
+  var exc: PyBaseErrorObject
+  let res = dict.getItemRef(key, result, exc)
+  case res
+  of Get: discard
+  of Missing: result = nil
+  of Error: result = exc
+
+implDictMagic getitem, [mutable: read]: self.getitem other
 
 implDictMagic setitem, [mutable: write]:
   checkHashableTmpl(arg1)
@@ -149,7 +193,7 @@ implDictMagic setitem, [mutable: write]:
 proc pop*(self: PyDictObject, other: PyObject, res: var PyObject): bool =
   ## - if `other` not in `self`, `res` is set to KeyError;
   ## - if in, set to value of that key;
-  ## - if `DictError`_ raised, `res` is set to TypeError
+  ## - if exception raised, `res` is set to that
   res.checkHashableTmpl(other)
   res.handleBadHash:
     if self.table.pop(other, res):
@@ -171,7 +215,7 @@ implDictMethod get, [mutable: write]:
   let key = args[0]
   checkhashabletmpl(key)
   if args.len == 1:
-    return self.getitemimpl key
+    return self.getItem key
   checkargnum 2
   let defval = args[1]
   result.handleBadHash:
