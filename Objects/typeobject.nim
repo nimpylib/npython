@@ -67,16 +67,19 @@ proc defaultEq(o1, o2: PyObject): PyObject {. cdecl .} =
   if rawEq(o1, o2): pyTrueObj
   else: pyFalseObj
 
-proc reprDefault(self: PyObject): PyObject {. cdecl .} = 
-  newPyString(fmt"<{self.pyType.name} at {self.idStr}>")
+
+template asAttrNameOrRetE*(name: PyObject): PyStrObject =
+  bind ofPyStrObject, typeName, newTypeError, newPyStr, PyStrObject
+  bind formatValue, fmt
+  if not ofPyStrObject(name):
+    let n{.inject.} = typeName(name)
+    return newTypeError newPyStr(
+      fmt"attribute name must be string, not '{n:.200s}'",)
+  PyStrObject name
 
 # generic getattr
-proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} = 
-  if not nameObj.ofPyStrObject:
-    let typeStr = nameObj.pyType.name
-    let msg = fmt"attribute name must be string, not {typeStr}"
-    return newTypeError(newPyStr msg)
-  let name = PyStrObject(nameObj)
+proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
+  let name = nameObj.asAttrNameOrRetE
   let typeDict = self.getTypeDict
   if typeDict.isNil:
     unreachable("for type object dict must not be nil")
@@ -99,11 +102,7 @@ proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
   
 # generic getattr
 proc setAttr(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cdecl .} =
-  if not nameObj.ofPyStrObject:
-    let typeStr = nameObj.pyType.name
-    let msg = fmt"attribute name must be string, not {typeStr}"
-    return newTypeError(newPyStr msg)
-  let name = PyStrObject(nameObj)
+  let name = nameObj.asAttrNameOrRetE
   let typeDict = self.getTypeDict
   if typeDict.isNil:
     unreachable("for type object dict must not be nil")
