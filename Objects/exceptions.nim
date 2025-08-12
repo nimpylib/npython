@@ -83,6 +83,12 @@ macro setAttrsNone(tok: static[ExceptionToken], self) =
       bindSym"pyNone"
     )
 
+template addTp(tp; basetype) = 
+  tp.kind = PyTypeToken.BaseError
+  tp.base = basetype
+template addTpOfBaseWithName(name) = 
+  addTp `py name ErrorObjectType`, pyBaseErrorObjectType
+
 macro declareErrors: untyped = 
   result = newStmtList()
   for i in 1..int(ExceptionToken.high):
@@ -113,11 +119,7 @@ macro declareErrors: untyped =
 
     result.add(typeNode)
 
-    template addTpTmpl(name) = 
-      `py name ErrorObjectType`.kind = PyTypeToken.BaseError
-      `py name ErrorObjectType`.base = pyBaseErrorObjectType
-
-    result.add(getAst(addTpTmpl(ident(tokenStr))))
+    result.add(getAst(addTpOfBaseWithName(ident(tokenStr))))
 
 
 declareErrors
@@ -161,7 +163,7 @@ macro declareSubError(E, baseE) =
   result = quote do:
     declarePyType `ee`(base(`bee`)): discard
     newProcTmpl(`E`, `baseE`)
-    `typ`.base = `btyp`
+    `addTp`(`typ`, `btyp`)
     `typ`.name = `eeS`
 
 declareSubError Overflow, Arithmetic
