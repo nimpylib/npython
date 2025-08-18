@@ -86,18 +86,7 @@ template withValue*(dict: PyDictObject, key: PyObject; value; body, elseBody) =
   handleHashExc retE:
     dict.table.withValue(key, value, body, elseBody)
 
-template checkHashableTmpl(res; obj) =
-  let hashFunc = obj.pyType.magicMethods.hash
-  if hashFunc.isNil:
-    res = unhashable obj
-    return
-
-template checkHashableTmpl(obj) =
-  result.checkHashableTmpl(obj)
-
-
 implDictMagic contains, [mutable: read]:
-  checkHashableTmpl(other)
   var res: bool
   handleHashExc retE:
     res = self.table.hasKey(other)
@@ -146,7 +135,6 @@ template handleBadHash(res; body){.dirty.} =
 proc getItem*(dict: PyDictObject, key: PyObject): PyObject =
   ## unlike PyDict_GetItem (which suppresses all errors for historical reasons),
   ## returns KeyError if missing `key`, TypeError if `key` unhashable
-  checkHashableTmpl(key)
   dict.withValue(key, value):
     return value[]
   do:
@@ -162,7 +150,6 @@ proc getItemRef*(dict: PyDictObject, key: PyObject, res: var PyObject, exc: var 
   ## `PyDict_GetItemRef`:
   ## if `key` missing, set res to nil and return KeyError
   result = GetItemRes.Error
-  exc.checkHashableTmpl(key)
   exc.handleBadHash:
     dict.table.withValue(key, value):
       res = value[]
@@ -185,7 +172,6 @@ proc getOpionalItem*(dict: PyDictObject; key: PyObject): PyObject =
 implDictMagic getitem, [mutable: read]: self.getitem other
 
 implDictMagic setitem, [mutable: write]:
-  checkHashableTmpl(arg1)
   result.handleBadHash:
     self.table[arg1] = arg2
   pyNone
@@ -194,7 +180,6 @@ proc pop*(self: PyDictObject, other: PyObject, res: var PyObject): bool =
   ## - if `other` not in `self`, `res` is set to KeyError;
   ## - if in, set to value of that key;
   ## - if exception raised, `res` is set to that
-  res.checkHashableTmpl(other)
   res.handleBadHash:
     if self.table.pop(other, res):
       return true
@@ -213,7 +198,6 @@ implDictMagic delitem, [mutable: write]:
 implDictMethod get, [mutable: write]:
   checkargnumatleast 1
   let key = args[0]
-  checkhashabletmpl(key)
   if args.len == 1:
     return self.getItem key
   checkargnum 2
@@ -224,7 +208,6 @@ implDictMethod get, [mutable: write]:
 implDictMethod pop, [mutable: write]:
   checkargnumatleast 1
   let key = args[0]
-  checkhashabletmpl(key)
   if args.len == 1:
     return self.delitemimpl key
   checkargnum 2
@@ -234,20 +217,42 @@ implDictMethod pop, [mutable: write]:
   # XXX: Python's dict.pop(k, v) discard TypeError, KeyError
   return defval
 
+proc setDefaultRef*(self: PyDictObject, key, defVal: PyObject; res: var PyObject): GetItemRes =
+  result = GetItemRes.Error
+  var exc: PyBaseErrorObject  # unused
+  exc.handleBadHash:
+    self.table.withValue(key, value):
+      res = value[]
+      result = GetItemRes.Get
+    do:
+      self[key] = defVal
+      res = defVal
+      result = GetItemRes.Missing
+
+proc setDefaultRef*(self: PyDictObject, key, defVal: PyObject): GetItemRes =
+  ## `PyDict_SetDefaultRef(..., NULL)`
+  result = GetItemRes.Error
+  if self.contains(key):
+    result = GetItemRes.Get
+  else:
+    self[key] = defVal
+    result = GetItemRes.Missing
+
+proc setdefault*(self: PyDictObject, key: PyObject, defVal: PyObject = pyNone): PyObject =
+  self.withValue(key, value):
+    return value[]
+  do:
+    self[key] = defVal
+    return defval
+
 implDictMethod setdefault, [mutable: write]:
   checkargnumatleast 1
   let key = args[0]
-  checkhashabletmpl(key)
   let defVal = if args.len == 1: pyNone
   else:
     checkargnum 2
     args[1]
-
-  result.handleBadHash:
-    if key in self:
-      return self[key]
-    self[key] = defVal
-    return defval
+  self.setdefault(key, defVal)
 
 implDictMethod clear(), [mutable: write]: self.clear()
 
