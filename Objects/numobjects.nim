@@ -858,12 +858,12 @@ proc toUInt*(pyInt: PyIntObject, res: var uint): bool =
   if pyInt.negative: false
   else: pyInt.absToUInt(res)
 
-proc PyNumber_Index*(item: PyObject): PyObject =
-  ## returns `PyIntObject` or exception
-  ## 
-  ## CPython's defined at abstract.c
+proc PyNumber_Index*(item: PyObject, res: var PyIntObject): PyBaseErrorObject =
+  ## - returns nil if no error;
+  ## - returns TypeError or other exceptions raised by `item.__index__`
   if item.ofPyIntObject:
-    return item
+    res = PyIntObject item
+    return
   let fun = item.getMagic(index)
   if fun.isNil:
     return newTypeError newPyStr(
@@ -871,10 +871,23 @@ proc PyNumber_Index*(item: PyObject): PyObject =
     )
 
   let i = fun(item)
-  if not i.ofPyIntObject:
+  if i.ofPyIntObject:
+    res = PyIntObject i
+  elif i.isThrownException:
+    return PyBaseErrorObject i
+  else:
     return newTypeError newPyStr(
     fmt"__index__ returned non-int (type {item.pyType.name:.200s})"
     )
+
+proc PyNumber_Index*(item: PyObject): PyObject =
+  ## returns `PyIntObject` or exception
+  ## 
+  ## CPython's defined at abstract.c
+  var res: PyIntObject
+  result = PyNumber_Index(item, res)
+  if result.isNil:
+    result = res
 
 proc PyLong_AsSsize_t*(vv: PyIntObject, res: var int): PyOverflowErrorObject =
   ## returns nil if not overflow
