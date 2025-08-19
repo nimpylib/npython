@@ -94,15 +94,18 @@ proc newPyInt*(i: Digit): PyIntObject =
   else:
     result.sign = Zero
 
-proc newPyInt*[I: SomeSignedInt](i: I): PyIntObject =
-  result = newPyIntSimple()
-  var ui = abs(i)
+func fill[I: SomeInteger](digits: var typeof(PyIntObject.digits), ui: I){.cdecl.} =
+  var ui = ui
   while ui != 0:
-    result.digits.add Digit(
+    digits.add Digit(
       when sizeof(I) <= sizeof(SDigit): ui
       else: ui mod I(sMaxValue)
     )
     ui = ui shr digitBits
+
+proc newPyInt*[I: SomeSignedInt](i: I): PyIntObject =
+  result = newPyIntSimple()
+  result.digits.fill abs(i)
 
   if i < 0:
     result.sign = Negative
@@ -110,6 +113,13 @@ proc newPyInt*[I: SomeSignedInt](i: I): PyIntObject =
     result.sign = Zero
   else:
     result.sign = Positive
+
+proc newPyInt*[I: SomeUnsignedInt and not Digit](i: I): PyIntObject =
+  if i == 0:
+    result.sign = Zero
+    return
+  result.sign = Positive
+  result.digits.fill i
 
 proc newPyIntOfLen(l: int): PyIntObject =
   ## `long_alloc`
@@ -791,6 +801,22 @@ proc toInt*(pyInt: PyIntObject): int =
 const PY_ABS_LONG_MIN = cast[uint](int.low) ## \
 ## we cannot use `0u - cast[uint](int.low)` unless with rangeChecks:off
 
+func absToUInt*(pyInt: PyIntObject, x: var uint): bool{.cdecl.} =
+  ## EXT. unstable.
+  ##
+  ## ignore signbit.
+  ## returns false on overflow
+
+  #TODO:opt-long apply python/cpython@d754f75f42f040267d818ab804ada340f55e5925
+  x = uint 0
+  var prev{.noInit.}: uint
+  for i in countdown(pyInt.digits.high, 0):
+    prev = x
+    x = (x shl digitBits) or uint(pyInt.digits[i])
+    if x shr digitBits != prev:
+      return
+  return true
+
 proc toInt*(pyInt: PyIntObject, overflow: var IntSign): int =
   ## if overflow, `overflow` will be `IntSign.Negative` or `IntSign.Positive
   ##   (depending the sign of the argument)
@@ -799,16 +825,13 @@ proc toInt*(pyInt: PyIntObject, overflow: var IntSign): int =
   ## Otherwise, `overflow` will be `IntSign.Zero`
   overflow = Zero
 
-  var x = uint 0
-  var prev{.noInit.}: uint
-  var sign = pyInt.sign
   result = -1
-  for i in countdown(pyInt.digits.high, 0):
-    prev = x
-    x = (x shl digitBits) or uint(pyInt.digits[i])
-    if x shr digitBits != prev:
-      overflow = sign
-      return
+  let sign = pyInt.sign
+
+  var x{.noInit.}: uint
+  if not pyInt.absToUInt(x):
+    overflow = sign
+    return
   #[ Haven't lost any bits, but casting to long requires extra
     care (see comment above).]#
   if x <= uint int.high:
@@ -818,11 +841,22 @@ proc toInt*(pyInt: PyIntObject, overflow: var IntSign): int =
   else:
     overflow = sign
 
+proc toUInt*(pyInt: PyIntObject, overflow: var IntSign): uint =
+  ## like `toInt`<#toInt,PyIntObject,IntSign>`_ but for `uint`
+  overflow = if pyInt.negative: Negative
+  elif pyInt.absToUInt(result): Zero
+  else: Positive
+
 proc toInt*(pyInt: PyIntObject, res: var int): bool =
   ## returns false on overflow (`x not_in int.low..int.high`)
   var ovf: IntSign
   res = pyInt.toInt(ovf)
   result = ovf == IntSign.Zero
+
+proc toUInt*(pyInt: PyIntObject, res: var uint): bool =
+  ## like `toInt`<#toInt,PyIntObject,int>`_ but for `uint`
+  if pyInt.negative: false
+  else: pyInt.absToUInt(res)
 
 proc PyNumber_Index*(item: PyObject): PyObject =
   ## returns `PyIntObject` or exception
@@ -848,6 +882,13 @@ proc PyLong_AsSsize_t*(vv: PyIntObject, res: var int): PyOverflowErrorObject =
     return newOverflowError(
       newPyAscii"Python int too large to convert to C ssize_t")
 
+proc PyLong_AsSize_t*(pyInt: PyIntObject, res: var uint): PyOverflowErrorObject =
+  if pyInt.negative:
+    newOverflowError(newPyAscii"can't convert negative value to unsigned int")
+  elif pyInt.absToUInt res: nil
+  else: newOverflowError(
+    newPyAscii"Python int too large to convert to C size_t")
+
 proc asLongAndOverflow*(vv: PyIntObject, ovlf: var bool): int{.inline.} =
   ## PyLong_AsLongAndOverflow
   ovlf = not toInt(vv, result)
@@ -860,11 +901,15 @@ template toIntOrRetOF*(vv: PyIntObject): int =
   if not ret.isNil: return ret
   i
 
-proc PyLong_AsSsize_t*(v: PyObject, res: var int): PyBaseErrorObject =
-  if not v.ofPyIntObject:
-    res = -1
-    return newTypeError newPyAscii"an integer is required"
-  PyLong_AsSsize_t(PyIntObject v, res)
+template genLongAs(c, n){.dirty.} =
+  proc `PyLong_As c`*(v: PyObject, res: var n): PyBaseErrorObject =
+    if not v.ofPyIntObject:
+      res = cast[n](-1)
+      return newTypeError newPyAscii"an integer is required"
+    `PyLong_As c`(PyIntObject v, res)
+
+genLongAs Ssize_t, int
+genLongAs Size_t, uint
 
 template PyNumber_AsSsize_tImpl(pyObj: PyObject, res: var int, handleTypeErr, handleValAndOverfMsg){.dirty.} =
   let value = PyNumber_Index(pyObj)
