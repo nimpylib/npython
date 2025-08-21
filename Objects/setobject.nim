@@ -72,6 +72,9 @@ template genSet(S, setSeqToStr, mutRead, mutReadRepr){.dirty.} =
     result = `newPy S`()
     result.items = items
 
+  proc `newPy S`*(items: openArray[PyObject]): `Py S Object` =
+    `newPy S` items.toHashSet
+
   `impl S Method` copy(), mutRead:
     let newL = `newPy S`()
     newL.items = self.items # shallow copy

@@ -23,6 +23,8 @@ declarePyType Dict(tpToken, reprLock, mutable):
 proc newPyDict*(table=initTable[PyObject, PyObject]()) : PyDictObject = 
   result = newPyDictSimple()
   result.table = table
+proc newPyDict*(table: openArray[(PyObject, PyObject)]) : PyDictObject = 
+  newPyDict table.toTable
 
 proc hasKey*(dict: PyDictObject, key: PyObject): bool =
   ## may raises DictError where Python raises TypeError
