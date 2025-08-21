@@ -118,7 +118,7 @@ iterator findAllExpanded[A, B](it1: A, it2: B, start=0, stop = it1.len): int =
   for i in uint32.findAllWithoutMem(it1, it2, start, stop): yield i
 
 template implMethodGenTargetAndStartStop*(castTarget) {.dirty.} =
-    checkArgNumAtLeast 1
+    checkArgNum 1, 3
     let le = self.len
     let
       target = castTarget args[0]
