@@ -11,11 +11,18 @@ template longOr[T](a, b): T =
   when T is PyIntObject: a
   else: b
 
+template asClampedInt(i: PyIntObject): int =
+  ## `_PyEval_SliceIndex`
+  var res: int
+  let exc = PyNumber_AsClampedSsize_t(i, res)
+  assert exc.isNil
+  res
+
 template I[T](obj: PySliceObject; attr; defVal: T): T =
   if obj.attr == pyNone: defVal
   else:
     let res = obj.attr.PyIntObject
-    longOr[T](res, res.toInt) #  TODO: overflow
+    longOr[T](res, res.asClampedInt)
 
 template negative(i: int): bool = i < 0
 
@@ -30,23 +37,61 @@ proc stopAsInt*[I: PyIntObject|int](slice: PySliceObject, size: I): I = slice.CI
 proc startAsInt*[I: PyIntObject|int](slice: PySliceObject, size: I): I =
   slice.CI(start, longOr[I](pyIntZero, 0), size)
 
-proc indices*(slice: PySliceObject, size: int): tuple[start, stop, stride: int] =
+template cal3parts(slice; size){.dirty.} =
+  #TODO:slice ref PySlice_AdjustIndices
   let
-    step = slice.stepAsInt 
+    step = slice.stepAsLong
     stop = slice.stopAsInt size
     start = slice.startAsInt size
+
+type Indices*[T] = tuple[start, stop, stride: T]
+
+template sizeAsObj{.dirty.} =
+  when size is int:
+    let size = newPyInt size
+
+proc indices*(slice: PySliceObject, size: PyIntObject): Indices[PyIntObject] =
+  sizeAsObj
+  cal3parts slice, size
   (start, stop, step)
+
+
+proc indices*(slice: PySliceObject, size: int): Indices[int] =
+  ## `PySlice_Unpack` and `adjust_slice_indexes`
+  ## 
+  ## result is clamped, as CPython does.
+  sizeAsObj
+  cal3parts slice, size
+  (start.asClampedInt, stop.asClampedInt, step.asClampedInt)
+
+template asIntOr(i: PyIntObject; elseDo): int =
+  var ovf: bool
+  let res = i.asLongAndOverflow(ovf)
+  if ovf: elseDo
+  res
+
+proc indices*(slice: PySliceObject, size: PyIntObject|int; res: var Indices[int]): bool =
+  ## returns false on overflow
+  template asInt(i): int =
+    asIntOr(i):
+      return
+  sizeAsObj
+  cal3parts slice, size
+  let
+    stepV = step.asInt
+    startV = start.asInt
+    stopV = stop.asInt
+
+  res = (startV, stopV, stepV)
+  true
 
 # redeclare this for these are "private" macros
 
 methodMacroTmpl(Slice)
 
 implSliceMethod indices(size: PyIntObject):
-  let
-    step = self.stepAsLong
-    stop = self.stopAsInt size
-    start = self.startAsInt size
-  newPyTuple(@[start.PyObject, stop, step])
+  cal3parts self, size
+  PyTuple_Pack(start, stop, step)
 
 proc dollar(self: PySliceObject): string =
   &"slice({$self.start}, {$self.stop}, {$self.step})"
@@ -56,19 +101,55 @@ method `$`*(self: PySliceObject): string = self.dollar
 implSliceMagic repr:
   newPyAscii self.dollar
 
+type
+  ToNimSliceState* = enum
+    tnssInvalidStep = -1  ## step is not 1 or -1
+    tnssOk
+    tnssOverflow  ## overflow in start, stop or step
 
-proc toNimSlice*(sliceStep1: PySliceObject, size: int): Slice[int] =
-  let (start, stop, step) = sliceStep1.indices size
-  let n1 = step < 0
-  assert step.abs == 1
-  if n1: stop+1 .. start
-  else: start .. stop-1
+template toNimSliceImpl(start, stop: int, step): Slice[int] =
+  if step.negative:
+    stop + 1 .. start
+  else:
+    start .. stop - 1
 
-iterator iterInt*(slice: PySliceObject, size: int): int =
+proc toNimSlice*(tup: Indices[int], size: int, res: var Slice[int]): bool =
   let
-    step = slice.stepAsInt
-    start = slice.startAsInt size
-    stop = slice.stopAsInt size
+    stepV = tup.stride
+    startV = tup.start
+    stopV = tup.stop
+  if stepV != 1 and stepV != -1: return
+
+  res = toNimSliceImpl(startV, stopV, stepV)
+  true
+
+proc toNimSlice*(tup: Indices[PyIntObject], size: PyIntObject|int, res: var Slice[int]): ToNimSliceState =
+  sizeAsObj
+  let
+    step = tup.stride
+    start = tup.start
+    stop = tup.stop
+  var u: uint
+  if not step.absToUInt(u): return tnssOverflow
+  if u != 1: return tnssInvalidStep
+
+  template asInt(i): int =
+    asIntOr(i): return tnssOverflow
+  let
+    startV = start.asInt
+    stopV = stop.asInt
+  res = toNimSliceImpl(startV, stopV, step)
+  tnssOk
+
+proc toNimSlice*(slice: PySliceObject, size: PyIntObject|int, res: var Slice[int]): ToNimSliceState =
+  sizeAsObj
+  slice.indices(size).toNimSlice(size, res)
+
+iterator iterInt*(ind: Indices[int]): int =
+  let
+    step = ind.stride
+    start = ind.start
+    stop = ind.stop
   let neg = step < 0
   if neg:
     for i in countdown(start, stop+1, step): yield i

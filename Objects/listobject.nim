@@ -37,8 +37,8 @@ genSequenceMagics "list",
 template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dirty.} =
   ## `beforeAppend` body will be inserted before `append` method's implementation
   bind times, reverse
-  bind ofPySliceObject, PySliceObject, getIterableWithCheck, stepAsInt, toNimSlice,
-    iterInt, unhashable, delete
+  bind ofPySliceObject, PySliceObject, getIterableWithCheck, toNimSlice,
+    iterInt, unhashable, delete, indices
   bind echoCompat
   proc extend*(self: `Py S Object`, other: PyObject): PyObject =
     if other.`ofPy S Object`:
@@ -65,17 +65,20 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
     if ofPySliceObject(arg1):
       let slice = PySliceObject(arg1)
       let iterableToLoop = arg2
-      case stepAsInt(slice)
-      of 1, -1:
+      let L = self.len
+      var nslice: Slice[int]
+      let ind = slice.indices(L)
+
+      if ind.toNimSlice(L, nslice):
         var ls: seq[Ele]
         pyForIn it, iterableToLoop:
           ls.add it.mapper
-        self.items[toNimSlice(slice, self.len)] = ls
+        self.items[nslice] = ls
       else:
         let (iterable, nextMethod) = getIterableWithCheck(iterableToLoop)
         if iterable.isThrownException:
           return iterable
-        for i in iterInt(slice, self.len):
+        for i in iterInt(ind):
           let it = nextMethod(iterable)
           if it.isStopIter:
             break
@@ -92,11 +95,14 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
       return pyNone
     if ofPySliceObject(other):
       let slice = PySliceObject(other)
-      case stepAsInt(slice):
-      of 1, -1:
-        delete(self.items, toNimSlice(slice, self.len))
+      let L = self.len
+      var nslice: Slice[int]
+      let ind = slice.indices(L)
+
+      if ind.toNimSlice(L, nslice):
+        delete(self.items, nslice)
       else:
-        for i in iterInt(slice, self.len):
+        for i in iterInt(ind):
           self.items.delete i
       return pyNone
     return newIndexTypeError(newPyAscii"list", other)
