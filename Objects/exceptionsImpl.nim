@@ -33,15 +33,15 @@ proc BaseException_str(self: PyBaseErrorObject): PyObject =
   if self.args.len == 0: newPyAscii()
   else: PyObject_StrNonNil(self.args[0])
 
-template newMagicTmpl(excpName: untyped, excpNameStr: string){.dirty.} = 
+template newMagicTmpl(excpName: untyped){.dirty.} = 
 
   `impl excpName ErrorMagic` repr: BaseException_repr self
   `impl excpName ErrorMagic` str: BaseException_str self
 
   # this is for initialization at Python level
   `impl excpName ErrorMagic` New:
-    let excp = `newPy excpName ErrorSimple`()
-    excp.tk = ExceptionToken.`excpName`
+    let excp = `new excpName Error`()
+    excp.thrown = false
     if args.len > 1:
       excp.args = newPyTuple(args.toOpenArray(1, args.high))
     excp
@@ -50,8 +50,8 @@ template newMagicTmpl(excpName: untyped, excpNameStr: string){.dirty.} =
 macro genNewMagic: untyped = 
   result = newStmtList()
   for i in ExceptionToken.low..ExceptionToken.high:
-    let tokenStr = $ExceptionToken(i)
-    result.add(getAst(newMagicTmpl(ident(tokenStr), tokenStr & "Error")))
+    let excName = ExceptionToken(i).getTokenName
+    result.add(getAst(newMagicTmpl(ident(excName))))
 
 
 genNewMagic()
