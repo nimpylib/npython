@@ -26,8 +26,8 @@ proc `$`*(self: UnicodeVariant): string =
   doBothKindOk(self, `$`)
 
 
-proc newAsciiUnicodeVariant*(s: string): UnicodeVariant =
-  UnicodeVariant(ascii: true, asciiStr: s)
+proc newAsciiUnicodeVariant*(s: string|cstring|char): UnicodeVariant =
+  UnicodeVariant(ascii: true, asciiStr: $s)
 proc newAsciiUnicodeVariant*(s: seq[char]): UnicodeVariant =
   UnicodeVariant(ascii: true, asciiStr: s.join)
 
@@ -41,12 +41,14 @@ proc newUnicodeUnicodeVariantOfCap*(cap: int): UnicodeVariant =
 proc newAsciiUnicodeVariantOfCap*(cap: int): UnicodeVariant =
   newAsciiUnicodeVariant(newStringOfCap(cap))
 
-proc newUnicodeVariant*(s: string, ensureAscii = false): UnicodeVariant =
+proc newUnicodeVariant*(c: char): UnicodeVariant = newAsciiUnicodeVariant c
+proc newUnicodeVariant*(c: Rune): UnicodeVariant = newUnicodeUnicodeVariant @[c]
+proc newUnicodeVariant*(s: string|cstring, ensureAscii = false): UnicodeVariant =
   ## Create a new `UnicodeVariant` object.
   if ensureAscii:
-    UnicodeVariant(ascii: true, asciiStr: s)
+    UnicodeVariant(ascii: true, asciiStr: $s)
   else:
-    UnicodeVariant(ascii: false, unicodeStr: s.toRunes)
+    UnicodeVariant(ascii: false, unicodeStr: ($s).toRunes)
 
 template add(r: seq[Rune], s: openArray[char]) =
   let oldLen = r.len
@@ -164,18 +166,20 @@ proc newPyString*(str: UnicodeVariant): PyStrObject{.inline.} =
   result = newPyStrSimple()
   result.str = str
 
-proc newPyString*(str: string, ensureAscii=false): PyStrObject =
+proc newPyString*(str: string|cstring, ensureAscii=false): PyStrObject =
   newPyString str.newUnicodeVariant(ensureAscii)
 proc newPyString*(str: seq[Rune]): PyStrObject =
   newPyString newUnicodeUnicodeVariant(str)
-proc newPyAscii*(str: string): PyStrObject =
+proc newPyString*(str: PyStrObject): PyStrObject{.cdecl, inline.} =
+  ## helper for handle type of `string|PyStrObject`
+  str
+
+proc newPyAscii*(str: string|cstring|char): PyStrObject =
   newPyString newAsciiUnicodeVariant(str)
 let empty = newPyAscii""
 proc newPyAscii*(): PyStrObject = empty  ## empty string
 
-# TODO: make them faster
-proc newPyString*(r: Rune): PyStrObject{.inline.} = newPyString @[r]
-proc newPyString*(c: char): PyStrObject{.inline.} = newPyString $c
+proc newPyString*(c: char|Rune): PyStrObject = newPyString newUnicodeVariant(c)
 
 proc `&`*(self: PyStrObject, i: PyStrObject): PyStrObject {. cdecl .} =
   newPyString self.str & i.str
@@ -183,9 +187,56 @@ proc `&`*(self: PyStrObject, i: PyStrObject): PyStrObject {. cdecl .} =
 proc len*(strObj: PyStrObject): int {. inline, cdecl .} =
   strObj.str.doBothKindOk(len)
 
-template newPyStr*(s: string; ensureAscii=false): PyStrObject =
+template newPyStr*(s: string|cstring; ensureAscii=false): PyStrObject =
   bind newPyString
   newPyString(s, ensureAscii)
-template newPyStr*(s: seq[Rune]|UnicodeVariant): PyStrObject =
+template newPyStr*(s: seq[Rune]|UnicodeVariant|PyStrObject|char|Rune): PyStrObject =
   bind newPyString
   newPyString(s)
+
+template asUTF8byret =
+  if self.ascii: ret self.asciiStr
+  else:
+    let s = $self.unicodeStr
+    ret s
+
+proc asUTF8*(self: UnicodeVariant): string =
+  template ret(s) = return s
+  asUTF8byret
+
+proc asUTF8AndSize*(self: UnicodeVariant): tuple[utf8: string, size: int] =
+  template ret(s) = return (s, s.len)
+  asUTF8byret
+
+proc asUTF8AndSize*(self: PyStrObject): tuple[utf8: string, size: int] =
+  ## PyUnicode_AsUTF8AndSize
+  self.str.asUTF8AndSize
+
+proc asUTF8*(self: PyStrObject): string =
+  ## PyUnicode_AsUTF8
+  self.str.asUTF8
+
+template data*(self: PyStrObject): UnicodeVariant =
+  ## restype is unstable.
+  self.str
+template kind*(self: PyStrObject): bool =
+  ## restype is unstable.
+  self.str.ascii
+template itemSize*(self: PyStrObject): int =
+  ## returns 1 or 4 currently
+  ## `PyUnicode_KIND`
+  if self.str.ascii: 1 else: 4
+proc PyUnicode_READ*(kind: bool, data: UnicodeVariant, index: int): Rune{.inline.} =
+  case kind
+  of true: data.asciiStr[index].Rune
+  of false: data.unicodeStr[index]
+
+proc `[]`*(self: PyStrObject, index: int): Rune{.inline.} =
+  ## helper for `PyUnicode_READ`
+  PyUnicode_READ(self.kind, self.data, index)
+
+proc isAscii*(self: PyStrObject): bool {.inline.} =
+  ## `PyUnicode_IS_ASCII`
+  self.str.ascii
+
+const MAX_UNICODE* = 0x10ffff

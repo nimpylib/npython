@@ -5,6 +5,7 @@ import baseBundle
 import stringobject
 import ./sliceobject
 import ../Utils/sequtils
+from ../Python/errors import PyErr_BadArgument
 import ./abstract
 
 export stringobject
@@ -60,6 +61,11 @@ proc PyObject_StrNonNil*(obj: PyObject): PyObject =
   result.errorIfNotString "__str__"
 
 proc PyObject_Str*(obj: PyObject): PyObject = obj.nullOr PyObject_StrNonNil
+proc PyUnicode_AsUTF8AndSize*(obj: PyObject, utf8: var string, size: var int): PyBaseErrorObject =
+  if not obj.ofPyStrObject:
+    size = -1
+    return PyErr_BadArgument()
+  (utf8, size) = obj.PyStrObject.asUTF8AndSize
 
 # TODO: encoding, errors params
 implStrMagic New(tp: PyObject, obj: PyObject):
@@ -131,6 +137,32 @@ template implMethodGenStrTargetAndStartStop =
 template doFind(cb): untyped =
   ## helper to avoid too much `...it2, start, stop)` code snippet
   cb(it1, it2, start, stop)
+
+proc substringUnsafe*(self: PyStrObject, start, stop: int): PyStrObject =
+  ## `PyUnicode_Substring`
+  ##
+  ## Nim's `self.substr[start, stop+1]`
+  ## 
+  ## assert start >= 0 and stop >= 0
+  let
+    len = self.len
+    stop = min(stop, len)
+
+  if start == 0 and stop == len:
+    return self  # unchanged
+  assert not (start < 0 or stop < 0)
+    
+  if start >= len or stop < start:
+    return newPyAscii()
+  if self.isAscii:
+    newPyString self.data.asciiStr[start ..< stop]
+  else:
+    newPyString self.data.unicodeStr[start ..< stop]
+
+proc substring*(self: PyStrObject, start, stop: int, res: var PyStrObject): PyIndexErrorObject =
+  if start < 0 or stop < 0:
+    return newIndexError newPyAscii "string index out of range"
+  res = self.substringUnsafe(start, stop)
 
 when true:
   # copied and modified from ./tupleobject.nim
