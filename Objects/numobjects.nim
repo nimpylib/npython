@@ -789,7 +789,7 @@ declarePyType Float(tpToken):
 method `$`*(f: PyFloatObject): string = 
   $f.v
 
-proc toInt*(pyInt: PyIntObject): int = 
+proc toIntUnsafe*(pyInt: PyIntObject): int = 
   ## XXX: the caller should take care of overflow
   ##  It raises `OverflowDefect` on non-danger build
   for i in countdown(pyInt.digits.high, 0):
@@ -965,8 +965,10 @@ proc PyNumber_AsClampedSsize_t*(pyObj: PyObject, res: var int): PyTypeErrorObjec
   PyNumber_AsSsize_tImpl(pyObj, res, handleTypeErr, handleExc)
 
 
-proc toFloat*(pyInt: PyIntObject): float = 
-  parseFloat($pyInt)
+proc toFloat*(pyInt: PyIntObject): float =
+  ## `PyLong_AsDouble`
+  parseFloat($pyInt) #TODO:long-opt
+  #TODO:long:_PyLong_Frexp
 
 
 proc newPyInt*[C: char](smallInt: C): PyIntObject =
@@ -984,6 +986,31 @@ proc newPyFloat*(v: float): PyFloatObject =
   result = newPyFloatSimple()
   result.v = v
 
+template asDouble*(op: PyFloatObject): float = op.v
+template asDouble*(op: PyFloatObject; v: var float): PyBaseErrorObject =
+  v = op.asDouble
+  PyBaseErrorObject nil
+proc PyFloat_AsDouble*(op: PyObject; v: var float): PyBaseErrorObject =
+  if op.ofPyFloatObject:
+    return op.PyFloatObject.asDouble v
+  var fun = op.pyType.magicMethods.float
+  if fun.isNil:
+    var res: PyIntObject
+    let exc = PyNumber_Index(op, res)
+    if exc.isNil:
+      v = res.toFloat
+      return
+  else:
+    let res = fun(op)
+    errorIfNot Float, "float", res, (op.typeName & ".__float__")
+    return res.PyFloatObject.asDouble v
+
+proc PyFloat_AsFloat*(op: PyObject; v: var float32): PyBaseErrorObject =
+  ## EXT.
+  var df: float
+  result = PyFloat_AsDouble(op, df)
+  if result.isNil:
+    v = float32 df
 
 template intBinaryTemplate(op, methodName: untyped, methodNameStr:string) = 
   if other.ofPyIntObject:
@@ -1107,6 +1134,8 @@ implIntMagic New:
       return newPyInt(0)
   else:
     return newTypeError(newPyStr fmt"Int argument can't be '{arg.pyType.name}'")
+
+#TODO:magic int,float
 
 template castOtherTypeTmpl(methodName) = 
   var casted {. inject .} : PyFloatObject
