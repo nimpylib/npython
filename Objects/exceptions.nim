@@ -31,6 +31,7 @@ type ExceptionToken* {. pure .} = enum
   Syntax, #TODO:SyntaxError: shall be with many attributes
   Memory,
   KeyboardInterrupt,  #TODO:BaseException shall be subclass of BaseException
+  System,
 
 const ExcAttrs = toTable {
   # values will be `split(',')`
@@ -232,7 +233,7 @@ template retIfExc*(e: PyBaseErrorObject) =
 template retIfExc*(e: PyObject) =
   let exc = e
   if exc.isThrownException:
-    return exc
+    return PyBaseErrorObject exc
 
 template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) = 
   var retTuple: (PyObject, UnaryMethod)
@@ -251,15 +252,18 @@ template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) =
     retTuple = (iterobj, iternextFunc)
   retTuple
 
-template errArgNum*(argsLen, expected: int; name="")=
-  bind fmt, newTypeError, newPyStr
+proc errArgNumImpl(nargs: int, expected: int, preExp: string, name=cstring""): PyTypeErrorObject=
+  let suffix = if expected == 1: "" else: "s"
   var msg: string
-  let sargsLen{.inject.} = $argsLen
   if name != "":
-    msg = name & " takes exactly " & $expected & fmt" argument ({sargsLen} given)"
+    msg = fmt"{name} takes {preExp} {expected} argument{suffix} ({nargs} given)"
   else:
-    msg = "expected " & $expected & fmt" argument ({sargsLen} given)"
+    msg = fmt"expected {preExp} {expected} argument{suffix}, got {nargs}"
   return newTypeError(newPyStr msg)
+
+template errArgNum*(argsLen, expected: int; name="")=
+  bind errArgNumImpl
+  return errArgNumImpl(argsLen, expected, "exactly", name)
 
 template checkArgNum*(expected: int, name="") = 
   bind errArgNum
@@ -268,14 +272,18 @@ template checkArgNum*(expected: int, name="") =
 
 
 template checkArgNumAtLeast*(expected: int, name="") = 
-  bind fmt, newTypeError, newPyStr
+  bind errArgNumImpl
   if args.len < expected:
-    var msg: string
-    if name != "":
-      msg = name & " takes at least " & $expected & fmt" argument ({args.len} given)"
-    else:
-      msg = "expected at least " & $expected & fmt" argument ({args.len} given)"
-    return newTypeError(newPyStr msg)
+    return errArgNumImpl(args.len, expected, "at least", name)
+
+template checkArgNumAtMost*(expected: int, name="") =
+  bind errArgNumImpl
+  if args.len > expected:
+    return errArgNumImpl(args.len, expected, "at most", name)
+
+template checkArgNum*(min, max: int, name="") =
+  checkArgNumAtLeast(min, name)
+  checkArgNumAtMost(max, name)
 
 proc PyErr_Format*[E: PyBaseErrorObject](exc: E, msg: PyStrObject) =
   exc.args = newPyTuple [PyObject msg]
