@@ -14,3 +14,5 @@ let pyFalseObj* = newPyBoolInner(false)  ## singleton
 proc newPyBool*(b: bool): PyBoolObject =
   if b: pyTrueObj
   else: pyFalseObj
+
+proc isPyTrue*(self: PyBoolObject): bool = system.`==`(self, pyTrueObj)
