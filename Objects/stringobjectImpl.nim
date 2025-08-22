@@ -7,7 +7,7 @@ import ./sliceobject
 import ./pyobject_apis
 import ../Utils/sequtils
 from ../Python/errors import PyErr_BadArgument
-import ./abstract
+from ./abstract_without_call import clampedIndexOptArgAt
 
 export stringobject
 

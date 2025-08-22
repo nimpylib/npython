@@ -2,7 +2,7 @@
 import std/strformat
 import std/hashes
 import ./pyobject
-import ./abstract
+from ./abstract_without_call import clampedIndexOptArgAt, PyObject_GetIter
 import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
 import ./numobjects
 declarePyType Bytes(tpToken):
