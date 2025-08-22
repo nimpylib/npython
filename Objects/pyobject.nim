@@ -10,6 +10,7 @@ import hashes
 import tables
 
 import ../Utils/[utils, macroutils]
+import ../Include/cpython/critical_section
 import pyobjectBase
 
 export macros except name
@@ -479,34 +480,11 @@ template allowSelfReadWhenBeforeRealWrite*(body) =
 macro mutable*(kind, code: untyped): untyped = 
   if kind.strVal != "read" and kind.strVal != "write":
     error("got mutable pragma arg: " & kind.strVal)
-  var enterNode, leaveNode: NimNode
+  let selfId = ident"self"
   if kind.strVal == "write":
-    enterNode = quote do:
-      if 0 < self.readNum or self.writeLock:
-        let msg = "Write failed because object is been read or written."
-        return newLockError newPyAscii(msg)
-      self.writeLock = true
-    leaveNode = quote do:
-        self.writeLock = false
+    code.body = getAst(criticalWrite(selfId, code.body))
   else:
-    enterNode = quote do:
-      if self.writeLock:
-        let msg = "Read failed because object is been written."
-        return newLockError newPyAscii(msg)
-      inc self.readNum
-    leaveNode = quote do:
-      dec self.readNum
-  code.body = nnkStmtList.newTree(
-                enterNode,
-                nnkTryStmt.newTree(
-                  code.body,
-                  nnkFinally.newTree(
-                    nnkStmtList.newTree(
-                      leaveNode
-                    )
-                  )
-                )
-              )
+    code.body = getAst(criticalRead(selfId, code.body))
   code
 
 # generate useful macros for function defination
