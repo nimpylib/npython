@@ -7,7 +7,8 @@ import macros
 import pyobject 
 # import listobject (do not import, or it'll cause recursive import)
 import baseBundle
-import ../Utils/utils
+import ../Utils/[utils, optres]
+export GetItemRes
 import ./[iterobject, tupleobject]
 from ./stringobject import PyStrObject
 import ./hash
@@ -142,11 +143,6 @@ proc getItem*(dict: PyDictObject, key: PyObject): PyObject =
   do:
     return keyError key
 
-type GetItemRes*{.pure.} = enum
-  ## order value is the same as Python's
-  Error = -1
-  Missing = 0
-  Get = 1
 
 proc getItemRef*(dict: PyDictObject, key: PyObject, res: var PyObject, exc: var PyBaseErrorObject): GetItemRes =
   ## `PyDict_GetItemRef`:
