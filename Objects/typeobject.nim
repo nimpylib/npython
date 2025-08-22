@@ -42,9 +42,6 @@ implTypeSetter dict:
 
 pyTypeObjectType.getsetDescr["__dict__"] = (tpGetter(Type, dict), tpSetter(Type, dict))
 
-proc getTypeDict*(obj: PyObject): PyDictObject = 
-  PyDictObject(obj.pyType.dict)
-
 # some generic behaviors that every type should obey
 proc defaultLe(o1, o2: PyObject): PyObject {. cdecl .} =
   let lt = o1.callMagic(lt, o2)
@@ -68,60 +65,7 @@ proc defaultEq(o1, o2: PyObject): PyObject {. cdecl .} =
   if rawEq(o1, o2): pyTrueObj
   else: pyFalseObj
 
-
-# generic getattr
-proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
-  let name = nameObj.asAttrNameOrRetE
-  let typeDict = self.getTypeDict
-  if typeDict.isNil:
-    unreachable("for type object dict must not be nil")
-  var descr: PyObject
-  typeDict.withValue(name, value):
-    descr = value[]
-    let descrGet = descr.pyType.magicMethods.get
-    if not descrGet.isNil:
-      return descr.descrGet(self)
-
-  if self.hasDict:
-    let instDict = PyDictObject(self.getDict)
-    instDict.withValue(name, val):
-      return val[]
-
-  if not descr.isNil:
-    return descr
-
-  return newAttributeError(self, name)
-  
-# generic getattr
-proc setAttr(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cdecl .} =
-  let name = nameObj.asAttrNameOrRetE
-  let typeDict = self.getTypeDict
-  if typeDict.isNil:
-    unreachable("for type object dict must not be nil")
-  var descr: PyObject
-  typeDict.withValue(name, val):
-    descr = val[]
-    let descrSet = descr.pyType.magicMethods.set
-    if not descrSet.isNil:
-      return descr.descrSet(self, value)
-      
-  template retAttributeError =  
-    return newAttributeError(self, name)
-  if self.hasDict:
-    let instDict = PyDictObject(self.getDict)
-    if value.isNil:
-      let res = instDict.delitemImpl(name)
-      if res != pyNone:
-        assert res.pyType != pyTypeErrorObjectType
-        retAttributeError
-    else:
-      instDict[name] = value
-    return pyNone
-  retAttributeError
-
-proc delAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
-  setAttr(self, nameObj, nil)
-
+#TODO: _Py_type_getattro_impl,_Py_type_getattro, then update ./pyobject_apis/attrs
 proc addGeneric(t: PyTypeObject) = 
   template nilMagic(magicName): bool = 
     t.magicMethods.magicName.isNil
@@ -137,9 +81,9 @@ proc addGeneric(t: PyTypeObject) =
   if (not nilMagic(ge)) and (not nilMagic(eq)):
     trySetSlot(ge, defaultGe)
   trySetSlot(eq, defaultEq)
-  trySetSlot(getattr, getAttr)
-  trySetSlot(setattr, setAttr)
-  trySetSlot(delattr, delAttr)
+  trySetSlot(getattr, PyObject_GenericGetAttr)
+  trySetSlot(setattr, PyObject_GenericSetAttr)
+  trySetSlot(delattr, PyObject_GenericDelAttr)
   trySetSlot(repr, reprDefault)
   trySetSlot(hash, hashDefault)
   trySetSlot(str, t.magicMethods.repr)

@@ -1,24 +1,11 @@
 
 import std/strformat
-import ./[pyobject, exceptions, stringobject]
+import ./[pyobject, stringobject, exceptions]
 
-template asAttrNameOrRetE*(name: PyObject): PyStrObject =
-  bind ofPyStrObject, typeName, newTypeError, newPyStr, PyStrObject
-  bind formatValue, fmt
-  if not ofPyStrObject(name):
-    let n{.inject.} = typeName(name)
-    return newTypeError newPyStr(
-      fmt"attribute name must be string, not '{n:.200s}'",)
-  PyStrObject name
-
-proc PyObject_GetAttr*(v: PyObject, name: PyStrObject): PyObject =
-  let fun = v.getMagic(getattr)
-  assert not fun.isNil
-  #XXX:type npython requires all pyType is `ready`
-  # if fun.isNil: return newAttributeError(v, name)
-  fun(v, name)
-proc PyObject_GetAttr*(v: PyObject, name: PyObject): PyObject =
-  PyObject_GetAttr(v, name.asAttrNameOrRetE)
+import ./pyobject_apis/[
+  attrs
+]
+export attrs
 
 proc reprDefault*(self: PyObject): PyObject {. cdecl .} = 
   newPyString(fmt"<{self.typeName} object at {self.idStr}>")
