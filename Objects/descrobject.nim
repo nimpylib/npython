@@ -94,5 +94,6 @@ implPropertyMagic init:
   pyNone
 
 implPropertyMagic get:
-  fastCall(self.getter, @[other])
+  fastCall(self.getter, [other])
+
 

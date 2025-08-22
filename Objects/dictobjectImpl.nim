@@ -24,7 +24,7 @@ proc updateImpl*(self: PyDictObject, E: PyObject): PyObject =
     keysFunc = E.callMagic(getattr, newPyAscii"keys")  # getattr(E, "keys")
     getitem = E.getMagic(getitem)
   if not keysFunc.isThrownException and not getitem.isNil:
-    let ret = fastCall(keysFunc, @[])
+    let ret = fastCall(keysFunc, [])
     if ret.isThrownException: return ret
     pyForIn i, ret:
       self[i] = getitem(E, i)

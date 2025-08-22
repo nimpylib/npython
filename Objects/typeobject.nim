@@ -233,19 +233,19 @@ template instanceUnaryMethodTmpl(idx: int, nameIdent: untyped) =
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
     let fun = self.getTypeDict[magicNameStr]
-    return fun.fastCall(@[PyObject(self)])
+    return fun.fastCall([PyObject(self)])
 
 template instanceBinaryMethodTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
     let fun = self.getTypeDict[magicNameStr]
-    return fun.fastCall(@[PyObject(self), other])
+    return fun.fastCall([PyObject(self), other])
 
 template instanceTernaryMethodTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
     let fun = self.getTypeDict[magicNameStr]
-    return fun.fastCall(@[PyObject(self), arg1, arg2])
+    return fun.fastCall([PyObject(self), arg1, arg2])
 
 template instanceBltinFuncTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
