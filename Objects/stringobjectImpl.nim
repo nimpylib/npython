@@ -4,6 +4,7 @@ import pyobject
 import baseBundle
 import stringobject
 import ./sliceobject
+import ./pyobject_apis
 import ../Utils/sequtils
 from ../Python/errors import PyErr_BadArgument
 import ./abstract
@@ -38,29 +39,7 @@ implStrMagic repr:
 implStrMagic hash:
   newPyInt(self.hash)
 
-proc reprDefault*(self: PyObject): PyObject {. cdecl .} = 
-  newPyString(fmt"<{self.typeName} object at {self.idStr}>")
 
-proc PyObject_ReprNonNil*(obj: PyObject): PyObject =
-  let fun = obj.getMagic(repr)
-  if fun.isNil:
-    return reprDefault obj
-  result = fun(obj)
-  result.errorIfNotString "__repr__"
-
-template nullOr(obj; elseCall): PyObject =
-  if obj.isNil: newPyAscii"<NULL>"
-  else: elseCall obj
-
-proc PyObject_Repr*(obj: PyObject): PyObject = obj.nullOr PyObject_ReprNonNil
-
-proc PyObject_StrNonNil*(obj: PyObject): PyObject =
-  let fun = obj.getMagic(str)
-  if fun.isNil: return PyObject_ReprNonNil(obj)
-  result = fun(obj)
-  result.errorIfNotString "__str__"
-
-proc PyObject_Str*(obj: PyObject): PyObject = obj.nullOr PyObject_StrNonNil
 proc PyUnicode_AsUTF8AndSize*(obj: PyObject, utf8: var string, size: var int): PyBaseErrorObject =
   if not obj.ofPyStrObject:
     size = -1

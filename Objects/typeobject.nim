@@ -9,6 +9,7 @@ import methodobject
 import funcobjectImpl
 import descrobject
 import dictproxyobject
+import ./pyobject_apis
 import ./hash
 import ../Utils/utils
 import ../Python/call
@@ -67,15 +68,6 @@ proc defaultEq(o1, o2: PyObject): PyObject {. cdecl .} =
   if rawEq(o1, o2): pyTrueObj
   else: pyFalseObj
 
-
-template asAttrNameOrRetE*(name: PyObject): PyStrObject =
-  bind ofPyStrObject, typeName, newTypeError, newPyStr, PyStrObject
-  bind formatValue, fmt
-  if not ofPyStrObject(name):
-    let n{.inject.} = typeName(name)
-    return newTypeError newPyStr(
-      fmt"attribute name must be string, not '{n:.200s}'",)
-  PyStrObject name
 
 # generic getattr
 proc getAttr(self: PyObject, nameObj: PyObject): PyObject {. cdecl .} =
