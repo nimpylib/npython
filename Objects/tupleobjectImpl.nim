@@ -81,6 +81,8 @@ template genSequenceMagics*(nameStr,
     ofPyNameObject, PyNameObject,
     mutRead, mutReadRepr, seqToStr
 
+  iterator pairs*(self: PyNameObject): (int, PyObject) =
+    for i, v in  self.items.pairs: yield (i, v)
   implNameMagic mul, mutRead:
     var n: int
     let e = PyNumber_AsSsize_t(other, n)
