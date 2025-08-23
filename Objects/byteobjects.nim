@@ -33,10 +33,6 @@ proc initPyBytesWriter*(cap: int): PyBytesWriter =
   result.reset cap
 proc finish*(self: sink PyBytesWriter): PyObject
 
-template ofPyByteArrayObject*(obj: PyObject): bool =
-  bind pyByteArrayObjectType
-  obj.pyType == pyByteArrayObjectType
-
 proc `$`(self: seq[char]): string =
   result.setLen self.len
   when declared(copyMem):

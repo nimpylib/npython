@@ -614,18 +614,24 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   result.add(decObjNode)
 
   # boilerplates for pyobject type
-  template initTypeTmpl(name, nameStr, hasTpToken, hasDict) = 
-    let `py name ObjectType`* {. inject .} = newPyType(nameStr)
+  template initTypeTmpl(pyObjType, name, nameStr, hasTpToken, hasDict) = 
+    let `pyObjType`* {. inject .} = newPyType(nameStr)
 
+    proc `ofExactPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
+      system.`==`(obj.pyType, `pyObjType`)
     when hasTpToken:
-      `py name ObjectType`.kind = PyTypeToken.`name`
+      `pyObjType`.kind = PyTypeToken.`name`
       proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
         obj.pyType.kind == PyTypeToken.`name`
+    else:
+      proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
+        #TODO:tp_bases
+        obj.`ofExactPy name Object`()
 
     proc `newPy name Simple`*: `Py name Object` {. cdecl .}= 
       # use `result` here seems to be buggy
       let obj = new `Py name Object`
-      obj.pyType = `py name ObjectType`
+      obj.pyType = `pyObjType`
       when defined(js):
         obj.giveId
       when hasDict:
@@ -635,11 +641,11 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     # default for __new__ hook, could be overrided at any time
     proc `newPy name Default`(args: seq[PyObject]): PyObject {. cdecl .} = 
       `newPy name Simple`()
-    `py name ObjectType`.magicMethods.New = `newPy name Default`
+    `pyObjType`.magicMethods.New = `newPy name Default`
 
   if typeName == "":
     typeName = nameIdent.strVal.toLowerAscii
-  result.add(getAst(initTypeTmpl(nameIdent, 
+  result.add(getAst(initTypeTmpl(pyObjType, nameIdent,
     typeName, 
     newLit(tpToken), 
     newLit(dict)
