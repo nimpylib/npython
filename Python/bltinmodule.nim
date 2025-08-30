@@ -148,9 +148,14 @@ template genBltOfNArg(blt; N, call){.dirty.} =
     call
   registerBltinFunction(astToStr(blt), `builtin blt`)
 
-genBltOfNArg setattr, 3: args[0].callMagic(setattr, args[1], args[2])
-genBltOfNArg delattr, 2: args[0].callMagic(delattr, args[1])
-
+genBltOfNArg setattr, 3: PyObject_Setattr(args[0], args[1], args[2])
+genBltOfNArg delattr, 2: PyObject_Delattr(args[0], args[1])
+genBltOfNArg hasattr, 2:
+  let res = PyObject_GetOptionalAttr(args[0], args[1], result)
+  case res
+  of Error: result
+  of Get: pyTrueObj
+  of Missing: pyFalseObj
 
 implBltinFunc repr(obj: PyObject): obj.callMagic(repr)
 
