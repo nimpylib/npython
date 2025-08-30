@@ -5,7 +5,7 @@ import baseBundle
 import stringobject
 import ./sliceobject
 import ./pyobject_apis
-import ../Utils/sequtils
+import ../Utils/[sequtils, sequtils2]
 from ../Python/errors import PyErr_BadArgument
 from ./abstract_without_call import clampedIndexOptArgAt
 
@@ -91,6 +91,8 @@ proc newPyStrIter*(s: PyStrObject): PyStrIterObject =
   else:
     proc(i: int): PyStrObject = newPyString s.str.unicodeStr[i]
 
+proc rfindExpanded[A, B](it1: A, it2: B; start=0, stop = it1.len): int{.inline.} =
+  uint32.rfind(it1, it2, start, stop)
 proc findExpanded[A, B](it1: A, it2: B; start=0, stop = it1.len): int{.inline.} =
   uint32.findWithoutMem(it1, it2, start, stop)
 iterator findAllExpanded[A, B](it1: A, it2: B, start=0, stop = it1.len): int =
@@ -205,11 +207,33 @@ when true:
       cntAll doFind findAll
     newPyInt(count)
 
-implStrMethod find:
-  implMethodGenStrTargetAndStartStop
-  let res = doKindsWith2It(self.str, target.str):
-    doFind find
-    doFind findExpanded
-    doFind findExpanded
-    doFind find
-  newPyInt(res)
+template prefind{.dirty.} =
+  let le = self.len
+  let
+    start = start.getClampedIndex le
+    stop = stop.getClampedIndex le
+
+template gen_find(find){.dirty.} =
+  template `find Aux`: int =
+    doKindsWith2It(self.str, target.str):
+      doFind find
+      doFind `find Expanded`
+      doFind `find Expanded`
+      doFind find
+  proc find*(self: PyStrObject, target: PyStrObject, start, stop: PyIntObject): PyObject = prefind; newPyInt `find Aux`
+  proc find*(self: PyStrObject, target: PyStrObject, start=0, stop=self.len): int = prefind; `find Aux`
+
+  proc find*(self: UnicodeVariant, target: char, start=0, stop=self.len): int =
+    prefind
+    if self.ascii: find(self.asciiStr, target, start, stop)
+    else: find(self.unicodeStr, Rune target, start, stop)
+
+  proc find*(self: PyStrObject, target: char, start=0, stop=self.len): int = prefind; self.str.find(target, start, stop)
+
+  implStrMethod find:
+    implMethodGenStrTargetAndStartStop
+    newPyInt `find Aux`
+
+gen_find find
+gen_find rfind
+
