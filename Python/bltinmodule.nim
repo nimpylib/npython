@@ -5,7 +5,8 @@ import builtindict
 import ./compile
 import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject,
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
-  byteobjectsImpl, noneobjectImpl,
+  byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
+  listobject,
   ]
 import ../Utils/[utils, macroutils, compat]
 
@@ -123,11 +124,10 @@ implBltinFunc hash(obj: PyObject): obj.callMagic(hash)
 implBltinFunc iter(obj: PyObject): obj.callMagic(iter)
 
 template callWithKeyAndMayDefault(call; tk; N) =
-  checkArgNumAtLeast N
+  checkArgNum N, N+1
   let obj = args[N-1]
   if args.len == N:
     return call obj
-  checkArgNum N+1
   let defVal = args[N]
   result = obj.call
   if result.isExceptionOf tk:
@@ -140,7 +140,7 @@ template genBltWithKeyAndMayDef(blt; tk; N, call){.dirty.} =
   registerBltinFunction(astToStr(blt), `builtin blt`)
 
 genBltWithKeyAndMayDef next, StopIter, 1: obj.callMagic(iternext)
-genBltWithKeyAndMayDef getattr, Attribute, 2: args[0].callMagic(getattr, obj)
+genBltWithKeyAndMayDef getattr, Attribute, 2: PyObject_GetAttr(args[0], obj)
 
 template genBltOfNArg(blt; N, call){.dirty.} =
   proc `builtin blt`*(args: seq[PyObject]): PyObject {. cdecl .} =
