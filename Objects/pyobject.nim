@@ -11,6 +11,7 @@ import tables
 
 import ../Utils/[utils, macroutils]
 import ../Include/cpython/critical_section
+import ../Include/descrobject
 import pyobjectBase
 
 export macros except name
@@ -578,12 +579,47 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       newEmptyNode()
     )  
     recList.add(newField)
+  let pyObjType = ident "py" & nameIdent.strVal & "ObjectType"
+
+  var members = newNimNode nnkBracket
 
   for field in fields.children:
     if field.kind == nnkDiscardStmt:
       continue
     field.expectKind(nnkCall)
-    reclist.addField(field[0], field[1][0])
+    var name = field[0]
+    let fieldType = field[1][0]
+    if name.kind == nnkPragmaExpr:
+      let pragmas = name[1]
+      name = name[0]
+      pragmas.expectKind nnkPragma
+
+      var memberPragma = pragmas[0]
+      var memberPyId: NimNode
+      if memberPragma.kind == nnkCall:
+        expectLen memberPragma, 2
+        memberPyId = memberPragma[1]
+        memberPyId.expectKind {nnkStrLit, nnkRStrLit, nnkTripleStrLit}
+        memberPragma = memberPragma[0]
+        memberPragma.expectIdent"member"
+      else:
+        if memberPragma.eqIdent"dunder_member":
+          memberPyId = ident("__" & name.strVal & "__")
+        else:
+          memberPragma.expectIdent"member"
+          memberPyId = name
+      var flags = newCall(bindSym"pyMemberDefFlagsFromTags")
+      for i in 1..<pragmas.len:
+        let tag = pragmas[i]
+        tag.expectKind nnkIdent
+        flags.add tag
+      members.add newCall(bindSym"initPyMemberDef",
+        newStrLitNode memberPyId.strVal,
+        newCall("typeof", fieldType), # NIM-BUG: avoid not being regarded as typedesc
+        newCall(bindSym"offsetOf", fullNameIdent, name),
+        nnkExprEqExpr.newTree(ident("flags"), flags)
+      )
+    reclist.addField(name, fieldType)
 
   # add fields related to options
   if reprLock:
@@ -650,5 +686,12 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     newLit(tpToken), 
     newLit(dict)
     )))
+
+  if members.len > 0:
+    let mem_asgn = newAssignment(
+      pyObjType.newDotExpr(ident"members"),
+      newCall(bindSym"initRtArray", members)
+    )
+    result.add mem_asgn
 
   result.add(getAst(methodMacroTmpl(nameIdent)))
