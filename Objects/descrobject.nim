@@ -5,6 +5,8 @@ import noneobject
 import exceptions
 import stringobject
 import methodobject
+import ../Include/descrobject as incDescr
+export incDescr
 
 import ../Python/call
 import ../Utils/utils
@@ -43,12 +45,17 @@ proc newPyMethodDescr*(t: PyTypeObject,
   unreachable("bltin function shouldn't be method. " & 
     "This is a placeholder to fool the compiler")
 
+template descr_check*(self, other){.dirty.} =
+  ## XXX: CPython's `descr_setcheck` just does the same as `descr_check`
+  bind fmt, formatValue, newTypeError, newPyStr
+  if other.pyType != self.dType:
+    let oname = other.typeName
+    let msg = fmt"descriptor {self.name} for {self.dType.name} objects " &
+      fmt"doesn't apply to {oname} object"
+    return newTypeError(newPyStr msg)
 
 implMethodDescrMagic get:
-  if other.pyType != self.dType:
-    let msg = fmt"descriptor {self.name} for {self.dType.name} objects " &
-      fmt"doesn't apply to {other.pyType.name} object"
-    return newTypeError(newPyStr msg)
+  descr_check(self, other)
   let owner = other
   case self.kind
   of NFunc.BltinFunc:
@@ -97,3 +104,17 @@ implPropertyMagic get:
   fastCall(self.getter, [other])
 
 
+declarePyType MemberDescr():
+  name: PyStrObject
+  dType: PyTypeObject
+  d_member: PyMemberDef
+
+proc newPyMemberDescr*(tp: PyTypeObject, member: PyMemberDef): PyMemberDescrObject =
+  member.noRelOff "PyDescr_NewMember"
+  result = newPyMemberDescrSimple()
+  result.dType = tp
+  result.name = newPyStr member.name
+  result.d_member = member
+
+
+# __get__, __set__ are in ./descrobjectImpl
