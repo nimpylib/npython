@@ -82,3 +82,9 @@ template declWarning(w){.dirty.} =
 declWarning SyntaxWarning
 
 declWarning DeprecationWarning
+declWarning PendingDeprecationWarning
+
+declWarning ImportWarning
+declWarning ResourceWarning
+
+declWarning RuntimeWarning

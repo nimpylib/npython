@@ -4,7 +4,7 @@ import ../Python/[
   warnings, versionInfo,
 ]
 import ../Objects/[
-  pyobject,
+  pyobject, exceptions
 ]
 import ../Utils/[
   utils,
@@ -12,16 +12,31 @@ import ../Utils/[
 ]
 import lexerTypes
 
+template handleEscape(asSyntaxErrorMsg) =
+    let category = 
+      when PyMinor >= 12: pySyntaxWarningObjectType
+      else: pyDeprecationWarningObjectType
+    let err = warnExplicit(category, arg, info.fileName, info.line)
+    if err.isNil: return
+    if err.pyType == category:
+      #[Replace the Syntax/DeprecationWarning exception with a SyntaxError
+               to get a more accurate error report]#
+      raiseSyntaxError(asSyntaxErrorMsg, info.fileName, info.line, info.column)
+    else:
+      #TODO:string_parser spread the exception as is, instead of always raising an type of exception
+      let serr = try: ": " & $err except Exception: ""
+      raiseAssert "warnings.warn raises an exception: " & serr
+
 proc lexMessage(info: LineInfo, kind: TranslateEscapeErr, _: string){.raises: [SyntaxError].} =
   let arg = $kind
   case kind
+  #TODO:string_parser change function signature to pass another string to capture current escape string
   of teeBadEscape:
-    warnExplicit(
-      when PyMinor >= 12: pySyntaxWarningObjectType
-      else: pyDeprecationWarningObjectType
-      ,
-      arg, info.fileName, info.line
-    )
+    handleEscape """
+"\%c" is an invalid escape sequence. Did you mean "\\%c"? A raw string is also an option."""
+  of teeBadOct:
+    handleEscape """
+"\%.3s" is an invalid escape octal sequence. Did you mean "\\%.3s"? A raw string is also an option."""
   else:
     raiseSyntaxError(arg, info.fileName, info.line, info.column)
 
