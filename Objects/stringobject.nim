@@ -49,6 +49,21 @@ proc newUnicodeVariant*(s: string|cstring, ensureAscii = false): UnicodeVariant 
     UnicodeVariant(ascii: true, asciiStr: $s)
   else:
     UnicodeVariant(ascii: false, unicodeStr: ($s).toRunes)
+proc newUnicodeVariant*(len: int, ensureAscii = false): UnicodeVariant =
+  if ensureAscii:
+    UnicodeVariant(ascii: true, asciiStr: (when declared(newStringUninit): newStringUninit else: newString)(len))
+  else:
+    UnicodeVariant(ascii: false, unicodeStr: (when declared(newSeqUninit): newSeqUninit else: newSeq)[Rune](len))
+
+proc newUnicodeVariant*(s: openArray[char], ensureAscii = false): UnicodeVariant =
+  let L = s.len
+  var str = (when declared(newStringUninit): newStringUninit else: newString)(L)
+  when declared(copyMem):
+    copyMem(str[0].addr, s[0].addr, L)
+  else:
+    for i, c in s: str[i] = c
+  newUnicodeVariant(str, ensureAscii)
+
 
 template add(r: seq[Rune], s: openArray[char]) =
   let oldLen = r.len
@@ -99,8 +114,20 @@ proc toRunes*(self: UnicodeVariant): seq[Rune] =
   if self.ascii: self.asciiStr.asRuneSeq
   else: self.unicodeStr
 
-
+proc `&`*(a, b: UnicodeVariant): UnicodeVariant =
+  doKindsWith2It(a, b):
+    newUnicodeUnicodeVariant(it1 & it2)
+    newUnicodeUnicodeVariant(cat(it1, it2))
+    newUnicodeUnicodeVariant(cat(it1, it2))
+    newAsciiUnicodeVariant(it1 & it2)
 template add*(r: seq[Rune], c: char) = r.add Rune c
+proc `&`*(a: UnicodeVariant, c: char): UnicodeVariant =
+  if a.ascii: a.asciiStr.add c
+  else: a.unicodeStr.add c
+
+proc len*(str: UnicodeVariant): int {. cdecl .} =
+  str.doBothKindOk(len)
+
 proc joinAsRunes*(r: openArray[UnicodeVariant], sep: string): seq[Rune] =
   ## Join `UnicodeVariant` with a separator.
   result = newSeqOfCap[Rune](r.len)
@@ -166,7 +193,7 @@ proc newPyString*(str: UnicodeVariant): PyStrObject{.inline.} =
   result = newPyStrSimple()
   result.str = str
 
-proc newPyString*(str: string|cstring, ensureAscii=false): PyStrObject =
+proc newPyString*(str: string|cstring|openArray[char]|int, ensureAscii=false): PyStrObject =
   newPyString str.newUnicodeVariant(ensureAscii)
 proc newPyString*(str: seq[Rune]): PyStrObject =
   newPyString newUnicodeUnicodeVariant(str)
@@ -174,7 +201,7 @@ proc newPyString*(str: PyStrObject): PyStrObject{.cdecl, inline.} =
   ## helper for handle type of `string|PyStrObject`
   str
 
-proc newPyAscii*(str: string|cstring|char): PyStrObject =
+proc newPyAscii*(str: string|cstring|char|int): PyStrObject =
   newPyString newAsciiUnicodeVariant(str)
 let empty = newPyAscii""
 proc newPyAscii*(): PyStrObject = empty  ## empty string
@@ -183,11 +210,11 @@ proc newPyString*(c: char|Rune): PyStrObject = newPyString newUnicodeVariant(c)
 
 proc `&`*(self: PyStrObject, i: PyStrObject): PyStrObject {. cdecl .} =
   newPyString self.str & i.str
+proc `&`*(self: PyStrObject, c: char): PyStrObject {. cdecl .} = newPyString self.str & c
 
-proc len*(strObj: PyStrObject): int {. inline, cdecl .} =
-  strObj.str.doBothKindOk(len)
+proc len*(strObj: PyStrObject): int {. inline, cdecl .} = strObj.str.len
 
-template newPyStr*(s: string|cstring; ensureAscii=false): PyStrObject =
+template newPyStr*(s: string|cstring|openArray[char]|int; ensureAscii=false): PyStrObject =
   bind newPyString
   newPyString(s, ensureAscii)
 template newPyStr*(s: seq[Rune]|UnicodeVariant|PyStrObject|char|Rune): PyStrObject =
