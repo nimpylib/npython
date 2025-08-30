@@ -5,10 +5,10 @@ import dictobject
 import tupleobject
 
 declarePyType Function(tpToken):
-  name: PyStrObject
-  code: PyCodeObject
-  globals: PyDictObject
-  closure: PyTupleObject # could be nil
+  name{.dunder_member,readonly.}: PyStrObject
+  code{.dunder_member,readonly.}: PyCodeObject
+  globals{.dunder_member,readonly.}: PyDictObject
+  closure{.dunder_member,readonly.}: PyTupleObject # could be nil
 
 # forward declaretion
 declarePyType BoundMethod(tpToken):

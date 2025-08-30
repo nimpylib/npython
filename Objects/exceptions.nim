@@ -97,7 +97,9 @@ macro declareErrors: untyped =
     let tokenStr = tok.getTokenName
     var attrs = newStmtList()
     for n in extraAttrs(tok):
-      attrs.add newCall(n, newStmtList bindSym"PyObject")
+      attrs.add newCall(
+        nnkPragmaExpr.newTree(n, nnkPragma.newTree(ident"member")),
+        newStmtList bindSym"PyObject")
     if attrs.len == 0:  # no extra attr
       attrs.add nnkDiscardStmt.newTree(newEmptyNode())
     let typeNode = nnkStmtList.newTree(
