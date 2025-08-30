@@ -11,6 +11,8 @@ import descrobject
 import dictproxyobject
 import ./pyobject_apis
 import ./hash
+import ./pyobject_apis/attrsGeneric
+export getTypeDict
 import ../Utils/utils
 import ../Python/call
 
@@ -89,6 +91,13 @@ proc addGeneric(t: PyTypeObject) =
   trySetSlot(str, t.magicMethods.repr)
 
 
+proc type_add_members(tp: PyTypeObject, dict: PyDictObject) =
+  for memb in tp.members:
+    let descr = newPyMemberDescr(tp, memb)
+    assert not descr.isNil
+    let failed = dict.setDefaultRef(descr.name, descr) == GetItemRes.Error
+    assert not failed
+
 # for internal objects
 proc initTypeDict(tp: PyTypeObject) = 
   assert tp.dict.isNil
@@ -104,6 +113,9 @@ proc initTypeDict(tp: PyTypeObject) =
         d[namePyStr] = newPyStaticMethod(newPyNimFunc(meth, namePyStr))
       else:
         d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
+
+  type_add_members(tp, d)
+
   # getset descriptors.
   for key, value in tp.getsetDescr.pairs:
     let getter = value[0]

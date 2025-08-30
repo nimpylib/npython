@@ -3,7 +3,9 @@ import strutils
 import macros
 import tables
 
-import ../Utils/utils
+import ../Utils/[utils, rtarrays]
+export rtarrays
+import ../Include/descrobject
 
 type
   PyTypeToken* {. pure .} = enum
@@ -156,9 +158,12 @@ type
     # corresponds to `tp_flag` in CPython. Why not use bit operations? I don't know.
     # Both are okay I suppose
     kind*: PyTypeToken
+    members*: RtArray[PyMemberDef]
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
     getsetDescr*: Table[string, (UnaryMethod, BinaryMethod)]
+
+genTypeToAnyKind PyObject
 
 # add underscores
 macro genMagicNames: untyped = 
