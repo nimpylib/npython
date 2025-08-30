@@ -1,5 +1,6 @@
 
 import std/strformat
+import ../Python/getargs
 import ./pyobject
 import ./tupleobject
 import ./[numobjects, noneobject]
@@ -97,6 +98,18 @@ proc dollar(self: PySliceObject): string =
   &"slice({$self.start}, {$self.stop}, {$self.step})"
 
 method `$`*(self: PySliceObject): string = self.dollar
+
+implSliceMagic New(tp: PyObject, *args):
+  var
+    start, stop, step: PyObject
+  #noKeywords"slice"
+  unpackOptArgs("slice", 1, 3, start, stop, step)
+
+  # This swapping of stop and start is to maintain similarity with range()
+  if stop.isNil:
+    stop = start
+    start = nil
+  newPySlice(start, stop, step)
 
 implSliceMagic repr:
   newPyAscii self.dollar
