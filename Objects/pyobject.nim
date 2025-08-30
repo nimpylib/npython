@@ -202,9 +202,6 @@ proc objName2tpObjName(objName: string): string {. compileTime .} =
   result = objName & "Type"
   result[0] = result[0].toLowerAscii
 
-template typeName*(o: PyObject): string =
-  o.pyType.name
-
 template checkTypeTmplImpl(obj: PyObject{atom}, tp, tpObjName; msgInner="") {.dirty.} = 
   # should use a more sophisticated way to judge type
   if not (obj of tp):

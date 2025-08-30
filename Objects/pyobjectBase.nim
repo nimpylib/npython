@@ -80,6 +80,8 @@ type
     abs: UnaryMethod
     index: UnaryMethod
     bool: UnaryMethod
+    int: UnaryMethod
+    float: UnaryMethod
 
     # note: these 3 are all bitwise operations, nothing to do with keywords `and` or `or`
     And: BinaryMethod
@@ -183,6 +185,9 @@ genMagicNames
 
 method `$`*(obj: PyObject): string {.base, inline.} = 
   "Python object"
+
+template typeName*(o: PyObject): string =
+  o.pyType.name
 
 proc id*(obj: PyObject): int {. inline, cdecl .} = 
   when defined(js):
