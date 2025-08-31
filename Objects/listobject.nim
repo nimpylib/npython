@@ -22,6 +22,10 @@ proc newPyList*(items: seq[PyObject]): PyListObject =
   result = newPyList()
   result.items = items
 
+proc newPyList*(len: int): PyListObject =
+  ## PyList_New
+  newPyList newSeq[PyObject](len)
+
 proc newPyList*(items: openArray[PyObject]): PyListObject = 
   newPyList @items
 
