@@ -64,7 +64,7 @@ template signalDictError(msg) =
 proc hash*(obj: PyObject): Hash = 
   ## inner usage for dictobject.
   ## 
-  ## .. warning:: remember wrap around `doDictOp` to handle exception
+  ## .. warning:: remember wrap around `handleHashExc` to handle exception
   result = PyObject_Hash(obj, curHashExc)
   signalDictError "hash"
 
@@ -73,6 +73,11 @@ template handleHashExc*(handleExc; body) =
   bind popCurHashExc, DictError
   try: body
   except DictError: handleExc popCurHashExc()
+template retE(e) = return e
+template handleHashExc*(body) =
+  ## return exception
+  bind retE
+  handleHashExc retE, body
 
 proc rawEq*(obj1, obj2: PyObject): bool =
   ## for type.__eq__
@@ -97,6 +102,6 @@ proc PyObject_Eq*(obj1, obj2: PyObject, exc: var PyBaseErrorObject): bool =
 proc `==`*(obj1, obj2: PyObject): bool {. inline, cdecl .} =
   ## inner usage for dictobject.
   ## 
-  ## .. warning:: remember wrap around `doDictOp` to handle exception
+  ## .. warning:: remember wrap around `handleHashExc` to handle exception
   result = PyObject_Eq(obj1, obj2, curHashExc)
   signalDictError "eq"

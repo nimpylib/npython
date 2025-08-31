@@ -69,8 +69,7 @@ proc clear*(dict: PyDictObject) = dict.table.clear
 proc `[]=`*(dict: PyDictObject, key, value: PyObject) = 
   dict.table[key] = value
 
-template retE(e) = return e
-# TODO: overload all bltin types?
+# TODO: overload all bltin types and other functions?
 template withValue*(dict: PyDictObject, key: PyStrObject; value; body) =
   ## we know `str.__eq__` and `str.__hash__` never raises
   dict.table.withValue(key, value): body
@@ -80,18 +79,18 @@ template withValue*(dict: PyDictObject, key: PyStrObject; value; body, elseBody)
 
 template withValue*(dict: PyDictObject, key: PyObject; value; body) =
   ## `return` exception if error occurs on calling `__hash__` or `__eq__`
-  bind withValue, retE, handleHashExc
-  handleHashExc retE:
+  bind withValue, handleHashExc
+  handleHashExc:
     dict.table.withValue(key, value): body
 template withValue*(dict: PyDictObject, key: PyObject; value; body, elseBody) =
   ## `return` exception if error occurs on calling `__hash__` or `__eq__`
-  bind withValue, retE, handleHashExc
-  handleHashExc retE:
+  bind withValue, handleHashExc
+  handleHashExc:
     dict.table.withValue(key, value, body, elseBody)
 
 implDictMagic contains, [mutable: read]:
   var res: bool
-  handleHashExc retE:
+  handleHashExc:
     res = self.table.hasKey(other)
   newPyBool(res)
 
@@ -157,6 +156,18 @@ proc getItemRef*(dict: PyDictObject, key: PyObject, res: var PyObject, exc: var 
       exc = keyError key
       result = GetItemRes.Missing
 
+proc getItemRef*(dict: PyDictObject, key: PyStrObject, res: var PyObject): bool =
+  ## PyDict_GetItemStringRef
+  var exc: PyBaseErrorObject
+  exc.handleBadHash:
+    dict.table.withValue(key, value):
+      res = value[]
+      result = true
+    do:
+      res = nil
+      exc = keyError key
+  assert exc.isNil
+
 proc getOpionalItem*(dict: PyDictObject; key: PyObject): PyObject =
   ## like PyDict_GetItemWithError, can be used as `PyMapping_GetOptionalItem`:
   ##   returns nil if missing `key`, TypeError if `key` unhashable
@@ -175,6 +186,8 @@ implDictMagic setitem, [mutable: write]:
   pyNone
 
 proc pop*(self: PyDictObject, other: PyObject, res: var PyObject): bool =
+  ## returns true iff other in self (it means also returning false on exception)
+  ##
   ## - if `other` not in `self`, `res` is set to KeyError;
   ## - if in, set to value of that key;
   ## - if exception raised, `res` is set to that
