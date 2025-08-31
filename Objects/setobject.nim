@@ -147,30 +147,23 @@ implSetMethod clear(), [mutable: write]:
   pyNone
 
 implSetMethod add(item: PyObject), [mutable: write]:
-  self.items.incl(item)
+  handleHashExc:
+    self.items.incl(item)
   pyNone
 
 implSetMethod `discard`(item: PyObject), [mutable: write]:
-  if item.ofPyFrozenSetObject or item.ofPySetObject:
-    self.items.excl item.getItems
-  else:
+  handleHashExc:
     self.items.excl(item)
   pyNone
 
-proc removeImpl(self: PySetObject, item: PyObject): PyObject =
+proc removeImpl(self: PySetObject, item: PyObject): PyBaseErrorObject =
   if self.items.missingOrExcl(item):
-    newKeyError(PyStrObject(item.callMagic(repr)))
-  else:
-    pyNone
+    return newKeyError(PyStrObject(item.callMagic(repr)))
 
 implSetMethod remove(item: PyObject), [mutable: write]:
-  if item.ofPyFrozenSetObject or item.ofPySetObject:
-    return self.removeImpl(item)
-  else:
-    pyForIn i, args[0]:
-      result = self.removeImpl(i)
-      if result.isThrownException:
-        return
+  handleHashExc:
+    retIfExc self.removeImpl(item)
+  pyNone
 
 implSetMethod pop(), [mutable: write]:
   if self.items.len == 0:
