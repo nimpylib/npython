@@ -443,22 +443,24 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.BuildTuple:
               var args = newSeq[PyObject](opArg)
-              for i in 1..opArg:
-                args[^i] = sPop()
+              for i in countdown(opArg-1, 0):
+                args[i] = sPop()
               let newTuple = newPyTuple(args)
               sPush newTuple
 
             of OpCode.BuildList:
               var args = newSeq[PyObject](opArg)
-              for i in 1..opArg:
-                args[^i] = sPop()
+              for i in countdown(opArg-1, 0):
+                args[i] = sPop()
               # an optimization can save the copy
               let newList = newPyList(args)
               sPush newList 
             
             of OpCode.BuildSet:
-              var args = initHashSet[PyObject](opArg)
-              for i in 1..opArg:
+              var args: HashSet[PyObject]
+              handleHashExc:
+                args = initHashSet[PyObject](opArg)
+              for _ in 1..opArg:
                 args.incl sPop()
               # an optimization can save the copy
               let newSet = newPySet(args)
