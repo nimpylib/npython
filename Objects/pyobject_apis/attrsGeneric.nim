@@ -8,7 +8,7 @@ import ../[
 import ./attrsUtils
 import ../../Utils/utils
 
-proc getTypeDict*(obj: PyObject): PyDictObject = 
+proc getTypeDict*(obj: PyObject|PyObjectObj): PyDictObject = 
   PyDictObject(obj.pyType.dict)
 
 

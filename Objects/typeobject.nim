@@ -13,8 +13,12 @@ import ./pyobject_apis
 import ./hash
 import ./pyobject_apis/attrsGeneric
 export getTypeDict
-import ../Utils/utils
-import ../Python/call
+import ../Utils/[
+  utils,
+]
+import ../Python/[
+  call, errors,
+]
 
 
 var magicNameStrs: seq[PyStrObject]
@@ -98,6 +102,50 @@ proc type_add_members(tp: PyTypeObject, dict: PyDictObject) =
     let failed = dict.setDefaultRef(descr.name, descr) == GetItemRes.Error
     assert not failed
 
+using self: var PyObjectObj
+
+proc handleDelRes(call: PyObject){.cdecl, raises: [].} =
+  ## logic in `slot_tp_finalize`
+  let res = call
+  if res.isPyNone: return
+  PyErr_FormatUnraisable newPyAscii"Exception ignored while calling deallocator " #TODO:stack
+
+
+proc PyObject_CallFinalizer[P](self; tp_finalize_isNil: bool) =
+  let tp = self.pyType
+  if tp_finalize_isNil:
+    return
+  handleDelRes tp.callTpDel[:P](self)
+
+proc PyObject_CallFinalizerFromDealloc[P](self; tp_finalize_isNil: bool) =
+  # tp_finalize should only be called once.
+  self.callOnceFinalizerFromDealloc PyObject_CallFinalizer[P](self, tp_finalize_isNil)
+
+proc subtype_dealloc[P](self){.pyDestructorPragma.} =
+  let typ = self.pyType
+
+  #let res = self.pyType.magicMethods.del(self)
+  #self.pyType.base
+  
+  # Find the nearest base with a different tp_dealloc
+  template tp(t: PyTypeObject): untyped = t.magicMethods
+  var base = typ
+  var basedealloc: destructor
+  while (basedealloc = base.tp_dealloc; basedealloc) == subtype_dealloc[P]:
+      base = base.base;
+      assert not base.isNil
+  let has_finalize = not typ.tp.del.isNil
+
+  if has_finalize:
+    PyObject_CallFinalizerFromDealloc[P](self, false)
+
+  assert not basedealloc.isNil
+  basedealloc(self)
+
+proc type_dealloc(self){.pyDestructorPragma.} = discard
+proc object_dealloc(self){.pyDestructorPragma.} = discard
+pyObjectType.tp_dealloc = object_dealloc
+
 # for internal objects
 proc initTypeDict(tp: PyTypeObject) = 
   assert tp.dict.isNil
@@ -138,6 +186,7 @@ proc typeReady*(tp: PyTypeObject) =
     tp.initTypeDict
 
 pyTypeObjectType.typeReady()
+pyTypeObjectType.tp_dealloc = type_dealloc
 
 
 implTypeMagic call:
@@ -177,11 +226,20 @@ implInstanceMagic New(tp: PyTypeObject, *actualArgs):
   result = newPyInstanceSimple()
   result.pyType = tp
 
-template instanceUnaryMethodTmpl(idx: int, nameIdent: untyped) = 
+template instanceUnaryMethodTmpl(idx: int, nameIdent: untyped, isDel: bool) = 
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
-    let fun = self.getTypeDict[magicNameStr]
-    return fun.fastCall([PyObject(self)])
+    when isDel:
+      result = pyNone
+      # Execute __del__ method, if any.
+      let fun = self.getTypeDict.getOpionalItem magicNameStr
+      if fun.isNil: return
+    else:
+      let fun = self.getTypeDict[magicNameStr]
+    result = fun.fastCall([PyObject(self)])
+    when isDel:
+      handleDelRes result
+      result = pyNone
 
 template instanceBinaryMethodTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
@@ -207,6 +265,7 @@ template instanceBltinMethodTmpl(idx: int, nameIdent: untyped) =
     let fun = self.getTypeDict[magicNameStr]
     return fun.fastCall(@[PyObject(self)] & args)
 
+
 macro implInstanceMagics: untyped = 
   result = newStmtList()
   var idx = -1
@@ -216,7 +275,8 @@ macro implInstanceMagics: untyped =
     # no `continue` can be used...
     if name != "New":
       if v is UnaryMethod:
-        result.add getAst(instanceUnaryMethodTmpl(idx, ident(name)))
+        let isDel = name == "del"
+        result.add getAst(instanceUnaryMethodTmpl(idx, ident(name), isDel))
       elif v is BinaryMethod:
         result.add getAst(instanceBinaryMethodTmpl(idx, ident(name)))
       elif v is TernaryMethod:
@@ -230,10 +290,11 @@ macro implInstanceMagics: untyped =
 
 implInstanceMagics
 
-template updateSlotTmpl(idx: int, slotName: untyped) = 
+
+template updateSlotTmpl(idx: int, slotName) = 
   let magicNameStr = magicNameStrs[idx]
   if dict.hasKey(magicnameStr):
-    tp.magicMethods.`slotName` = tpMagic(Instance, slotname)
+    tp.magicMethods.`slotName` = tpMagic(Instance, slotName)
 
 macro updateSlots(tp: PyTypeObject, dict: PyDictObject): untyped = 
   result = newStmtList()
@@ -241,7 +302,10 @@ macro updateSlots(tp: PyTypeObject, dict: PyDictObject): untyped =
   var m: MagicMethods
   for name, v in m.fieldpairs:
     inc idx
-    result.add getAst(updateSlotTmpl(idx, ident(name)))
+    let id = ident(name)
+    result.add getAst(updateSlotTmpl(idx, id))
+
+# type_new_init:type_new_alloc
 
 implTypeMagic New(metaType: PyTypeObject, name: PyStrObject, 
                   bases: PyTupleObject, dict: PyDictObject):
@@ -249,8 +313,10 @@ implTypeMagic New(metaType: PyTypeObject, name: PyStrObject,
   assert bases.len == 0
   let tp = newPyType($name.str)
   tp.kind = PyTypeToken.Type
+  tp.tp_dealloc = subtype_dealloc[PyInstanceObject]
   tp.magicMethods.New = tpMagic(Instance, new)
   updateSlots(tp, dict)
   tp.dict = PyDictObject(tpMethod(Dict, copy)(dict))
   tp.typeReady
+  # XXX: CPython's `object` doesn't contains `__del__`
   tp

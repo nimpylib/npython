@@ -35,6 +35,13 @@ type
 when defined(js):
   var objectId = 0
 
+macro pyDestructorPragma*(def): untyped =
+  ## equiv for `{.pragma: pyDestructorPragma, cdecl.}` but is exported
+  var p = def.pragma
+  if p.kind == nnkEmpty: p = newNimNode nnkPragma
+  def.pragma = p.add(ident"cdecl")
+  def
+
 type 
   # function prototypes, magic methods tuple, PyObject and PyTypeObject
   # rely on each other, so they have to be declared in the same `type`
@@ -51,6 +58,7 @@ type
   BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject {. cdecl .}
 
 
+  destructor* = proc (arg: var PyObjectObj){.pyDestructorPragma.}
   MagicMethods* = tuple
     add: BinaryMethod
     sub: BinaryMethod
@@ -106,6 +114,12 @@ type
 
     New: BltinFunc  # __new__ is a `staticmethod` in Python
     init: BltinMethod
+
+    del: UnaryMethod  ##[XXX: tp_del is deprecated over tp_finalize,
+      but NPython uses `del` to mean tp_finalize
+      (has to use the non-dunder name to ensure `magicNames` is correct)
+    ]##
+
     getattr: BinaryMethod
     setattr: TernaryMethod
     delattr: BinaryMethod
@@ -127,10 +141,13 @@ type
     iternext: UnaryMethod
 
 
-  PyObject* = ref object of RootObj
+  PyObjectObj* = object
+    ## unstable
     when defined(js):
       id: int
     pyType*: PyTypeObject
+    finalized: bool  ## inner
+    finalizing: uint8 ## inner. may be 0,1,2
     # the following fields are possible for a PyObject
     # depending on how it's declared (mutable, dict, etc)
     
@@ -145,6 +162,9 @@ type
     # or both?
     # readNum*: int
     # writeLock*: bool
+
+  PyObject* = ref object of RootObj
+    pybase_head: PyObjectObj
 
   # todo: document
   PyObjectWithDict* = ref object of PyObject
@@ -162,8 +182,34 @@ type
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethod]
     getsetDescr*: Table[string, (UnaryMethod, BinaryMethod)]
+    tp_dealloc*: destructor
+template tp_free*(self: PyTypeObject; op: var PyObjectObj) = discard  ## current no need
 
 genTypeToAnyKind PyObject
+
+proc `=destroy`(self: var PyObjectObj) =
+  if self.pyType.isNil: return
+  let fun = self.pyType.tp_dealloc
+  if fun.isNil: return
+  fun(self)
+
+template finalized(self: PyObject): bool = self.pybase_head.finalized
+proc callTpDel*[Py: PyObject](tp: PyTypeObject; obj: var PyObjectObj): PyObject =
+  ## inner
+  template tp(t: PyTypeObject): untyped = t.magicMethods
+  var o = new Py
+  o.pybase_head = obj
+  result = tp.tp.del(o)
+  obj.finalized = o.finalized
+
+template callOnceFinalizerFromDealloc*(self: var PyObjectObj; callBody) =
+  if self.finalized: return
+  self.finalizing.inc
+  if self.finalizing > 1: return
+  callBody
+  self.finalized = true
+
+template pyType*(self: PyObject): PyTypeObject = self.pybase_head.pyType
 
 # add underscores
 macro genMagicNames: untyped = 
@@ -196,13 +242,13 @@ template typeName*(o: PyObject): string =
 
 proc id*(obj: PyObject): int {. inline, cdecl .} = 
   when defined(js):
-    obj.id
+    obj.pybase_head.id
   else:
     cast[int](obj)
 
 when defined(js):
   proc giveId*(obj: PyObject) {. inline, cdecl .} =
-    obj.id = objectId
+    obj.pybase_head.id = objectId
     # id depleted? not likely
     inc objectId
 

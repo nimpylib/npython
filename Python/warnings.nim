@@ -29,14 +29,11 @@ proc formatwarnmsg_impl_nonewline(msg: PyWarningMessageObject): string{.raises: 
 proc showwarnmsg_impl(msg: PyWarningMessageObject){.raises: [].} =
   ## `_showwarnmsg_impl` of `Lib/_py_warnings.py`
   # _formatwarnmsg
-  ## TODO: sys.stderr
-  try:
-    errEchoCompat(
-      # XXX: TODO: `_formatwarnmsg_impl`
-      msg.formatwarnmsg_impl_nonewline
-    )
-  except IOError: discard
-  except Exception: discard  ## workaround for NIM-BUG about `$`'s callMagic has `Exception` exception
+  #TODO:sys.stderr
+  errEchoCompatNoRaise(
+    # XXX: TODO: `_formatwarnmsg_impl`
+    msg.formatwarnmsg_impl_nonewline
+  )
 
 proc warn_explicit(category: PyTypeObject#[typedesc[Warning]]#, message: PyStrObject,
   filename: PyStrObject, lineno: int,

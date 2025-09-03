@@ -201,3 +201,8 @@ when not declared(getCurrentDir):
 
 when not declared(quitCompat):
   template quitCompat*(e: untyped = 0) = quit(e)
+
+template errEchoCompatNoRaise*(s: string) =
+  bind errEchoCompat
+  try: errEchoCompat s
+  except IOError: discard

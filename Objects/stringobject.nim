@@ -183,7 +183,7 @@ proc `==`*(self, other: PyStrObject): bool {. inline, cdecl .} =
 proc hash*(self: PyStrObject): Hash {. inline, cdecl .} =
   result = hash(self.str) # don't write as self.str.hash as that returns attr
 
-method `$`*(strObj: PyStrObject): string =
+method `$`*(strObj: PyStrObject): string{.raises: [].} =
   $strObj.str
 
 proc repr*(strObj: PyStrObject): string =
