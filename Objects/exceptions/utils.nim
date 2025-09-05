@@ -7,7 +7,7 @@ import ./basetok
 export stringobject
 
 template addTp*(tp; basetype) = 
-  tp.kind = PyTypeToken.BaseError
+  tp.kind = PyTypeToken.BaseException
   tp.base = basetype
 template addTpOfBaseWithName*(name) = 
   addTp `py name ErrorObjectType`, pyBaseErrorObjectType

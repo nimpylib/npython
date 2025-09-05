@@ -26,25 +26,25 @@ type TraceBack* = tuple
   colNo: int  # optional, for syntax error
 
 
-declarePyType BaseError(tpToken, typeName("Exception")):
-  tk: ExceptionToken
+declarePyType BaseException(tpToken):
   thrown: bool
-  args: PyTupleObject  # could not be nil
-  context: PyBaseErrorObject  # if the exception happens during handling another exception
+  # the following is defined `BaseException_getset` in CPython
+  args{.member.}: PyTupleObject  # could not be nil
+  context{.dunder_member.}: PyBaseExceptionObject  # if the exception happens during handling another exception
   # used for tracebacks, set in neval.nim
-  traceBacks: seq[TraceBack]
+  traceBacks#[#TODO:{.member("__traceback__").}]#: seq[TraceBack]
+
+declarePyType Exception(base(BaseException)):
+  tk: ExceptionToken
+
+type PyBaseErrorObject* = PyExceptionObject  ##[PyBaseErrorObject is old alias in NPython,
+and this makes it consist as so that all exceptions are in form of `XxxError`
+]##
+let pyBaseErrorObjectType* = pyExceptionObjectType
+template newPyBaseErrorSimple*(): untyped = newPyExceptionSimple()
 
 
-type
-  PyExceptionObject* = PyBaseErrorObject
-
-
-proc ofPyExceptionObject*(obj: PyObject): bool {. cdecl, inline .} = 
-  obj.ofPyBaseErrorObject
-
-
-
-macro declareErrors: untyped = 
+macro declareExceptions: untyped = 
   result = newStmtList()
   for i in 1..int(ExceptionToken.high):
     let tok = ExceptionToken(i)
@@ -63,7 +63,7 @@ macro declareErrors: untyped =
           newIdentNode(tokenStr & "Error"),
           newCall(
             newIdentNode("base"),
-            bindSym("BaseError")
+            bindSym("Exception")
           ),
           newCall(
             ident"typeName",
@@ -79,13 +79,13 @@ macro declareErrors: untyped =
     result.add(getAst(addTpOfBaseWithName(ident(tokenStr))))
 
 
-declareErrors
+declareExceptions
 
 
 macro genNewProcs: untyped = 
   result = newStmtList()
-  for i in ExceptionToken.low..ExceptionToken.high:
-    let tokenStr = ExceptionToken(i).getTokenName
+  for tok in ExceptionToken:
+    let tokenStr = tok.getTokenName
     result.add(getAst(newProcTmpl(ident(tokenStr))))
 
 

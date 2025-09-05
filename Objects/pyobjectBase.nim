@@ -13,7 +13,7 @@ type
     Object,
     None,
     Ellipsis,
-    BaseError, # exception
+    BaseException, # BaseException
     Int,
     Float,
     Bool,

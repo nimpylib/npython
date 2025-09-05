@@ -6,7 +6,7 @@ from std/strutils import split
 export tables
 
 type ExceptionToken* {. pure .} = enum
-  Base,
+  Base,  ## `Exception`, not `BaseException`
   Name,
   Type,
   Arithmetic,
@@ -18,7 +18,7 @@ type ExceptionToken* {. pure .} = enum
   Import,
   Assertion,
   Runtime,
-  Syntax, #TODO:SyntaxError: shall be with many attributes
+  Syntax,
   Memory,
   KeyboardInterrupt,  #TODO:BaseException shall be subclass of BaseException
   System,
@@ -35,3 +35,4 @@ iterator extraAttrs*(tok: ExceptionToken): NimNode =
   ExcAttrs.withValue(tok, value):
     for n in value.split(','):
       yield ident n
+

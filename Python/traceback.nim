@@ -25,7 +25,7 @@ proc fmtTraceBack(tb: TraceBack): string =
 
 
 proc printTb*(excp: PyExceptionObject) = 
-  var cur = excp
+  var cur: PyBaseExceptionObject = excp
   var excpStrs: seq[string]
   while not cur.isNil:
     var singleExcpStrs: seq[string]
