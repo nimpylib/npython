@@ -49,25 +49,25 @@ implTypeSetter dict:
 pyTypeObjectType.getsetDescr["__dict__"] = (tpGetter(Type, dict), tpSetter(Type, dict))
 
 # some generic behaviors that every type should obey
-proc defaultLe(o1, o2: PyObject): PyObject {. cdecl .} =
+proc defaultLe(o1, o2: PyObject): PyObject {. pyCFuncPragma .} =
   let lt = o1.callMagic(lt, o2)
   let eq = o1.callMagic(eq, o2)
   lt.callMagic(Or, eq)
 
-proc defaultNe(o1, o2: PyObject): PyObject {. cdecl .} =
+proc defaultNe(o1, o2: PyObject): PyObject {. pyCFuncPragma .} =
   let eq = o1.callMagic(eq, o2)
   eq.callMagic(Not)
 
-proc defaultGe(o1, o2: PyObject): PyObject {. cdecl .} = 
+proc defaultGe(o1, o2: PyObject): PyObject {. pyCFuncPragma .} = 
   let gt = o1.callMagic(gt, o2)
   let eq = o1.callMagic(eq, o2)
   gt.callMagic(Or, eq)
 
-proc hashDefault(self: PyObject): PyObject {. cdecl .} = 
+proc hashDefault(self: PyObject): PyObject {. pyCFuncPragma .} = 
   let res = cast[BiggestInt](rawHash(self))  # CPython does so
   newPyInt(res)
 
-proc defaultEq(o1, o2: PyObject): PyObject {. cdecl .} = 
+proc defaultEq(o1, o2: PyObject): PyObject {. pyCFuncPragma .} = 
   if rawEq(o1, o2): pyTrueObj
   else: pyFalseObj
 
@@ -235,7 +235,7 @@ template instanceUnaryMethodTmpl(idx: int, nameIdent: untyped, isDel: bool) =
       let fun = self.getTypeDict.getOpionalItem magicNameStr
       if fun.isNil: return
     else:
-      let fun = self.getTypeDict[magicNameStr]
+      let fun = KeyError!self.getTypeDict[magicNameStr]
     result = fun.fastCall([PyObject(self)])
     when isDel:
       handleDelRes result
@@ -244,25 +244,25 @@ template instanceUnaryMethodTmpl(idx: int, nameIdent: untyped, isDel: bool) =
 template instanceBinaryMethodTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
-    let fun = self.getTypeDict[magicNameStr]
+    let fun = KeyError!self.getTypeDict[magicNameStr]
     return fun.fastCall([PyObject(self), other])
 
 template instanceTernaryMethodTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
-    let fun = self.getTypeDict[magicNameStr]
+    let fun = KeyError!self.getTypeDict[magicNameStr]
     return fun.fastCall([PyObject(self), arg1, arg2])
 
 template instanceBltinFuncTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
-    let fun = self.getTypeDict[magicNameStr]
+    let fun = KeyError!self.getTypeDict[magicNameStr]
     return fun.fastCall(args)
 
 template instanceBltinMethodTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
-    let fun = self.getTypeDict[magicNameStr]
+    let fun = KeyError!self.getTypeDict[magicNameStr]
     return fun.fastCall(@[PyObject(self)] & args)
 
 

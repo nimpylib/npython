@@ -15,7 +15,7 @@ var
 
 type Py_AuditHookFunction* =
   proc(event: cstring, eventArg: PyTupleObject, userData: pointer
-  ): PyBaseErrorObject ## XXX: CPython's returns `cint`,
+  ): PyBaseErrorObject{.raises: [].} ## XXX: CPython's returns `cint`,
   ## but we use `PyBaseErrorObject` to avoid global Exception.
 
 var

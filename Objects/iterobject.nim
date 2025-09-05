@@ -34,7 +34,7 @@ template pyForIn*(it; iterableToLoop: PyObject; doWithIt) =
     doWithIt
 
 
-type ItorPy = iterator(): PyObject
+type ItorPy = iterator(): PyObject{.raises: [].}
 declarePyType NimIteratorIter():
   itor: ItorPy
 

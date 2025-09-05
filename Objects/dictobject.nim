@@ -30,6 +30,7 @@ proc newPyDict*(table: openArray[(PyObject, PyObject)]) : PyDictObject =
 proc hasKey*(dict: PyDictObject, key: PyObject): bool =
   ## may raises DictError where Python raises TypeError
   dict.table.hasKey(key)
+proc hasKey*(dict: PyDictObject, key: PyStrObject): bool = DictError!dict.hasKey(PyObject key)
 proc contains*(dict: PyDictObject, key: PyObject): bool =
   ## may raises DictError where Python raises TypeError
   dict.hasKey key
@@ -57,8 +58,8 @@ iterator pyItems(dict: PyDictObject): PyTupleObject =
 implDictMethod items(), [mutable: read]:
   genPyNimIteratorIter self.pyItems
 
-proc `[]`*(dict: PyDictObject, key: PyObject): PyObject = 
-  return dict.table[key]
+proc `[]`*(dict: PyDictObject, key: PyObject): PyObject = dict.table[key]
+proc `[]`*(dict: PyDictObject, key: PyStrObject): PyObject = DictError!dict[PyObject key]
 
 proc del*(dict: PyDictObject, key: PyObject) =
   ## do nothing if key not exists
@@ -66,16 +67,19 @@ proc del*(dict: PyDictObject, key: PyObject) =
 
 proc clear*(dict: PyDictObject) = dict.table.clear
 
-proc `[]=`*(dict: PyDictObject, key, value: PyObject) = 
-  dict.table[key] = value
+proc `[]=`*(dict: PyDictObject, key, value: PyObject) = dict.table[key] = value
+proc `[]=`*(dict: PyDictObject, key: PyStrObject, value: PyObject) = DictError!!(dict[PyObject key] = value)
 
 # TODO: overload all bltin types and other functions?
 template withValue*(dict: PyDictObject, key: PyStrObject; value; body) =
   ## we know `str.__eq__` and `str.__hash__` never raises
-  dict.table.withValue(key, value): body
+  DictError!!
+    dict.table.withValue(key, value, body)
+  
 template withValue*(dict: PyDictObject, key: PyStrObject; value; body, elseBody) =
   ## we know `str.__eq__` and `str.__hash__` never raises
-  dict.table.withValue(key, value, body, elseBody)
+  DictError!!
+    dict.table.withValue(key, value, body, elseBody)
 
 template withValue*(dict: PyDictObject, key: PyObject; value; body) =
   ## `return` exception if error occurs on calling `__hash__` or `__eq__`
@@ -114,13 +118,15 @@ implDictMagic hash: unhashable self
 implDictMagic eq:
   newPyBool(
     other.ofPyDictObject() and
-    self.table == other.PyDictObject.table
+    DictError!(self.table == other.PyDictObject.table)
   )
 implDictMagic Or(E: PyDictObject), [mutable: read]:
   let res = newPyDict self.table
-  for (k, v) in E.table.pairs:
-    res.table[k] = v
-  res
+  DictError!(
+    for (k, v) in E.table.pairs:
+      res.table[k] = v
+    res
+  )
 
 template keyError(other: PyObject): PyBaseErrorObject =
   let repr = other.pyType.magicMethods.repr(other)
@@ -248,6 +254,7 @@ proc setDefaultRef*(self: PyDictObject, key, defVal: PyObject): GetItemRes =
   else:
     self[key] = defVal
     result = GetItemRes.Missing
+proc setDefaultRef*(self: PyDictObject, key: PyStrObject, defVal: PyObject): GetItemRes = DictError!self.setDefaultRef(PyObject key, defVal)
 
 proc setdefault*(self: PyDictObject, key: PyObject, defVal: PyObject = pyNone): PyObject =
   self.withValue(key, value):

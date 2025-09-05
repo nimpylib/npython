@@ -7,7 +7,7 @@ import ./noneobject
 import ./exceptions
 import ./dictobject
 export dictobject
-
+from ../Utils/utils import DictError, `!!`
 
 # redeclare this for these are "private" macros
 
@@ -16,9 +16,9 @@ methodMacroTmpl(Dict)
 
 
 
-proc updateImpl*(self: PyDictObject, E: PyObject): PyObject =
+proc updateImpl*(self: PyDictObject, E: PyObject): PyObject{.raises: [].} =
   if E.ofPyDictObject:
-    self.update PyDictObject E
+    DictError!!self.update(PyDictObject E)
     return pyNone
   let
     keysFunc = E.callMagic(getattr, newPyAscii"keys")  # getattr(E, "keys")
@@ -26,8 +26,9 @@ proc updateImpl*(self: PyDictObject, E: PyObject): PyObject =
   if not keysFunc.isThrownException and not getitem.isNil:
     let ret = fastCall(keysFunc, [])
     if ret.isThrownException: return ret
-    pyForIn i, ret:
-      self[i] = getitem(E, i)
+    handleHashExc:
+      pyForIn i, ret:
+        self[i] = getitem(E, i)
   else:
     var idx = 0
     pyForIn ele, E:
@@ -40,7 +41,7 @@ proc updateImpl*(self: PyDictObject, E: PyObject): PyObject =
       let
         k = getter(ele, pyIntZero)
         v = getter(ele, pyIntOne)
-      self[k] = v
+      handleHashExc: self[k] = v
       idx.inc
   pyNone
 

@@ -348,13 +348,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                   handleException(reprObj)
 
                 # todo: optimization - build a cache
-                let printFunction = PyNimFuncObject(bltinDict[newPyAscii"print"])
+                let printFunction = PyNimFuncObject(KeyError!bltinDict[newPyAscii"print"])
                 let retObj = tpMagic(NimFunc, call)(printFunction, @[reprObj])
                 if retObj.isThrownException:
                   handleException(retObj)
 
             of OpCode.LoadBuildClass:
-              sPush bltinDict[newPyAscii"__build_class__"]
+              sPush KeyError!bltinDict[newPyAscii"__build_class__"]
               
             of OpCode.ReturnValue:
               return sPop()
@@ -458,10 +458,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             
             of OpCode.BuildSet:
               var args: HashSet[PyObject]
-              handleHashExc:
+              handleHashExc handleException:
                 args = initHashSet[PyObject](opArg)
-              for _ in 1..opArg:
-                args.incl sPop()
+              handleHashExc handleException:
+                for _ in 1..opArg:
+                  args.incl sPop()
               # an optimization can save the copy
               let newSet = newPySet(args)
               sPush newSet
@@ -769,7 +770,7 @@ else:
     module.dict = f.globals
     module
 
-proc newPyFrame*(fun: PyFunctionObject): PyFrameObject = 
+proc newPyFrame*(fun: PyFunctionObject): PyFrameObject{.raises: [].} = 
   let obj = newPyFrame(fun, @[], nil)
   if obj.isThrownException:
     unreachable

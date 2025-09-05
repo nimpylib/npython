@@ -11,11 +11,12 @@ import ./[iterobject, stringobject, numobjects, sliceobject, noneobject, boolobj
 
 methodMacroTmpl(Tuple)
 
+proc isPyTrueObj(obj: PyObject): bool = system.`==`(obj, pyTrueObj)
 template genCollectMagics*(items,
   implNameMagic,
   ofPyNameObject, PyNameObject,
   mutRead, mutReadRepr, seqToStr){.dirty.} =
-  bind newPyInt, pyTrueObj, pyFalseObj
+  bind newPyInt, pyTrueObj, pyFalseObj, isPyTrueObj
 
   template len*(self: PyNameObject): int = self.items.len
   template `[]`*(self: PyNameObject, i: int): PyObject = self.items[i]
@@ -27,7 +28,7 @@ template genCollectMagics*(items,
       let retObj =  item.callMagic(eq, other)
       if retObj.isThrownException:
         return retObj
-      if retObj == pyTrueObj:
+      if isPyTrueObj(retObj):
         return pyTrueObj
     return pyFalseObj
 
@@ -75,6 +76,7 @@ template genSequenceMagics*(nameStr,
     newPyName; mutRead, mutReadRepr;
     seqToStr; initWithDictUsingPairs=false): untyped{.dirty.} =
 
+  bind isPyTrueObj
   bind genCollectMagics, PyNumber_AsSsize_t, pyNone, newPyInt
   genCollectMagics items,
     implNameMagic,
@@ -146,7 +148,7 @@ template genSequenceMagics*(nameStr,
       let retObj =  item.callMagic(eq, target)
       if retObj.isThrownException:
         return retObj
-      if retObj == pyTrueObj:
+      if isPyTrueObj(retObj):
         return newPyInt(idx)
     let msg = fmt"{target} is not in " & nameStr
     newValueError(newPyStr msg)
@@ -157,7 +159,7 @@ template genSequenceMagics*(nameStr,
       let retObj = item.callMagic(eq, target)
       if retObj.isThrownException:
         return retObj
-      if retObj == pyTrueObj:
+      if isPyTrueObj(retObj):
         inc count
     newPyInt(count)
 proc tupleSeqToString(ss: openArray[UnicodeVariant]): UnicodeVariant =
@@ -196,4 +198,5 @@ proc hashCollection*[T: PyObject](self: T): Hash =
 proc hash*(self: PyTupleObject): Hash = self.hashCollection 
 
 implTupleMagic hash:
-  newPyInt hash(self)
+  handleHashExc:
+    result = newPyInt hash(self)

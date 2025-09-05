@@ -35,12 +35,18 @@ type
 when defined(js):
   var objectId = 0
 
-macro pyDestructorPragma*(def): untyped =
-  ## equiv for `{.pragma: pyDestructorPragma, cdecl.}` but is exported
+macro pyCFuncPragma*(def): untyped =
+  ## equiv for `{.pragma: pyCFuncPragma, cdecl, raises: [].}` but is exported
   var p = def.pragma
   if p.kind == nnkEmpty: p = newNimNode nnkPragma
-  def.pragma = p.add(ident"cdecl")
+  def.pragma = p
+    .add(ident"cdecl")
+    .add(nnkExprColonExpr.newTree(
+      ident"raises", newNimNode nnkBracket  # raises: []
+    ))
   def
+
+template pyDestructorPragma*(def): untyped = pyCFuncPragma(def)
 
 type 
   # function prototypes, magic methods tuple, PyObject and PyTypeObject
@@ -48,14 +54,14 @@ type
 
   # these three function are used when number of arguments can be
   # directly obtained from OpCode
-  UnaryMethod* = proc (self: PyObject): PyObject {. cdecl .}
-  BinaryMethod* = proc (self, other: PyObject): PyObject {. cdecl .}
-  TernaryMethod* = proc (self, arg1, arg2: PyObject): PyObject {. cdecl .}
+  UnaryMethod* = proc (self: PyObject): PyObject {. pyCFuncPragma .}
+  BinaryMethod* = proc (self, other: PyObject): PyObject {. pyCFuncPragma .}
+  TernaryMethod* = proc (self, arg1, arg2: PyObject): PyObject {. pyCFuncPragma .}
 
 
   # for those that number of arguments unknown (and potentially kwarg?)
-  BltinFunc* = proc (args: seq[PyObject]): PyObject {. cdecl .}
-  BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject {. cdecl .}
+  BltinFunc* = proc (args: seq[PyObject]): PyObject {. pyCFuncPragma .}
+  BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject {. pyCFuncPragma .}
 
 
   destructor* = proc (arg: var PyObjectObj){.pyDestructorPragma.}
@@ -234,7 +240,7 @@ macro genMagicNames: untyped =
 genMagicNames
 
 
-method `$`*(obj: PyObject): string {.base, inline.} = 
+method `$`*(obj: PyObject): string {.base, inline, raises: [].} = 
   "Python object"
 
 template typeName*(o: PyObject): string =

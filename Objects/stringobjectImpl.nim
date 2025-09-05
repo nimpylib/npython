@@ -63,7 +63,8 @@ template itemsAt(self: PyStrObject, i: int): PyStrObject =
   else:
     newPyString self.str.unicodeStr[i]
   #{.pop.}
-type Getter = proc(i: int): PyStrObject
+{.pragma: getItemPragma, raises: [].}
+type Getter = proc(i: int): PyStrObject{.getItemPragma.}
 declarePyType StrIter():
     ascii: bool
     len: int
@@ -87,9 +88,9 @@ proc newPyStrIter*(s: PyStrObject): PyStrIterObject =
   result.ascii = s.str.ascii
   result.len = s.len
   result.getItem = if result.ascii:
-    proc(i: int): PyStrObject = newPyString s.str.asciiStr[i]
+    proc(i: int): PyStrObject{.getItemPragma.} = newPyString s.str.asciiStr[i]
   else:
-    proc(i: int): PyStrObject = newPyString s.str.unicodeStr[i]
+    proc(i: int): PyStrObject{.getItemPragma.} = newPyString s.str.unicodeStr[i]
 
 proc rfindExpanded[A, B](it1: A, it2: B; start=0, stop = it1.len): int{.inline.} =
   uint32.rfind(it1, it2, start, stop)

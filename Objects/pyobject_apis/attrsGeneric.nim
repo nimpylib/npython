@@ -13,7 +13,7 @@ proc getTypeDict*(obj: PyObject|PyObjectObj): PyDictObject =
 
 
 proc PyObject_GenericGetAttrWithDict*(self: PyObject; name: PyStrObject|PyObject,
-    typeDict: PyDictObject = self.getTypeDict, supress: static[bool] = false): PyObject =
+    typeDict: PyDictObject = self.getTypeDict, supress: static[bool] = false): PyObject{.pyCFuncPragma.} =
   ## returns nil if supress and not found
   nameAsStr
   if typeDict.isNil:
@@ -43,13 +43,13 @@ proc PyObject_GenericGetAttrWithDict*(self: PyObject; name: PyStrObject|PyObject
   else: return newAttributeError(self, name)
 
 proc PyObject_GenericGetAttrWithDict*(self: PyObject; name: PyStrObject|PyObject,
-    typeDict: typeof(nil), supress: static[bool] = false): PyObject =
+    typeDict: typeof(nil), supress: static[bool] = false): PyObject{.pyCFuncPragma.} =
   PyObject_GenericGetAttrWithDict(self, name, supress=supress)
 
-proc PyObject_GenericGetAttr*(self: PyObject, name: PyObject): PyObject {. cdecl .} =
+proc PyObject_GenericGetAttr*(self: PyObject, name: PyObject): PyObject {. pyCFuncPragma .} =
   PyObject_GenericGetAttrWithDict(self, name)
 
-proc PyObject_GenericSetAttr*(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. cdecl .} =
+proc PyObject_GenericSetAttr*(self: PyObject, nameObj: PyObject, value: PyObject): PyObject {. pyCFuncPragma .} =
   let name = nameObj.asAttrNameOrRetE
   let typeDict = self.getTypeDict
   if typeDict.isNil:

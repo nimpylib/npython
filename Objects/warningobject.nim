@@ -1,6 +1,7 @@
 
 import std/options
 from std/strutils import `%`
+import ../Utils/utils
 import ./[
   pyobject,
   stringobject,
@@ -68,10 +69,12 @@ implWarningMessageMagic init:
 template callReprOrStr(obj: PyObject, reprOrStr): string =
   $obj.getMagic(reprOrStr)(obj).PyStrObject.str
 
-proc `$`*(self: PyWarningMessageObject): string =
-  ("{message : $#, category : $#, filename : $#, lineno : $#, " &
+proc `$`*(self: PyWarningMessageObject): string{.raises: [].} =
+  ValueError!(
+    ("{message : $#, category : $#, filename : $#, lineno : $#, " &
             "line : $#}") % [self.message.callReprOrStr(repr), self.categoryName,
                             self.filename.callReprOrStr(repr), self.lineno.callReprOrStr(str), self.line.callReprOrStr(repr)]
+  )
 
 implWarningMessageMagic str:
   newPyStr $self

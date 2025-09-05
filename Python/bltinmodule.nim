@@ -46,7 +46,7 @@ macro implBltinFunc*(prototype, pyName, body: untyped): untyped =
     )
   )
 
-  procNode.addPragma(ident("cdecl"))
+  procNode.addPragma(bindSym("pyCFuncPragma"))
 
   var registerName: string
   if pyName.strVal == "":

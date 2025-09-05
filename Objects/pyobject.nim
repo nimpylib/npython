@@ -415,7 +415,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
         ) 
       )
     )
-  procNode.addPragma(ident("cdecl"))
+  procNode.addPragma(bindSym("pyCFuncPragma"))
 
   result = newStmtList()
   result.add procNode

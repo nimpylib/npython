@@ -45,23 +45,25 @@ template getItemsMayIter(s: PyObject): HashSet =
       pyFrozenSetObjectType.pyType.magicMethods.init(s, @[])
     ).items
 
+#NOTE: only getItem shall use `DictError!`,
+# for getItemsMayIter, use `handleHashExc`
 template genOp(S, mutRead, pyOp, nop){.dirty.} =
   `impl S Magic` pyOp, mutRead:
     let res = `newPy S Simple`()
-    res.items = nop(self.items, other.getItems)
+    res.items = DictError!nop(self.items, other.getItems)
     return res
 template genMe(S, mutRead, pyMethod, nop){.dirty.} =
   `impl S Method` pyMethod(other: PyObject), mutRead:
     let res = `newPy S Simple`()
-    res.items = nop(self.items, other.getItems)
+    res.items = DictError!nop(self.items, other.getItems)
     return res
 template genBOp(S, mutRead, pyOp, nop){.dirty.} =
   `impl S Magic` pyOp, mutRead:
-    if nop(self.items, other.getItems): pyTrueObj
+    if DictError!nop(self.items, other.getItems): pyTrueObj
     else: pyFalseObj
 template genBMe(S, mutRead, pyMethod, nop){.dirty.} =
   `impl S Method` pyMethod(other: PyObject), mutRead:
-    if nop(self.items, other.getItems): pyTrueObj
+    if DictError!nop(self.items, other.getItems): pyTrueObj
     else: pyFalseObj
 
 template genSet(S, setSeqToStr, mutRead, mutReadRepr){.dirty.} =
@@ -94,8 +96,9 @@ template genSet(S, setSeqToStr, mutRead, mutReadRepr){.dirty.} =
     if self.items.len != 0:
       self.items.clear()
     if args.len == 1:
-      pyForIn i, args[0]:
-        self.items.incl i
+      handleHashExc:
+        pyForIn i, args[0]:
+          self.items.incl i
     pyNone
 
   `impl S Magic` iter:
@@ -120,26 +123,30 @@ genSet Set, setSeqToStr, [mutable: read], [mutable: read, reprLock]
 genSet FrozenSet, frozensetSeqToStr, [], [reprLock]
 
 proc hash*(self: PyFrozenSetObject): Hash = self.hashCollection
-implFrozenSetMagic hash: newPyInt hash(self)
+implFrozenSetMagic hash: newPyInt DictError!hash(self)
 implSetMagic hash: unhashable self
 
 implSetMethod update(args), [mutable: write]:
-  for other in args:
-    self.items.incl(other.getItemsMayIter)
+  handleHashExc:
+    for other in args:
+      self.items.incl(other.getItemsMayIter)
   pyNone
 
 implSetMethod intersection_update(args), [mutable: write]:
-  for other in args:
-    self.items = self.items * (other.getItemsMayIter)
+  handleHashExc:
+    for other in args:
+      self.items = DictError!(self.items * (other.getItemsMayIter))
   pyNone
 
 implSetMethod difference_update(args), [mutable: write]:
-  for other in args:
-    self.items = self.items - (other.getItemsMayIter)
+  handleHashExc:
+    for other in args:
+      self.items = self.items - (other.getItemsMayIter)
   pyNone
 
 implSetMethod symmetric_difference_update(other: PyObject), [mutable: write]:
-  self.items = self.items -+- (other.getItemsMayIter)
+  handleHashExc:
+    self.items = self.items -+- (other.getItemsMayIter)
 
 
 implSetMethod clear(), [mutable: write]:
@@ -169,5 +176,5 @@ implSetMethod pop(), [mutable: write]:
   if self.items.len == 0:
     let msg = "pop from empty set"
     return newKeyError(newPyAscii msg)
-  self.items.pop
+  DictError!(KeyError!self.items.pop)
 

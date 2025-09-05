@@ -49,7 +49,7 @@ implCodeMagic repr:
   let msg = fmt("<code object {codeName} at {self.idStr}, file \"{fileName}\">")
   newPyStr(msg)
 
-method `$`*(code: PyCodeObject): string = 
+method `$`*(code: PyCodeObject): string{.raises: [].} = 
   var s: seq[string]
   s.add("Names: " & $code.names)
   s.add("Local variables: " & $code.localVars)

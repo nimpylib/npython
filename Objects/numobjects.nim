@@ -463,8 +463,8 @@ proc rem1(a: PyIntObject, n: Digit): PyIntObject =
   let remainder = inplaceRem1(a.digits, size, n)
   return newPyInt(remainder)
 
-proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool
-proc lMod(v, w: PyIntObject, modRes: var PyIntObject): bool =
+proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool{.pyCFuncPragma.}
+proc lMod(v, w: PyIntObject, modRes: var PyIntObject): bool{.pyCFuncPragma.} =
   ## Compute modulus: *modRes = v % w
   ## returns w != 0
   #assert modRes != nil
@@ -484,13 +484,13 @@ let divZeroError = newPyAscii"division by zero"
 template retZeroDiv =
   return newZeroDivisionError divZeroError
 
-proc `%`*(a, b: PyIntObject): PyObject =
+proc `%`*(a, b: PyIntObject): PyObject{.pyCFuncPragma.} =
   var res: PyIntObject
   if lMod(a, b, res):
     retZeroDiv
   result = res
 
-proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool
+proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool {.pyCFuncPragma.}
 
 template fastDivIf1len(a, b: PyIntObject) =
   if a.digits.len == 1 and b.digits.len == 1:
@@ -508,7 +508,7 @@ proc floorDivNonZero*(a, b: PyIntObject): PyIntObject =
   fastDivIf1len a, b
   assert lDiv(a, b, result)
 
-proc `//`*(a, b: PyIntObject): PyObject =
+proc `//`*(a, b: PyIntObject): PyObject{.pyCFuncPragma.} =
   ## `long_div`
   ## Integer division
   ## 
@@ -627,7 +627,7 @@ proc xDivRem(v1, w1: PyIntObject, prem: var PyIntObject): PyIntObject =
   prem = w
   return a
 
-proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool =
+proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool{.pyCFuncPragma.} =
   ## `long_rem`
   ## Integer reminder.
   ## 
@@ -692,7 +692,7 @@ proc tryDivrem(a, b: PyIntObject, pdiv, prem: var PyIntObject): bool =
     prem.negate()
 
 
-proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool =
+proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool{.pyCFuncPragma.} =
   ## Python's returns -1 on failure, which is only to be Memory Alloc failure
   ## where nim will just `SIGSEGV`
   ## 
@@ -763,7 +763,7 @@ proc fromStr[C: char|Rune](s: openArray[C]): PyIntObject =
     else:
       result.sign = Positive
 
-method `$`*(i: PyIntObject): string =
+method `$`*(i: PyIntObject): string{.raises: [].} =
   if i.zero:
     return "0"
   var ii = i.copy()
@@ -786,7 +786,7 @@ proc hash*(self: PyIntObject): Hash {. inline, cdecl .} =
 declarePyType Float(tpToken):
   v: float
 
-method `$`*(f: PyFloatObject): string = 
+method `$`*(f: PyFloatObject): string{.raises: [].} = 
   $f.v
 
 proc toIntUnsafe*(pyInt: PyIntObject): int = 
@@ -965,9 +965,9 @@ proc PyNumber_AsClampedSsize_t*(pyObj: PyObject, res: var int): PyTypeErrorObjec
   PyNumber_AsSsize_tImpl(pyObj, res, handleTypeErr, handleExc)
 
 
-proc toFloat*(pyInt: PyIntObject): float =
+proc toFloat*(pyInt: PyIntObject): float{.pyCFuncPragma.} =
   ## `PyLong_AsDouble`
-  parseFloat($pyInt) #TODO:long-opt
+  ValueError!parseFloat($pyInt) #TODO:long-opt
   #TODO:long:_PyLong_Frexp
 
 
