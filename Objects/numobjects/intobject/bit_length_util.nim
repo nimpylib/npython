@@ -1,5 +1,6 @@
 
 import std/bitops
+export popcount
 const BitPerByte = 8
 proc bit_length*(self: SomeInteger): int =
   when defined(noUndefinedBitOpts):

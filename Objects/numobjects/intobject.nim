@@ -925,11 +925,15 @@ implIntMagic New:
       return newValueError(newPyStr msg)
   of PyTypeToken.Bool:
     if cast[PyBoolObject](arg).b:
-      return newPyInt(1)
+      return pyIntOne
     else:
-      return newPyInt(0)
+      return pyIntZero
   else:
     return newTypeError(newPyStr fmt"Int argument can't be '{arg.pyType.name}'")
+
+implIntMethod bit_length(): self.bit_length()
+implIntMethod bit_count(): self.bit_count()
+implIntMethod is_integer(): pyTrueObj
 
 # used in list and tuple
 template getIndex*(obj: PyIntObject, size: int, sizeOpIdx: untyped = `<=`): int =

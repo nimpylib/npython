@@ -19,3 +19,8 @@ proc bit_length*(self: PyIntObject): PyIntObject =
   assert nbits >= 0
   return newPyInt nbits
 
+proc bit_count*(self: PyIntObject): PyIntObject =
+  var res = int64 0
+  for d in self.digits:
+    res += popcount(d)
+  newPyInt res
