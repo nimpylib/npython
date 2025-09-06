@@ -24,8 +24,7 @@ proc PyFloat_AsDouble*(op: PyObject; v: var float): PyBaseErrorObject =
     var res: PyIntObject
     let exc = PyNumber_Index(op, res)
     if exc.isNil:
-      v = res.toFloat
-      return
+      retIfExc res.toFloat v
   else:
     let res = fun(op)
     errorIfNot Float, "float", res, (op.typeName & ".__float__")

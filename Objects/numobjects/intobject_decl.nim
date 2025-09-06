@@ -6,6 +6,7 @@
 #
 import ../pyobject
 import ../../Utils/utils
+import ../exceptions
 from std/strutils import parseFloat
 
 # js can't process 64-bit int although nim has this type for js
@@ -97,6 +98,15 @@ proc newPyInt*[I: SomeUnsignedInt and not Digit](i: I): PyIntObject =
   result.digits.fill i
 
 proc toFloat*(pyInt: PyIntObject): float{.pyCFuncPragma.} =
-  ## `PyLong_AsDouble`
+  ## `PyLong_AsDouble` but never OverflowError, just returns `+-Inf`
   ValueError!parseFloat($pyInt) #TODO:long-opt
   #TODO:long:_PyLong_Frexp
+
+proc toFloat*(pyInt: PyIntObject; overflow: var PyOverflowErrorObject): float{.pyCFuncPragma.} =
+  ## `PyLong_AsDouble`
+  #TODO:long:_PyLong_Frexp
+  overflow = nil # newOverflowError newPyAscii"int too large to convert to float"
+  pyInt.toFloat
+
+proc toFloat*(pyInt: PyIntObject; res: var float): PyOverflowErrorObject{.pyCFuncPragma.} =
+  res = pyInt.toFloat result
