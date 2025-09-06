@@ -12,12 +12,14 @@ import ./[basetok, utils]
 export ExceptionToken
 
 
-proc getTokenName*(excp: ExceptionToken): string = excp.symbolName
+proc getTokenName*(excp: ExceptionToken|BaseExceptionToken): string = excp.symbolName
+proc getTokenNameWithError(tok: ExceptionToken): string = tok.getTokenName & "Error"
 proc getBltinName*(excp: ExceptionToken): string =
   case excp
   of Base: "Exception"
   of StopIter: "StopIteration"
-  else: excp.getTokenName & "Error"
+  else: excp.getTokenNameWithError
+proc getBltinName*(excp: BaseExceptionToken): string = excp.symbolName
 
 type TraceBack* = tuple
   fileName: PyObject  # actually string
@@ -27,6 +29,7 @@ type TraceBack* = tuple
 
 
 declarePyType BaseException(tpToken):
+  base_tk: BaseExceptionToken
   thrown: bool
   # the following is defined `BaseException_getset` in CPython
   args{.member.}: PyTupleObject  # could not be nil
@@ -36,14 +39,17 @@ declarePyType BaseException(tpToken):
 
 declarePyType Exception(base(BaseException)):
   tk: ExceptionToken
-
-type PyBaseErrorObject* = PyExceptionObject  ##[PyBaseErrorObject is old alias in NPython,
+##[PyBaseErrorObject is old alias in NPython,
 and this makes it consist as so that all exceptions are in form of `XxxError`
 ]##
-let pyBaseErrorObjectType* = pyExceptionObjectType
-template newPyBaseErrorSimple*(): untyped = newPyExceptionSimple()
+template alias(dest, src){.dirty.} =
+  type `Py dest Object`* = `Py src Object`
+  let `py dest ObjectType`* = `py src ObjectType`
+  template `newPy dest Simple`*(): untyped = `newPy src Simple`()
 
-proc genTypeDeclare(tok: ExceptionToken|BaseExceptionToken, nimTypeName, pyTypeName: NimNode): NimNode =
+alias BaseError, Exception
+
+proc genTypeDeclareImpl(tok: ExceptionToken|BaseExceptionToken, nimTypeName, pyTypeName: NimNode): NimNode =
     var attrs = newStmtList()
     for n in extraAttrs(tok):
       attrs.add newCall(
@@ -73,30 +79,42 @@ template addTypeDeclare(result: var NimNode, tok: ExceptionToken|BaseExceptionTo
   result.add(genTypeDeclareImpl(tok, nimTypeName, pyTypeName))
   result.add(getAst(addTpOfBaseWithName(nimTypeName)))
 
-
-macro declareExceptions: untyped = 
+macro declareExceptions =
   result = newStmtList()
   for i in 1..int(ExceptionToken.high):
     let tok = ExceptionToken(i)
-    let tokenStr = tok.getTokenName
     let
-      nimTypeName = ident(tokenStr & "Error")
+      nimTypeName = ident(tok.getTokenNameWithError)
       pyTypeName = ident tok.getBltinName
 
     result.addTypeDeclare(tok, nimTypeName, pyTypeName)
 
-declareExceptions
-
-
-macro genNewProcs: untyped = 
+macro declareBaseExceptions =
   result = newStmtList()
-  for tok in ExceptionToken:
-    let tokenStr = tok.getTokenName
-    result.add(getAst(newProcTmpl(ident(tokenStr))))
+  for i in 1..int(BaseExceptionToken.high):
+    let tok = BaseExceptionToken(i)
+    let typeName = ident tok.getTokenName
+    result.addTypeDeclare(tok, typeName, typeName)
 
+declareExceptions
+declareBaseExceptions
 
-genNewProcs
+alias StopIteration, StopIterError
 
+template genNewProcsOf(T; nimTypeNameGetter){.dirty.} =
+  macro `genNewProcs T` = 
+    result = newStmtList()
+    for tok in T:
+      let
+        tokenStr = ident nimTypeNameGetter(tok)
+        enumVal = newLit tok
+      result.add quote do:
+        `newProcTmpl`(`tokenStr`, `enumVal`)
+  `genNewProcs T`
+  
+
+genNewProcsOf ExceptionToken, getTokenNameWithError
+genNewProcsOf BaseExceptionToken, getTokenName
 
 
 proc isExceptionOf*(obj: PyObject, tk: ExceptionToken): bool =

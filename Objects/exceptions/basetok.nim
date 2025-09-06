@@ -20,7 +20,6 @@ type ExceptionToken* {. pure .} = enum
   Runtime,
   Syntax,
   Memory,
-  KeyboardInterrupt,  #TODO:BaseException shall be subclass of BaseException
   System,
 
 const ExcAttrs = toTable {
@@ -36,3 +35,12 @@ iterator extraAttrs*(tok: ExceptionToken): NimNode =
     for n in value.split(','):
       yield ident n
 
+
+type BaseExceptionToken*{.pure.} = enum
+  ## subclasses of `BaseException` except `Exception` and `BaseExceptionGroup`
+  BaseException = 0
+  SystemExit GeneratorExit KeyboardInterrupt 
+
+iterator extraAttrs*(tok: BaseExceptionToken): NimNode =
+  # only SystemExit has a attr: code
+  if tok == SystemExit: yield ident"code"

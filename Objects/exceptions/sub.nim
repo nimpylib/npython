@@ -1,25 +1,29 @@
 
 import std/macros
 import ./[
-  base, utils,
+  base, utils, basetok,
 ]
 import ../pyobject
 
 var subErrs*{.compileTime.}: seq[string]  ## all subclasses' names of BaseException except Exception
-proc declareSubErrorImpl(E, baseE: NimNode; pyTypeName = ident baseE.strVal & "Error"): NimNode =
+proc declareSubErrorImpl(pyTypeName, errTok: NimNode; baseTypeName: NimNode): NimNode =
   let
-    eeS = E.strVal & "Error"
-    ee = ident eeS
-    typ = ident "py" & ee.strVal & "ObjectType"
-    btyp = ident "py" & pyTypeName.strVal & "ObjectType"
+    eeS = pyTypeName.strVal
+    typ = ident "py" & pyTypeName.strVal & "ObjectType"
+    btyp = ident "py" & baseTypeName.strVal & "ObjectType"
   subErrs.add eeS
   result = quote do:
-    declarePyType `ee`(base(`pyTypeName`)): discard
-    newProcTmpl(`E`, `baseE`)
+    declarePyType `pyTypeName`(base(`baseTypeName`)): discard
+    newProcTmpl(`pyTypeName`, `errTok`)
     `addTp`(`typ`, `btyp`)
     `typ`.name = `eeS`
 
-macro declareSubError(E, baseE) = declareSubErrorImpl(E, baseE)
+macro declareSubError(E, baseE) =
+  let
+    basePyTypeName = ident baseE.strVal & "Error"
+    pyTypeName = ident E.strVal & "Error"
+  declareSubErrorImpl(pyTypeName, baseE, basePyTypeName)
+macro declareSubBaseException(E) = declareSubErrorImpl(E, ident"BaseException", ident"BaseException")
 
 declareSubError Overflow, Arithmetic
 declareSubError ZeroDivision, Arithmetic
@@ -27,6 +31,10 @@ declareSubError Index, Lookup
 declareSubError Key, Lookup
 declareSubError UnboundLocal, Name
 declareSubError NotImplemented, Runtime
+
+declareSubBaseException SystemExit
+declareSubBaseException GeneratorExit
+declareSubBaseException KeyboardInterrupt
 
 template newAttributeError*(tobj: PyObject, attrName: PyStrObject): untyped =
   let msg = newPyStr(tobj.pyType.name) & newPyAscii" has no attribute " & attrName

@@ -709,7 +709,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           excpObj = newMemoryError(newPyAscii"Out of Memory")
           handleException(excpObj)
         except InterruptError:
-          excpObj = newKeyboardInterruptError(newPyAscii"Keyboard Interrupt")
+          excpObj = newKeyboardInterrupt(newPyAscii"Keyboard Interrupt")
           handleException(excpObj)
 
       # exception handler, return exception or re-enter the loop with new instruction index
