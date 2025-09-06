@@ -298,3 +298,7 @@ proc getDict*(obj: PyObject): PyObject {. cdecl .} =
 
 proc isClass*(obj: PyObject): bool {. cdecl .} = 
   obj.pyType.kind == PyTypeToken.Type
+
+proc ofPyTypeObject*(obj: PyObject): bool {. cdecl .} = obj.isClass
+proc isType*(a, b: PyTypeObject): bool {. cdecl .} = system.`==`(a, b)
+
