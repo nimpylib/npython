@@ -1,6 +1,8 @@
 
 import ../pyobject
-from ../numobjects/intobject import PyIntObject, PyNumber_AsSsize_t, PyNumber_Index, getClampedIndex
+from ../numobjects/intobject/decl import PyIntObject
+from ../numobjects/intobject/ops import PyNumber_AsSsize_t, PyNumber_Index
+from ../numobjects/intobject/idxHelpers import getClampedIndex
 template optionalTLikeArg[T](args; i: int, def: T; mapper): T =
   if args.len > i: mapper args[i]
   else: def

@@ -4,12 +4,16 @@ import strformat
 import tables
 
 import pyobject
-import bundle
 import methodobject
 import funcobjectImpl
 import descrobject
 import dictproxyobject
 import ./pyobject_apis
+import ./[
+  stringobjectImpl, exceptions, boolobject, dictobject, noneobject,
+  tupleobjectImpl, funcobject,
+]
+import ./numobjects/intobject
 import ./hash
 import ./pyobject_apis/attrsGeneric
 export getTypeDict

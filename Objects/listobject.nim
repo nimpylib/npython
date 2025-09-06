@@ -3,7 +3,11 @@ import strformat
 import strutils
 
 import pyobject
-import baseBundle
+import ./[
+  exceptions, stringobject, boolobject, noneobject,
+]
+import ./numobjects/intobject/[decl, ops, idxHelpers]
+
 import ./sliceobjectImpl
 import ./hash
 import iterobject
@@ -42,7 +46,7 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
   ## `beforeAppend` body will be inserted before `append` method's implementation
   bind times, reverse
   bind ofPySliceObject, PySliceObject, getIterableWithCheck, toNimSlice,
-    iterInt, unhashable, delete, indices
+    iterInt, unhashable, delete, indices, getIndex
   bind echoCompat
   proc extend*(self: `Py S Object`, other: PyObject): PyObject =
     if other.`ofPy S Object`:

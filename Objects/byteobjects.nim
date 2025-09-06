@@ -2,9 +2,9 @@
 import std/strformat
 import std/hashes
 import ./pyobject
-from ./abstract_without_call import clampedIndexOptArgAt, PyObject_GetIter
+from ./abstract/iter import PyObject_GetIter
 import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
-import ./numobjects
+import ./numobjects/intobject/[decl, ops]
 declarePyType Bytes(tpToken):
   items: string
   setHash: bool

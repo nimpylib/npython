@@ -4,12 +4,13 @@ import ./[pyobject, pyobject_apis]
 import ./[stringobject,
   sliceobject, boolobject, exceptions,
 ]
-import ./numobjects/intobject
-import ../Utils/[sequtils, sequtils2]
-from ../Python/errors import PyErr_BadArgument
-from ./abstract_without_call import clampedIndexOptArgAt
+import ./numobjects/intobject/[decl, ops, idxHelpers]
+import ../Utils/[sequtils, sequtils2, trans_imp]
+from ./abstract/args import clampedIndexOptArgAt
 
 export stringobject
+impExp stringobject,
+  utf8apis, internal
 
 
 # redeclare this for these are "private" macros
@@ -40,17 +41,6 @@ implStrMagic hash:
   newPyInt(self.hash)
 
 
-proc PyUnicode_fromStringAndSize*(u: string, size: int): PyObject =
-  if size < 0: return newSystemError newPyAscii"Negative size passed to PyUnicode_FromStringAndSize"
-  if size == 0: return newPyAscii()
-  #TODO:PyUnicode_DecodeUTF8Stateful
-  newPyStr u[0..<size]
-
-proc PyUnicode_AsUTF8AndSize*(obj: PyObject, utf8: var string, size: var int): PyBaseErrorObject =
-  if not obj.ofPyStrObject:
-    size = -1
-    return PyErr_BadArgument()
-  (utf8, size) = obj.PyStrObject.asUTF8AndSize
 
 # TODO: encoding, errors params
 implStrMagic New(tp: PyObject, obj: PyObject):

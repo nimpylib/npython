@@ -1,5 +1,5 @@
 import pyobject
-import baseBundle
+import ./exceptions
 import frameobject
 import funcobject
 
