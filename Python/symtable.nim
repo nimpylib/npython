@@ -67,8 +67,8 @@ proc newSymTableEntry(parent: SymTableEntry): SymTableEntry =
 
 {. push inline, cdecl .}
 
-proc getSte*(st: SymTable, key: AstNodeBase): SymTableEntry = 
-  st.entries[key]
+proc getSte*(st: SymTable, key: AstNodeBase): SymTableEntry{.raises: [].} = 
+  KeyError!st.entries[key]
 
 proc isRootSte(ste: SymTableEntry): bool = 
   ste.parent.isNil
@@ -149,7 +149,7 @@ proc freeVarsToSeq*(ste: SymTableEntry): seq[PyStrObject] =
 # can probably be deleted
 # Note that Assert implicitly uses name "AssertionError"
 
-proc collectDeclaration*(st: SymTable, astRoot: AsdlModl) = 
+proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError].} = 
   var toVisit: seq[(AstNodeBase, SymTableEntry)]
   toVisit.add((AstNodeBase astRoot, SymTableEntry nil))
   while toVisit.len != 0:
@@ -453,7 +453,7 @@ proc determineScope(ste: SymTableEntry) =
 proc determineScope(st: SymTable) = 
   st.root.determineScope
 
-proc newSymTable*(astRoot: AsdlModl): SymTable = 
+proc newSymTable*(astRoot: AsdlModl): SymTable{.raises: [SyntaxError].} = 
   new result
   result.entries = initTable[AstNodeBase, SymTableEntry]()
   # traverse ast tree for 2 passes for symbol scopes

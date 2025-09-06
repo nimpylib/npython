@@ -31,15 +31,15 @@ type
     sPtr: int
     context: PyExceptionObject
     
-
+{.push raises: [].}
 # forward declarations
-proc newPyFrame*(fun: PyFunctionObject): PyFrameObject 
+proc newPyFrame*(fun: PyFunctionObject): PyFrameObject
 proc newPyFrame*(fun: PyFunctionObject, 
                  args: seq[PyObject], 
                  back: PyFrameObject): PyObject
 proc evalFrame*(f: PyFrameObject): PyObject
 proc pyImport*(name: PyStrObject): PyObject
-
+{.pop.}
 
 template doUnary(opName: untyped) = 
   let top = sTop()
@@ -752,7 +752,11 @@ else:
       let exc = newImportError(msg)
       exc.name = fp
       return exc
-    let input = readFile(filepath)
+    let input = try:
+      readFile(filepath)
+    except IOError as e:
+      #TODO:io maybe newIOError?
+      return newImportError(newPyAscii"Import Failed due to IOError " & newPyAscii $e.msg)
     let compileRes = compile(input, filepath)
     if compileRes.isThrownException:
       return compileRes
@@ -770,7 +774,7 @@ else:
     module.dict = f.globals
     module
 
-proc newPyFrame*(fun: PyFunctionObject): PyFrameObject{.raises: [].} = 
+proc newPyFrame*(fun: PyFunctionObject): PyFrameObject = 
   let obj = newPyFrame(fun, @[], nil)
   if obj.isThrownException:
     unreachable
@@ -779,7 +783,7 @@ proc newPyFrame*(fun: PyFunctionObject): PyFrameObject{.raises: [].} =
 
 proc newPyFrame*(fun: PyFunctionObject, 
                  args: seq[PyObject], 
-                 back: PyFrameObject): PyObject = 
+                 back: PyFrameObject): PyObject{.raises: [].} =
   let code = fun.code
   # handle wrong number of args
   if code.argScopes.len < args.len:

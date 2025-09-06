@@ -89,7 +89,7 @@ template setNo(astNode: untyped, parseNode: ParseNode) =
 template copyNo(astNode1, astNode2: untyped) = 
   astNode1.lineNo = astNode2.lineNo
   astNode1.colOffset = astNode2.colOffset
-
+{.push raises: [SyntaxError].}
 proc astDecorated(parseNode: ParseNode): AsdlStmt
 proc astFuncdef(parseNode: ParseNode): AstFunctionDef
 proc astParameters(parseNode: ParseNode): AstArguments
@@ -159,7 +159,7 @@ proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall
 proc astArgument(parseNode: ParseNode): AsdlExpr
 proc astSyncCompFor(parseNode: ParseNode): seq[AsdlComprehension]
 proc astCompFor(parseNode: ParseNode): seq[AsdlComprehension]
-
+{.pop.}
 
 # DSL to simplify function definition
 # should use a pragma instead?
@@ -245,7 +245,7 @@ macro childAst(child, astNode: untyped, tokens: varargs[Token]): untyped =
   )
     
 # set context to store. The contexts are load by default
-method setStore(astNode: AstNodeBase) {.base.} = 
+method setStore(astNode: AstNodeBase) {.base, raises: [SyntaxError].} = 
   if not (astNode of AsdlExpr):
     unreachable
   raiseSyntaxError("can't assign", AsdlExpr(astNode))
@@ -264,7 +264,7 @@ method setStore(astNode: AstTuple) =
   for elm in astNode.elts:
     elm.setStore()
 
-method setDelete(astNode: AstNodeBase) {.base.} =
+method setDelete(astNode: AstNodeBase) {.base, raises: [SyntaxError].} =
   if not (astNode of AsdlExpr):
     unreachable
   raiseSyntaxError("can't delete", AsdlExpr(astNode))
@@ -1108,7 +1108,7 @@ ast atom, [AsdlExpr]:
   of Token.NUMBER:
     # float
     if not child1.tokenNode.content.allCharsInSet({'0'..'9'}):
-      let f = parseFloat(child1.tokenNode.content)
+      let f = ValueError!parseFloat(child1.tokenNode.content)
       let pyFloat = newPyFloat(f)
       result = newAstConstant(pyFloat)
     # int
@@ -1379,11 +1379,10 @@ proc ast*(root: ParseNode): AsdlModl =
   when defined(debug):
     echo result
 
-proc ast*(input, fileName: string): AsdlModl= 
+proc ast*(input, fileName: string): AsdlModl{.raises: [SyntaxError].} =
   let root = parse(input, fileName)
   try:
     result = ast(root)
-  except SyntaxError:
-    let e = getCurrentException()
-    SyntaxError(e).fileName = fileName
+  except SyntaxError as e:
+    e.fileName = fileName
     raise e

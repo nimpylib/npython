@@ -29,14 +29,15 @@ proc newParseNode(tokenNode: TokenNode): ParseNode =
   result.tokenNode = tokenNode
 
 
-proc newParseNode(tokenNode, firstToken: TokenNode): ParseNode =
-  assert (firstToken.token in grammarSet[tokenNode.token].firstSet)
+proc newParseNode(tokenNode, firstToken: TokenNode): ParseNode {.raises: [].} =
+  let node = KeyError!grammarSet[tokenNode.token]
+  assert (firstToken.token in node.firstSet)
   new result
   result.tokenNode = tokenNode
-  let gNode = grammarSet[tokenNode.token].rootNode
+  let gNode = node.rootNode
   var toAdd: ParseNode
   for child in gNode.epsilonSet:
-    if child.matchToken(firstToken.token):
+    if KeyError!child.matchToken(firstToken.token):
       result.grammarNodeSeq.add(child)
       if child.token.isTerminator:
         if toAdd.isNil:
@@ -75,9 +76,9 @@ proc applyToken(node: ParseNode, token: TokenNode): ParseStatus =
   var gNodeSeq = node.grammarNodeSeq
   var newGnSeq : seq[GrammarNode]
   var thisLayer = false # ensures at most one parse node is added to node.children
-  proc addNexts(gn: GrammarNode) = 
+  proc addNexts(gn: GrammarNode) {.raises: [].} = 
     for nextGn in gn.nextSet:
-      if nextGn.matchToken(token.token):
+      if KeyError!nextGn.matchToken(token.token):
         newGnSeq.add(nextGn)
         if nextGn == successGrammarNode:  
           continue  # no need to worry about adding child
@@ -131,7 +132,7 @@ proc parseWithState*(input: string,
                      lexer: Lexer,
                      mode=Mode.File, 
                      parseNodeArg: ParseNode = nil,
-                     ): ParseNode = 
+                     ): ParseNode {.raises: [SyntaxError].} = 
 
   ## like `_PyPegen_run_parser_from_string` or
   ##      `_PyPegen_run_parser(Parser *p)` in Python 3.13
@@ -155,7 +156,7 @@ proc parseWithState*(input: string,
         rootToken = Token.file_input
       of Mode.Eval:
         rootToken = Token.eval_input
-      if not (firstToken.token in grammarSet[rootToken].firstSet):
+      if not (firstToken.token in (KeyError!grammarSet[rootToken]).firstSet):
         raiseSyntaxError("SyntaxError", "", firstToken.lineNo, firstToken.colNo)
       parseNode = newParseNode(newTokenNode(rootToken), firstToken)
     else:

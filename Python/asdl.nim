@@ -18,8 +18,12 @@ type
   AsdlConstant* = ref object of AstNodeBase
     value*: PyObject
 
+proc pragmaRaiseNode*(p: NimNode = nil, raises: varargs[NimNode]): NimNode =
+  nnkPragma.newTree(nnkExprColonExpr.newTree(ident"raises", newNimNode(nnkBracket, p).add(raises)))
 
-method hash*(node: AstNodeBase): Hash {. base .} = 
+proc pragmaRaiseSyntaxErrorNode*(p: NimNode=nil): NimNode = p.pragmaRaiseNode ident"SyntaxError"
+
+method hash*(node: AstNodeBase): Hash {. base, raises: [] .} = 
   when defined(js):
     hashes.hash(cast[pointer](node))
     # NIM-BUG: if cast[int]:
@@ -121,18 +125,18 @@ proc genTypeNewFunc(subType: NimNode, parentName: string): NimNode =
   getAst(newFuncTmpl(ident(typeName), ident(parentName)))
 
 
-method `$`*(node: AstNodeBase): string {.base.} = 
+method `$`*(node: AstNodeBase): string {.base, raises: [].} = 
   # we don't want to stop here by raising errors or so
   # because printing a full tree might be helpful
   "!!!DUMMY!!!"
 
-method `$`*(node: AsdlInt): string  = 
+method `$`*(node: AsdlInt): string {.raises: [].} = 
   $node.value
 
-method `$`*(node: AsdlIdentifier): string  = 
+method `$`*(node: AsdlIdentifier): string {.raises:[].} = 
   $node.value
 
-method `$`*(node: AsdlConstant): string  = 
+method `$`*(node: AsdlConstant): string {.raises:[].} = 
   $node.value
 
 const tab = "   "
@@ -241,7 +245,7 @@ proc methodDeclare(prefix, name: string): NimNode =
       ident("string"),
       newIdentDefs(ident("node"), ident(prefix & name))
     ),
-    newEmptyNode(),
+    pragmaRaiseNode(),
     newEmptyNode(),
     newEmptyNode()
   )

@@ -92,18 +92,18 @@ proc newCompilerUnit(st: SymTable,
   result.codeName = codeName
 
 
-proc newCompiler(root: AsdlModl, fileName: PyStrObject): Compiler =
+proc newCompiler(root: AsdlModl, fileName: PyStrObject): Compiler{.raises: [SyntaxError].} =
   result = new Compiler
   result.st = newSymTable(root)
   result.units.add(newCompilerUnit(result.st, root, newPyAscii"<module>"))
   result.fileName = fileName
 
 
-method toTuple(instr: Instr): (OpCode, OpArg, int) {.base.} =
+method toTuple(instr: Instr): (OpCode, OpArg, int) {.base, raises: [].} =
   (instr.opCode, -1, instr.lineNo)
 
 
-method toTuple(instr: ArgInstr): (OpCode, OpArg, int) =
+method toTuple(instr: ArgInstr): (OpCode, OpArg, int){.raises:[].} =
   (instr.opCode, instr.opArg, instr.lineNo)
 
 {. push inline, cdecl .}
@@ -179,8 +179,9 @@ proc addLoadConst(c: Compiler, pyObject: PyObject, lineNo: int) =
 {. pop .}
 
 template genScopeCase(X){.dirty.} =
- proc `add X Op`(c: Compiler, nameStr: PyStrObject, lineNo: int) = 
-  let scope = c.tste.getScope(nameStr)
+ proc `add X Op`(c: Compiler, nameStr: PyStrObject, lineNo: int){.raises:[].} = 
+  template `!`(e): untyped = KeyError!e
+  let scope = !c.tste.getScope(nameStr)
 
   var
     opArg: int
@@ -188,16 +189,16 @@ template genScopeCase(X){.dirty.} =
 
   case scope
   of Scope.Local:
-    opArg = c.tste.localId(nameStr)
+    opArg = !c.tste.localId(nameStr)
     opCode = OpCode.`X Fast`
   of Scope.Global:
     opArg = c.tste.nameId(nameStr)
     opCode = OpCode.`X Global`
   of Scope.Cell:
-    opArg = c.tste.cellId(nameStr)
+    opArg = !c.tste.cellId(nameStr)
     opCode = OpCode.`X Deref`
   of Scope.Free:
-    opArg = c.tste.freeId(nameStr)
+    opArg = !c.tste.freeId(nameStr)
     opCode = OpCode.`X Deref`
 
   let instr = newArgInstr(opCode, opArg, lineNo)
@@ -244,15 +245,15 @@ proc assemble(cu: CompilerUnit, fileName: PyStrObject): PyCodeObject =
   result.argNames = newSeq[PyStrObject](cu.ste.argVars.len)
   result.argScopes = newSeq[(Scope, int)](cu.ste.argVars.len)
   for argName, argIdx in cu.ste.argVars.pairs:
-    let scope = cu.ste.getScope(argName)
+    let scope = KeyError!cu.ste.getScope(argName)
     var scopeIdx: int
     case scope
     of Scope.Local:
-      scopeIdx = cu.ste.localId(argName)
+      scopeIdx = KeyError!cu.ste.localId(argName)
     of Scope.Global:
       scopeIdx = cu.ste.nameId(argName)
     of Scope.Cell:
-      scopeIdx = cu.ste.cellId(argName)
+      scopeIdx = KeyError!cu.ste.cellId(argName)
     of Scope.Free:
       unreachable("arguments can't be free")
     result.argNames[argIdx] = argName
@@ -282,9 +283,9 @@ proc makeFunction(c: Compiler, cu: CompilerUnit,
     # In the second case, the variable must be declared in the upper level
     for name in co.freeVars:
       if c.tste.hasCell(name):
-        c.addOp(newArgInstr(OpCode.LoadClosure, c.tste.cellId(name), lineNo))
+        c.addOp(newArgInstr(OpCode.LoadClosure, KeyError!c.tste.cellId(name), lineNo))
       elif c.tste.hasFree(name):
-        c.addOp(newArgInstr(OpCode.LoadClosure, c.tste.freeId(name), lineNo))
+        c.addOp(newArgInstr(OpCode.LoadClosure, KeyError!c.tste.freeId(name), lineNo))
       else:
         unreachable
     c.addOp(newArgInstr(OpCode.BuildTuple, co.freeVars.len, lineNo))
@@ -308,7 +309,7 @@ macro genMapMethod(methodName, code: untyped): untyped =
         ident("OpCode"),
         newIdentDefs(ident("astNode"), ident("Ast" & $astIdent))
       ),
-      newEmptyNode(),
+      pragmaRaiseNode(methodName),
       newEmptyNode(),
       nnkStmtList.newTree(
         nnkDotExpr.newTree(
@@ -319,7 +320,7 @@ macro genMapMethod(methodName, code: untyped): untyped =
     )
     result.add(newMapMethod)
 
-method toOpCode(op: AsdlOperator): OpCode {.base.} =
+method toOpCode(op: AsdlOperator): OpCode {.base, raises: [].} =
   echo op
   assert false
 
@@ -335,7 +336,7 @@ genMapMethod toOpCode:
     FloorDiv: BinaryFloorDivide
   }
 
-method toInplaceOpCode(op: AsdlOperator): OpCode {.base.} =
+method toInplaceOpCode(op: AsdlOperator): OpCode {.base, raises: [].} =
   echo "inplace ",op
   assert false
 genMapMethod toInplaceOpCode:
@@ -350,7 +351,7 @@ genMapMethod toInplaceOpCode:
   }
 
 
-method toOpCode(op: AsdlUnaryop): OpCode {.base.} =
+method toOpCode(op: AsdlUnaryop): OpCode {.base, raises: [].} =
   unreachable
 
 #  unaryop = (Invert, Not, UAdd, USub)
@@ -380,7 +381,7 @@ macro compileMethod(astNodeName, funcDef: untyped): untyped =
         ident("Compiler")
       ),
     ),
-    newEmptyNode(),
+    pragmaRaiseSyntaxErrorNode(astNodeName),
     newEmptyNode(),
     funcdef,
   )
@@ -391,7 +392,7 @@ template compileSeq(c: Compiler, s: untyped) =
     c.compile(astNode)
 
 # todo: too many dispachers here! used astNode token to dispatch (if have spare time...)
-method compile(astNode: AstNodeBase, c: Compiler) {.base.} =
+method compile(astNode: AstNodeBase, c: Compiler) {.base, raises: [SyntaxError].} =
   echo "!!!WARNING, ast node compile method not implemented"
   echo astNode
   echo "###WARNING, ast node compile method not implemented"
@@ -911,7 +912,7 @@ template cmoOpMethod(methodName, TokenName) =
 compileMethod Arguments:
   unreachable()
 
-proc compile(astRoot: AsdlModl, fileName: string): PyObject = 
+proc compile(astRoot: AsdlModl, fileName: string): PyObject{.raises: [SyntaxError].} = 
   let c = newCompiler(astRoot, newPyStr(fileName))
   try:
     c.compile(astRoot)

@@ -29,9 +29,7 @@ template indentLevel(lexer: Lexer): int = lexer.indentStack[^1]
 var sourceFiles = initTable[string, Source]()
 
 proc addSource*(filePath, content: string) = 
-  if not sourceFiles.hasKey(filePath):
-    sourceFiles[filePath] = new Source
-  let s = sourceFiles[filePath]
+  let s = sourceFiles.mgetOrPut(filePath, new Source)
   # s.lines.add content.split("\n")
   s.lines.addCompat content.split("\n")
 
@@ -104,7 +102,7 @@ proc dedentAll*(lexer: Lexer) =
 proc getNextToken(
   lexer: Lexer, 
   line: string, 
-  idx: var int): TokenNode {. raises: [SyntaxError, InternalError] .} = 
+  idx: var int): TokenNode {. raises: [SyntaxError] .} = 
 
   template raiseSyntaxError(msg: string) = 
     # fileName set elsewhere
