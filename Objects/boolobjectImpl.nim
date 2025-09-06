@@ -7,7 +7,7 @@ import exceptions
 import stringobject
 import ./boolobject
 export boolobject
-import numobjects
+import ./numobjects/intobject_decl
 import ./noneobject
 
 

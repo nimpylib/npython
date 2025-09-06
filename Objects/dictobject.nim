@@ -6,11 +6,13 @@ import macros
 
 import pyobject 
 # import listobject (do not import, or it'll cause recursive import)
-import baseBundle
+import ./[
+  exceptions, stringobject, boolobject, noneobject,
+  ]
+import ./numobjects/intobject_decl
 import ../Utils/[utils, optres]
 export GetItemRes
 import ./[iterobject, tupleobject]
-from ./stringobject import PyStrObject
 import ./hash
 export hash
 

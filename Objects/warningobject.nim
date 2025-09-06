@@ -4,11 +4,11 @@ from std/strutils import `%`
 import ../Utils/utils
 import ./[
   pyobject,
-  stringobject,
-  numobjects,
+  stringobject, 
   exceptions,
   noneobject,
 ]
+import ./numobjects/intobject_decl
 
 declarePyType Warning(base(Exception)): discard
 

@@ -1,5 +1,8 @@
 import pyobject
-import baseBundle
+import ./[
+  exceptions, stringobject, noneobject,
+]
+import ./numobjects/intobject/[decl, ops]
 import ../Utils/rangeLen
 
 declarePyType Slice(tpToken):

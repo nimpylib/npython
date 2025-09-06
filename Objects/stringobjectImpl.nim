@@ -1,10 +1,10 @@
 
 import std/strformat
-import pyobject
-import baseBundle
-import stringobject
-import ./sliceobject
-import ./pyobject_apis
+import ./[pyobject, pyobject_apis]
+import ./[stringobject,
+  sliceobject, boolobject, exceptions,
+]
+import ./numobjects/intobject
 import ../Utils/[sequtils, sequtils2]
 from ../Python/errors import PyErr_BadArgument
 from ./abstract_without_call import clampedIndexOptArgAt

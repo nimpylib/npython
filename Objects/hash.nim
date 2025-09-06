@@ -1,8 +1,9 @@
 import std/hashes
 import ./pyobject 
 import ./[
-  exceptions, stringobject, numobjects, boolobjectImpl,
+  exceptions, stringobject, boolobjectImpl,
 ]
+import ./numobjects/intobject/[decl, ops]
 import ../Utils/utils
 
 proc unhashable*(obj: PyObject): PyTypeErrorObject = newTypeError newPyAscii(

@@ -7,23 +7,16 @@ import macros
 import strformat
 import strutils
 import math
-import std/bitops
-const BitPerByte = 8
-proc bit_length*(self: SomeInteger): int =
-  when defined(noUndefinedBitOpts):
-    sizeof(x) * BitPerByte bitops.countLeadingZeroBits x
-  else:
-    1 + fastLog2(
-      when self is SomeSignedInt: abs(self)
-      else: self
-    )
-
-
 
 
 import ./numobjects_comm
 export intobject_decl except Digit, TwoDigits, SDigit, digitBits, truncate,
  IntSign
+export PyNumber_Index
+import ./intobject/[
+  bit_length, bit_length_util, shift, signbit,
+]
+export bit_length, signbit
 
 methodMacroTmpl(Int)
 
@@ -46,14 +39,6 @@ proc newPyIntOfLen(l: int): PyIntObject =
 export pyIntZero, pyIntOne, pyIntTen
 let pyIntTwo = newPyInt(2)
 
-proc negative*(intObj: PyIntObject): bool {. inline .} =
-  intObj.sign == Negative
-
-proc zero*(intObj: PyIntObject): bool {. inline .} =
-  intObj.sign == Zero
-
-proc positive*(intObj: PyIntObject): bool {. inline .} =
-  intObj.sign == Positive
 
 proc copy(intObj: PyIntObject): PyIntObject =
   ## XXX: copy only digits (sign uninit!)
@@ -435,30 +420,6 @@ proc divmod*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
   if not lDivmod(a, b, result.d, result.m):
     raise newException(ValueError, "division by zero")
 
-proc vLShift(z, a: var seq[Digit], m: int, d: int): Digit =
-  ## Shift digit vector `a[0:m]` left by `d` bits, with 0 <= d < digitBits.
-  ## Put the result in `z[0:m]`, and return the `d` bits shifted out of the top.
-  assert d >= 0 and d < digitBits
-  var carry: Digit = 0
-  for i in 0..<m:
-    let shifted = (TwoDigits(a[i]) shl d) or TwoDigits(carry)
-    z.add truncate(shifted)
-    carry = truncate(shifted shr digitBits)
-  return carry
-
-proc vRShift(z, a: var seq[Digit], m: int, d: int): Digit =
-  ## Shift digit vector `a[0:m]` right by `d` bits, with 0 <= d < digitBits.
-  ## Put the result in `z[0:m]`, and return the `d` bits shifted out of the bottom.
-  assert d >= 0 and d < digitBits
-  var carry: Digit = 0
-  let mask = (Digit(1) shl d) - 1
-
-  for i in countdown(m - 1, 0):
-    let acc = (TwoDigits(carry) shl digitBits) or TwoDigits(a[i])
-    carry = Digit(acc and mask)
-    z[i] = Digit(acc shr d)
-
-  return carry
 proc xDivRem(v1, w1: PyIntObject, prem: var PyIntObject): PyIntObject =
   ## `x_divrem`
   ## Perform unsigned integer division with remainder
