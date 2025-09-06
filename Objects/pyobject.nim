@@ -662,7 +662,11 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     else:
       proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
         #TODO:tp_bases
-        obj.`ofExactPy name Object`()
+        var cur: PyTypeObject = obj.pyType
+        while not cur.isNil:
+          if system.`==`(cur, `pyObjType`): return true
+          cur = cur.base
+        return false
 
     proc `newPy name Simple`*: `Py name Object` {. cdecl .}= 
       # use `result` here seems to be buggy
