@@ -5,20 +5,21 @@ import ./[
 ]
 import ../pyobject
 
-var subErrs*{.compileTime.}: seq[string]
-macro declareSubError(E, baseE) =
+var subErrs*{.compileTime.}: seq[string]  ## all subclasses' names of BaseException except Exception
+proc declareSubErrorImpl(E, baseE: NimNode; pyTypeName = ident baseE.strVal & "Error"): NimNode =
   let
     eeS = E.strVal & "Error"
     ee = ident eeS
-    bee = ident baseE.strVal & "Error"
     typ = ident "py" & ee.strVal & "ObjectType"
-    btyp = ident "py" & bee.strVal & "ObjectType"
+    btyp = ident "py" & pyTypeName.strVal & "ObjectType"
   subErrs.add eeS
   result = quote do:
-    declarePyType `ee`(base(`bee`)): discard
+    declarePyType `ee`(base(`pyTypeName`)): discard
     newProcTmpl(`E`, `baseE`)
     `addTp`(`typ`, `btyp`)
     `typ`.name = `eeS`
+
+macro declareSubError(E, baseE) = declareSubErrorImpl(E, baseE)
 
 declareSubError Overflow, Arithmetic
 declareSubError ZeroDivision, Arithmetic

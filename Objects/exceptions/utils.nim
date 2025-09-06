@@ -10,7 +10,7 @@ template addTp*(tp; basetype) =
   tp.kind = PyTypeToken.BaseException
   tp.base = basetype
 template addTpOfBaseWithName*(name) = 
-  addTp `py name ErrorObjectType`, pyBaseErrorObjectType
+  addTp `py name ObjectType`, pyBaseErrorObjectType
 
 macro setAttrsNone*(tok: static[ExceptionToken], self) =
   result = newStmtList()
@@ -20,15 +20,15 @@ macro setAttrsNone*(tok: static[ExceptionToken], self) =
       bindSym"pyNone"
     )
 
-template newProcTmpl*(excpName, tok){.dirty.} = 
+template newProcTmpl*(excpName; tok: ExceptionToken){.dirty.} = 
   # use template for lazy evaluation to use PyString
   # theses two templates are used internally to generate errors (default thrown)
   bind PyStrObject, newPyTuple
   proc `new excpName Error`*: `Py excpName ErrorObject`{.inline.} = 
     let excp = `newPy excpName ErrorSimple`()
-    excp.tk = ExceptionToken.`tok`
+    excp.tk = tok
     excp.thrown = true
-    setAttrsNone ExceptionToken.tok, excp
+    setAttrsNone tok, excp
     excp
 
   proc `new excpName Error`*(msgStr: PyStrObject): `Py excpName ErrorObject`{.inline.} = 

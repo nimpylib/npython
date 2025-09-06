@@ -43,12 +43,7 @@ and this makes it consist as so that all exceptions are in form of `XxxError`
 let pyBaseErrorObjectType* = pyExceptionObjectType
 template newPyBaseErrorSimple*(): untyped = newPyExceptionSimple()
 
-
-macro declareExceptions: untyped = 
-  result = newStmtList()
-  for i in 1..int(ExceptionToken.high):
-    let tok = ExceptionToken(i)
-    let tokenStr = tok.getTokenName
+proc genTypeDeclare(tok: ExceptionToken|BaseExceptionToken, nimTypeName, pyTypeName: NimNode): NimNode =
     var attrs = newStmtList()
     for n in extraAttrs(tok):
       attrs.add newCall(
@@ -56,28 +51,39 @@ macro declareExceptions: untyped =
         newStmtList bindSym"PyObject")
     if attrs.len == 0:  # no extra attr
       attrs.add nnkDiscardStmt.newTree(newEmptyNode())
-    let typeNode = nnkStmtList.newTree(
+    nnkStmtList.newTree(
       nnkCommand.newTree(
         newIdentNode("declarePyType"),
         nnkCall.newTree(
-          newIdentNode(tokenStr & "Error"),
+          nimTypeName,
           newCall(
             newIdentNode("base"),
             bindSym("Exception")
           ),
           newCall(
             ident"typeName",
-            ident tok.getBltinName  # or it'll be e.g. "stopitererror"
+            pyTypeName  # or it'll be e.g. "stopitererror"
           )
         ),
         attrs
       )
     )
 
-    result.add(typeNode)
+template addTypeDeclare(result: var NimNode, tok: ExceptionToken|BaseExceptionToken, nimTypeName, pyTypeName: NimNode) =
+  result.add(genTypeDeclareImpl(tok, nimTypeName, pyTypeName))
+  result.add(getAst(addTpOfBaseWithName(nimTypeName)))
 
-    result.add(getAst(addTpOfBaseWithName(ident(tokenStr))))
 
+macro declareExceptions: untyped = 
+  result = newStmtList()
+  for i in 1..int(ExceptionToken.high):
+    let tok = ExceptionToken(i)
+    let tokenStr = tok.getTokenName
+    let
+      nimTypeName = ident(tokenStr & "Error")
+      pyTypeName = ident tok.getBltinName
+
+    result.addTypeDeclare(tok, nimTypeName, pyTypeName)
 
 declareExceptions
 
@@ -101,7 +107,7 @@ proc isExceptionOf*(obj: PyObject, tk: ExceptionToken): bool =
 
 proc isStopIter*(obj: PyObject): bool = obj.isExceptionOf StopIter
 
-method `$`*(e: PyExceptionObject): string = 
+method `$`*(e: PyExceptionObject): string {.raises: [].} = 
   result = "Error: " & $e.tk & " "
   # not e.args.isNil
   result &= $e.args
