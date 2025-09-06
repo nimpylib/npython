@@ -232,7 +232,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     var unused: PyObject
     if d.pop(n, unused):
       continue
+    {.push warning[UnreachableCode]: off.}
+    # XXX: if `elseDo` is still `deleteOrRaise`, then notDefined's handleException
+    #   will occur twice, so the latter is `UnreachableCode`
     elseDo
+    {.pop.}
     notDefined(nMsg)
   template deleteOrRaise(d, n; nMsg) =
     deleteOrRaise(d, n, nMsg): discard
