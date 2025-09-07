@@ -531,7 +531,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   prototype.expectKind(nnkCall)
   fields.expectKind(nnkStmtList)
   var tpToken, mutable, dict, reprLock: bool
-  var baseTypeStr = "PyObject"
+  var baseStr = ""
   var typeName: string
   # parse options the silly way
   for i in 1..<prototype.len:
@@ -539,7 +539,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     if option.kind == nnkCall:
       case option[0].strVal
       of "base":
-        baseTypeStr = "Py" & option[1].strVal & "Object"
+        baseStr = option[1].strVal
         continue
       of "typeName":
         typeName = option[1].strVal
@@ -557,9 +557,11 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       reprLock = true
     else:
       error("unexpected property: " & property)
+
+  var baseTypeStr ="Py" & baseStr & "Object"
+  let baseTypeObjStr = "py" & baseStr & "ObjectType"
   if (baseTypeStr == "PyObject") and dict:
     baseTypeStr &= "WithDict"
-
   let nameIdent = prototype[0]
   let fullNameIdent = ident("Py" & nameIdent.strVal & "Object")
 
@@ -650,11 +652,11 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   result.add(decObjNode)
 
   # boilerplates for pyobject type
-  template initTypeTmpl(pyObjType, name, nameStr, hasTpToken, hasDict) = 
-    let `pyObjType`* {. inject .} = newPyType(nameStr)
+  template initTypeTmpl(tbase, pyObjType, fullNameIdent, name, nameStr, hasTpToken, hasDict) = 
+    let `pyObjType`* {. inject .} = newPyType[`fullNameIdent`](nameStr, tbase)
 
     proc `ofExactPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
-      system.`==`(obj.pyType, `pyObjType`)
+      isType(obj.pyType, `pyObjType`)
     when hasTpToken:
       `pyObjType`.kind = PyTypeToken.`name`
       proc `ofPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
@@ -664,14 +666,13 @@ macro declarePyType*(prototype, fields: untyped): untyped =
         #TODO:tp_bases
         var cur: PyTypeObject = obj.pyType
         while not cur.isNil:
-          if system.`==`(cur, `pyObjType`): return true
+          if isType(cur, `pyObjType`): return true
           cur = cur.base
         return false
 
     proc `newPy name Simple`*: `Py name Object` {. cdecl .}= 
       # use `result` here seems to be buggy
-      let obj = new `Py name Object`
-      obj.pyType = `pyObjType`
+      let obj = `Py name Object` `pyObjType`.tp_alloc(`pyObjType`, 0)
       when defined(js):
         obj.giveId
       when hasDict:
@@ -685,7 +686,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
 
   if typeName == "":
     typeName = nameIdent.strVal.toLowerAscii
-  result.add(getAst(initTypeTmpl(pyObjType, nameIdent,
+  result.add(getAst(initTypeTmpl(ident(baseTypeObjStr), pyObjType, fullNameIdent, nameIdent,
     typeName, 
     newLit(tpToken), 
     newLit(dict)

@@ -32,9 +32,6 @@ type
     Set,
     FrozenSet,
 
-when defined(js):
-  var objectId = 0
-
 macro pyCFuncPragma*(def): untyped =
   ## equiv for `{.pragma: pyCFuncPragma, cdecl, raises: [].}` but is exported
   var p = def.pragma
@@ -189,6 +186,12 @@ type
     bltinMethods*: Table[string, BltinMethod]
     getsetDescr*: Table[string, (UnaryMethod, BinaryMethod)]
     tp_dealloc*: destructor
+    tp_alloc*: proc (self: PyTypeObject, nitems: int): PyObject{.pyCFuncPragma.}  ## XXX: currently must not return exception
+    tp_basicsize*: int ## NPython won't use var-length struct, so no tp_itemsize needed.
+
+template def_tp_alloc(body): untyped{.dirty.} =
+  proc (self: PyTypeObject, nitems: int): PyObject{.pyCFuncPragma.} = body
+  
 template tp_free*(self: PyTypeObject; op: var PyObjectObj) = discard  ## current no need
 
 genTypeToAnyKind PyObject
@@ -252,7 +255,9 @@ proc id*(obj: PyObject): int {. inline, cdecl .} =
   else:
     cast[int](obj)
 
+
 when defined(js):
+  var objectId = 0
   proc giveId*(obj: PyObject) {. inline, cdecl .} =
     obj.pybase_head.id = objectId
     # id depleted? not likely
@@ -267,7 +272,7 @@ proc idStr*(obj: PyObject): string {. inline .} =
 var bltinTypes*: seq[PyTypeObject]
 
 
-proc newPyTypePrivate(name: string): PyTypeObject = 
+proc newPyTypePrivate[T: PyObject](name: string): PyTypeObject = 
   new result
   when defined(js):
     result.giveId
@@ -275,14 +280,19 @@ proc newPyTypePrivate(name: string): PyTypeObject =
   result.bltinMethods = initTable[string, BltinMethod]()
   result.getsetDescr = initTable[string, (UnaryMethod, BinaryMethod)]()
   bltinTypes.add(result)
+  result.tp_basicsize = sizeof T
+  result.tp_alloc = def_tp_alloc:
+    let res = new T
+    res.pyType = self
+    res
 
 
-let pyObjectType* = newPyTypePrivate("object")
+let pyObjectType* = newPyTypePrivate[PyObject]("object")
 
 
-proc newPyType*(name: string): PyTypeObject =
-  result = newPyTypePrivate(name)
-  result.base = pyObjectType
+proc newPyType*[T: PyObject](name: string, base = pyObjectType): PyTypeObject =
+  result = newPyTypePrivate[T](name)
+  result.base = base
 
 proc hasDict*(obj: PyObject): bool {. inline .} = 
   obj of PyObjectWithDict

@@ -34,7 +34,13 @@ for name in magicNames:
 methodMacroTmpl(Type)
 
 
-let pyTypeObjectType* = newPyType("type")
+let pyTypeObjectType* = newPyType[PyTypeObject]("type")
+# NOTE:
+#[
+type.__base__ is object
+type(type) is type
+object.__base__ is None
+]# 
 pyTypeObjectType.kind = PyTypeToken.Type
 
 
@@ -315,9 +321,10 @@ implTypeMagic New(metaType: PyTypeObject, name: PyStrObject,
                   bases: PyTupleObject, dict: PyDictObject):
   assert metaType == pyTypeObjectType
   assert bases.len == 0
-  let tp = newPyType($name.str)
+  type Cls = PyInstanceObject
+  let tp = newPyType[Cls]($name.str)
   tp.kind = PyTypeToken.Type
-  tp.tp_dealloc = subtype_dealloc[PyInstanceObject]
+  tp.tp_dealloc = subtype_dealloc[Cls]
   tp.magicMethods.New = tpMagic(Instance, new)
   updateSlots(tp, dict)
   tp.dict = PyDictObject(tpMethod(Dict, copy)(dict))
