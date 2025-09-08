@@ -101,3 +101,41 @@ implFloatMagic repr:
 implFloatMagic hash:
   newPyInt(hash(self.v))
 
+proc float_subtype_new(typ: PyTypeObject, x: PyObject): PyObject{.pyCFuncPragma.}
+proc float_new_impl(typ: PyTypeObject, x: PyObject = nil): PyObject{.pyCFuncPragma.} =
+  let noX = x.isNil
+  if not typ.isType pyFloatObjectType:
+    return float_subtype_new(typ, (if noX: pyIntZero else: x))
+  if noX:
+    return newPyFloat(0.0)
+  #[If it's a string, but not a string subclass, use
+       PyFloat_FromString.]#
+  if x.ofExactPyStrObject:
+    return PyFloat_FromString(PyStrObject x)
+  return PyNumber_Float(x)
+
+proc float_subtype_new(typ: PyTypeObject, x: PyObject): PyObject =
+  #[ Wimpy, slow approach to tp_new calls for subtypes of float:
+    first create a regular float from whatever arguments we got,
+    then allocate a subtype instance and initialize its ob_fval
+    from the regular float.  The regular float is then thrown away.
+  ]#
+
+  when declared(PyType_IsSubtype):
+    assert PyType_IsSubtype(typ, pyFloatObjectType)
+  let tmp = float_new_impl(pyFloatObjectType, x)
+  retIfExc tmp
+  assert tmp.ofPyFloatObject
+  result = typ.tp_alloc(typ, 0)
+  retIfExc result
+  ((PyFloatObject)result).v = ((PyFloatObject)tmp).v
+
+
+implFloatMagic New:
+  checkArgNum 1, 2
+  let typ = PyTypeObject args[0]
+  let noX = args.len == 1
+  var x: PyObject
+  if not noX: x = args[1]
+  float_new_impl(typ, x)
+
