@@ -2,11 +2,11 @@
 
 import ./[decl, ops]
 # used in list and tuple
-template getIndex*(obj: PyIntObject, size: int, sizeOpIdx: untyped = `<=`): int =
-  var idx = obj.toIntOrRetOF
+template getIndex*(obj: PyIntObject, size: int, includeSize: static[bool] = false): int =
+  var idx = toIntOrRetOF(obj)
   if idx < 0:
     idx = size + idx
-  if (idx < 0) or (sizeOpIdx(size, idx)):
+  if (idx < 0) or (when includeSize: (size < idx) else: size <= idx):
     let msg = "index out of range. idx: " & $idx & ", len: " & $size
     return newIndexError newPyAscii(msg)
   idx

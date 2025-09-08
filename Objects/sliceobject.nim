@@ -2,7 +2,7 @@ import pyobject
 import ./[
   exceptions, stringobject, noneobject,
 ]
-import ./numobjects/intobject/[decl, ops]
+import ./numobjects/intobject/[decl, ops, idxHelpers]
 import ../Utils/rangeLen
 
 declarePyType Slice(tpToken):
@@ -66,6 +66,7 @@ template calLenOrRetOF*(self: PySliceObject): int =
   res
 
 proc getSliceItems*[T](slice: PySliceObject, src: openArray[T], dest: var (seq[T]|string)): PyObject =
+  bind getIndex
   var start, stop, step: int
   let stepObj = slice.step
   if stepObj.ofPyIntObject:
@@ -73,10 +74,10 @@ proc getSliceItems*[T](slice: PySliceObject, src: openArray[T], dest: var (seq[T
   else:
     assert stepObj.ofPyNoneObject
     step = 1
-  template setIndex(name: untyped, defaultValue: int) = 
+  template setIndex(name: untyped, defaultValue: int, includeLen) = 
     let `name Obj` = slice.`name`
     if `name Obj`.ofPyIntObject:
-      name = getIndex(PyIntObject(`name Obj`), src.len, `<`)
+      name = getIndex(PyIntObject(`name Obj`), src.len, includeLen)
     else:
       assert `name Obj`.ofPyNoneObject
       name = defaultValue
@@ -87,8 +88,8 @@ proc getSliceItems*[T](slice: PySliceObject, src: openArray[T], dest: var (seq[T
   else:
     startDefault = src.len - 1
     stopDefault = -1
-  setIndex(start, startDefault)
-  setIndex(stop, stopDefault)
+  setIndex(start, startDefault, false)
+  setIndex(stop, stopDefault, true)
 
   if 0 < step:
     while start < stop:
