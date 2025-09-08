@@ -2,7 +2,6 @@ import tables
 import algorithm
 import hashes
 import macros
-import strformat
 import strutils
 import math
 
@@ -13,8 +12,11 @@ export intobject_decl except Digit, TwoDigits, SDigit, digitBits, truncate,
 export PyNumber_Index
 import ./[
   bit_length, bit_length_util, shift, signbit,
+  fromStrUtils,
 ]
 export bit_length, signbit
+import ../../stringobject/strformat
+import ../../../Modules/unicodedata/[decimal, space]
 
 
 type STwoDigit = SDigit
@@ -133,11 +135,12 @@ proc doSub(a, b: PyIntObject): PyIntObject =
   if result.digits.len == 0:
     result.sign = Zero
 
-template doMulImpl(result; loopVar, loopIter, src, dst) =
+template doMulImpl(result, b; loopVar, loopIter, src, dst) =
   ## assuming all Positive
   var carry = TwoDigits(0)
+  let tb = TwoDigits(b)
   for loopVar in loopIter:
-    carry += TwoDigits(src) * TwoDigits(b)
+    carry += TwoDigits(src) * tb
     dst = truncate(carry)
     carry = carry.demote
   if 0'u64 < carry:
@@ -146,11 +149,11 @@ template doMulImpl(result; loopVar, loopIter, src, dst) =
 # assuming all Natural, return a * b
 proc doMul(a: PyIntObject, b: Digit): PyIntObject =
   result = newPyIntOfLen(a.digits.len)
-  result.doMulImpl(i, 0..<a.digits.len, a.digits[i], result.digits[i])
+  result.doMulImpl(b, i, 0..<a.digits.len, a.digits[i], result.digits[i])
 
-proc inplaceMul(a: var PyIntObject, b: Digit) =
+proc inplaceMul(a: var PyIntObject, b: Digit|uint8) =
   # assuming all Natural
-  a.doMulImpl(d, a.digits.mitems, d, d)
+  a.doMulImpl(b, d, a.digits.mitems, d, d)
 
 proc doMul(a, b: PyIntObject): PyIntObject =
   if a.digits.len < b.digits.len:
@@ -617,23 +620,160 @@ proc newPyInt(i: int): PyIntObject =
   result.digits.add uint32(ii shr 32)
   result.normalize
 ]#
-proc fromStr*[C: char|Rune](s: openArray[C]): PyIntObject =
+const PyLongBaseSet* = {0, 2..36}
+
+
+template fromStrAux[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: var int; base: uint8#[PyLongBase]#; cToDigit) {.dirty.} =
+  bind inplaceMul, inplaceAdd, normalize
   result = newPyIntSimple()
-  var sign = s[0] == C'-'
   # assume s not empty
   result.digits.add 0
-  for i in (sign.int)..<s.len:
-    result.inplaceMul(base)
+  while i < s.len:
     let c = s[i]
-    result.inplaceAdd Digit(c) - Digit('0')
-  result.normalize
-  if sign:
-    result.sign = Negative
-  else:
-    if result.digits.len == 0:
-      result.sign = Zero
+    if c != C'_':
+      inplaceMul(result, base)
+      inplaceAdd(result, cToDigit)
+    i.inc
+
+  normalize(result)
+
+template isspace(c: char): bool = c.isSpaceAscii
+template fromStrImpl[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: var int; base: var uint8#[PyLongBase]#; err; cToDigit) {.dirty.} =
+  bind fromStrAux, isspace
+  var sign: IntSign = Positive
+  let L = s.len
+  template chkIdx =
+    if i == L: return
+  
+  template incIdx =
+    i.inc
+    chkIdx
+  chkIdx
+  # strip leading whitespace
+  while isspace s[i]: incIdx
+
+  var error_if_nonzero = false
+  var cur: C
+  template stcur = cur = s[i]
+  stcur
+  if cur == C'+': incIdx
+  elif cur == C'-':
+    incIdx
+    sign = Negative
+
+  template curIs(a, b): bool = cur == a or cur == b
+  template preHex: bool = curIs(C'x', C'X')
+  template preOct: bool = curIs(C'o', C'O')
+  template preBin: bool = curIs(C'b', C'B')
+  stcur
+
+  var pre0 = cur == C'0'
+
+  res = pyIntZero
+  if base == 0:
+    if not pre0: base = 10
     else:
-      result.sign = Positive
+      # may be a simple "0"
+      incIdx  # may `return` here, if is "0"
+      stcur
+      base = if preHex: 16
+      elif preOct: 8
+      elif preBin: 2
+      else:
+        #["old" (C-style) octal literal, now invalid.
+              it might still be zero though]#
+        error_if_nonzero = true
+        10
+      dec i
+
+  if pre0 and (incIdx; stcur; (  # may `return` here, if is "0"
+    base == 16 and preHex or
+    base == 8  and preOct or
+    base == 2  and preBin
+  )):
+    incIdx
+    # One underscore allowed here.
+    stcur
+    if cur == C'_':
+      incIdx
+
+  fromStrAux(result, s, i, base, cToDigit)
+
+  # Allow only trailing whitespace after `end`
+  while true:
+    if i < L and isspace s[i]:
+      i.inc
+    else:
+      break
+
+  let zero = result.digits.len == 0
+  if error_if_nonzero:
+    #[reset the base to 0, else the exception message
+      doesn't make too much sense]#
+    base = 0
+    if not zero:
+      err
+    #[there might still be other problems, therefore base
+    remains zero here for the same reason]#
+  if zero:
+    result.sign = Zero
+  else:
+    result.sign = sign
+
+
+proc fromStr*[C: char|Rune](s: openArray[C]; res: var PyIntObject): int =
+  ## with `base = 0` (a.k.a. support prefix like 0b)
+  template err = return
+  var base = 0u8
+  res.fromStrImpl(s, result, base, err):
+    when C is char:
+      if c not_in Digits: err
+      Digit(c) - Digit('0')
+    else:
+      var d: Digit
+      c.decimalItOr:
+        d = cast[Digit](it)
+      do: err
+      d
+proc fromStr*[C: char|Rune](s: openArray[C]): PyIntObject{.raises: [ValueError].} =
+  if s.fromStr(result) != s.len:
+    raise newException(ValueError, "could not convert string to int")
+
+
+template invBaseRet =
+  return newValueError newPyAscii"int() arg 2 must be >= 2 and <= 36"
+
+proc retInvIntCallImpl(strObj: PyObject, base: SomeInteger): PyObject{.inline.} =
+  newPyStr&"invalid literal for int() with base {base}: {strObj:.200R}"
+
+template retInvIntCall*(strObj: PyObject, base: SomeInteger){.dirty.} =
+  ## inner
+  bind retInvIntCallImpl
+  let s = retInvIntCallImpl(strObj, base)
+  retIfExc s
+  return newValueError PyStrObject s
+
+proc fromStrWithValidBase[C: char](res: var PyIntObject; s: openArray[C]; nParsed: var int; base: int): PyBaseErrorObject =
+  template err{.dirty.} =
+    let strObj = newPyStr(s)
+    retIfExc PyObject strObj
+    retInvIntCall strObj, base
+  var base = cast[uint8](base)
+  res.fromStrImpl(s, nParsed, base, err):
+    Digit c.digitOr(base, err)
+
+proc fromStr*[C: char](res: var PyIntObject; s: openArray[C]; nParsed: var int): PyBaseErrorObject =
+  res.fromStrWithValidBase s, nParsed, 10
+
+proc fromStr*[C: char](res: var PyIntObject; s: openArray[C]; nParsed: var int; base: int): PyBaseErrorObject =
+  if base != 0 and base < 2 or base > 36:
+    invBaseRet
+  res.fromStrWithValidBase(s, nParsed, base)
+
+proc PyLong_FromString*[C: char](s: openArray[C]; nParsed: var int; base: int = 10): PyObject =
+  var res: PyIntObject
+  result = res.fromStr(s, nParsed, base)
+  if result.isNil: result = res
 
 method `$`*(i: PyIntObject): string{.raises: [].} =
   if i.zero:
@@ -821,7 +961,7 @@ when isMainModule:
   echo a + a - a - a - a
   ]#
   #let a = fromStr("88888888888888")
-  let a = fromStr("100000000000")
+  let a = newPyInt("100000000000")
   echo a.pow(pyIntTen)
   echo a
   #echo a * pyIntTen
