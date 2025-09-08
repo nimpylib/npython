@@ -133,17 +133,25 @@ proc doSub(a, b: PyIntObject): PyIntObject =
   if result.digits.len == 0:
     result.sign = Zero
 
-# assuming all positive, return a * b
-proc doMul(a: PyIntObject, b: Digit): PyIntObject =
-  result = newPyIntSimple()
+template doMulImpl(result; loopVar, loopIter, src, dst) =
+  ## assuming all Positive
   var carry = TwoDigits(0)
-  for i in 0..<a.digits.len:
-    carry += TwoDigits(a.digits[i]) * TwoDigits(b)
-    result.digits.add truncate(carry)
+  for loopVar in loopIter:
+    carry += TwoDigits(src) * TwoDigits(b)
+    dst = truncate(carry)
     carry = carry.demote
   if 0'u64 < carry:
     result.digits.add truncate(carry)
-  
+
+# assuming all Natural, return a * b
+proc doMul(a: PyIntObject, b: Digit): PyIntObject =
+  result = newPyIntOfLen(a.digits.len)
+  result.doMulImpl(i, 0..<a.digits.len, a.digits[i], result.digits[i])
+
+proc inplaceMul(a: var PyIntObject, b: Digit) =
+  # assuming all Natural
+  a.doMulImpl(d, a.digits.mitems, d, d)
+
 proc doMul(a, b: PyIntObject): PyIntObject =
   if a.digits.len < b.digits.len:
     return doMul(b, a)
@@ -615,7 +623,7 @@ proc fromStr*[C: char|Rune](s: openArray[C]): PyIntObject =
   # assume s not empty
   result.digits.add 0
   for i in (sign.int)..<s.len:
-    result = result.doMul(10)
+    result.inplaceMul(base)
     let c = s[i]
     result.inplaceAdd Digit(c) - Digit('0')
   result.normalize
