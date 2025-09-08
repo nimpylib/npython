@@ -172,6 +172,10 @@ type
     else:
       discard
 
+proc getInfo*(self: TokenNode): tuple[line, col: int] =
+  if self.token in terminatorSet: (self.lineNo, self.colNo)
+  else: (0, 0)
+
 proc `$`*(node: TokenNode): string = 
   case node.token
   of contentTokenSet:

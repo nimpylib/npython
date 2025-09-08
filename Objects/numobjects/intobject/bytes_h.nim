@@ -2,4 +2,3 @@
 import ../../[
   byteobjects
 ]
-import ../../stringobject/meth

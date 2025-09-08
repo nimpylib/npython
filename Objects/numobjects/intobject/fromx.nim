@@ -7,7 +7,7 @@ import ../../../Python/[
 ]
 import ../../stringobject/strformat
 import ../../../Modules/unicodedata/decimalAndSpace
-include ./strbytes_h
+include ./bytes_h
 
 template PyLong_FromBytesImpl(buffer: openArray[char]; base = 10) =
   var nParsed: int

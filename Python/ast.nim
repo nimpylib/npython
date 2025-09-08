@@ -9,6 +9,7 @@ import asdl
 import ../Parser/[token, parser]
 import ../Objects/[pyobject, noneobject,
   numobjects, boolobjectImpl, stringobjectImpl, byteobjects,
+  tupleobjectImpl,
   sliceobject  # pyEllipsis
   ]
 import ../Utils/[utils, compat]
@@ -17,8 +18,12 @@ import ../Utils/[utils, compat]
 template raiseSyntaxError*(msg: string, astNode: untyped) = 
   raiseSyntaxError(msg, "", astNode.lineNo.value, astNode.colOffset.value)
 
-template raiseSyntaxError(msg: string, parseNode: ParseNode) = 
-  raiseSyntaxError(msg, "", parseNode.tokenNode.lineNo, parseNode.tokenNode.colNo)
+template raiseSyntaxError(msg: string, parseNode: ParseNode, line, col: int) = 
+  raiseSyntaxError(msg, "", line, col)
+
+template raiseSyntaxError(msg: string, parseNode: ParseNode) =
+  let (line, col) = parseNode.tokenNode.getInfo
+  raiseSyntaxError(msg, parseNode, line, col)
 
 template raiseSyntaxError(msg: string) = 
   raiseSyntaxError(msg, parseNode)
@@ -1107,13 +1112,22 @@ ast atom, [AsdlExpr]:
 
   of Token.NUMBER:
     # float
-    if not child1.tokenNode.content.allCharsInSet({'0'..'9'}):
+    if not child1.tokenNode.content.allCharsInSet({'+', '-',
+        '_', '0'..'9',
+        'x', 'X', 'b', 'B', 'o', 'O'}):
       let f = ValueError!parseFloat(child1.tokenNode.content)
       let pyFloat = newPyFloat(f)
       result = newAstConstant(pyFloat)
     # int
     else:
-      let pyInt = newPyInt(child1.tokenNode.content)
+      var
+        pyInt: PyIntObject
+        nParsed: int
+      let exc = pyInt.fromStr(child1.tokenNode.content, nParsed, 0)
+      if not exc.isNil:
+        var (line, col) = (child1.tokenNode.lineNo, child1.tokenNode.colNo)
+        col += nParsed
+        raiseSyntaxError($exc.args[0], parseNode, line, col)
       result = newAstConstant(pyInt)
 
   of Token.STRING:
