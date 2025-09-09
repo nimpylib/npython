@@ -1,6 +1,5 @@
 ## workaround, currently assume only one `sys.modules` exists
 
+import ../Objects/dictobject
 
-import ./sysmodule as sys
-export sys
-
+var sys* = (modules: newPyDict())

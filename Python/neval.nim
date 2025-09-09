@@ -3,16 +3,20 @@ import strformat
 import tables
 import std/sets
 import compile
-import symtable
 import opcode
-import coreconfig
 import builtindict
 import traceback
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
                    setobject, notimplementedobject, boolobjectImpl,
-                   exceptionsImpl, moduleobject, methodobject]
+                   exceptionsImpl, methodobject]
 import ../Utils/utils
+import ./[
+  neval_frame,
+  neval_helpers,
+  pyimport,
+]
+export pyimport, neval_frame
 
 type
   # the exception model is different from CPython. todo: Need more documentation
@@ -33,12 +37,7 @@ type
     
 {.push raises: [].}
 # forward declarations
-proc newPyFrame*(fun: PyFunctionObject): PyFrameObject
-proc newPyFrame*(fun: PyFunctionObject, 
-                 args: seq[PyObject], 
-                 back: PyFrameObject): PyObject
 proc evalFrame*(f: PyFrameObject): PyObject
-proc pyImport*(name: PyStrObject): PyObject
 {.pop.}
 
 template doUnary(opName: untyped) = 
@@ -116,7 +115,7 @@ when defined(js):
 proc evalFrame*(f: PyFrameObject): PyObject = 
   # instructions are fetched so frequently that we should build a local cache
   # instead of doing tons of dereference
-
+  var rt = newEvaluator(evalFrame)
   var lastI = -1
 
   # instruction helpers
@@ -525,7 +524,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.ImportName:
               let name = names[opArg]
-              let retObj = pyImport(name)
+              let retObj = rt.pyImport(name)
               if retObj.isThrownException:
                 handleException(retObj)
               sPush retObj
@@ -743,94 +742,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     cleanUp()
 
 
-when defined(js):
-  proc pyImport*(name: PyStrObject): PyObject =
-    newRunTimeError(newPyAscii"Can't import in js mode")
-else:
-  import os
-  proc pyImport*(name: PyStrObject): PyObject =
-    let filepath = pyConfig.path.joinPath($name.str).addFileExt("py")
-    if not filepath.fileExists:
-      let fp = newPyStr filePath
-      let msg = newPyAscii"File " & fp & newPyAscii" not found"
-      let exc = newImportError(msg)
-      exc.name = fp
-      return exc
-    let input = try:
-      readFile(filepath)
-    except IOError as e:
-      #TODO:io maybe newIOError?
-      return newImportError(newPyAscii"Import Failed due to IOError " & newPyAscii $e.msg)
-    let compileRes = compile(input, filepath)
-    if compileRes.isThrownException:
-      return compileRes
-
-    let co = PyCodeObject(compileRes)
-
-    when defined(debug):
-      echo co
-    let fun = newPyFunc(name, co, newPyDict())
-    let f = newPyFrame(fun)
-    let retObj = f.evalFrame
-    if retObj.isThrownException:
-      return retObj
-    let module = newPyModule(name)
-    module.dict = f.globals
-    module
-
-proc newPyFrame*(fun: PyFunctionObject): PyFrameObject = 
-  let obj = newPyFrame(fun, @[], nil)
-  if obj.isThrownException:
-    unreachable
-  else:
-    return PyFrameObject(obj)
-
-proc newPyFrame*(fun: PyFunctionObject, 
-                 args: seq[PyObject], 
-                 back: PyFrameObject): PyObject{.raises: [].} =
-  let code = fun.code
-  # handle wrong number of args
-  if code.argScopes.len < args.len:
-    let msg = fmt"{fun.name.str}() takes {code.argScopes.len} positional arguments but {args.len} were given"
-    return newTypeError(newPyStr msg)
-  elif args.len < code.argScopes.len:
-    let diff = code.argScopes.len - args.len
-    let msg = fmt"{fun.name.str}() missing {diff} required positional argument: " & 
-              fmt"{code.argNames[^diff..^1]}. {args.len} args are given."
-    return newTypeError(newPyStr(msg))
-  let frame = newPyFrame()
-  frame.back = back
-  frame.code = code
-  frame.globals = fun.globals
-  # todo: use flags for faster simple function call
-  frame.fastLocals = newSeq[PyObject](code.localVars.len)
-  frame.cellVars = newSeq[PyCellObject](code.cellVars.len + code.freeVars.len)
-  # init cells. Can do some optimizations here
-  for i in 0..<code.cellVars.len:
-    frame.cellVars[i] = newPyCell(nil)
-  # setup arguments
-  for i in 0..<args.len:
-    let (scope, scopeIdx) = code.argScopes[i]
-    case scope
-    of Scope.Local:
-      frame.fastLocals[scopeIdx] = args[i]
-    of Scope.Global:
-      unreachable
-    of Scope.Cell:
-      frame.cellVars[scopeIdx].refObj = args[i]
-    of Scope.Free:
-      unreachable("arguments can't be free")
-  # setup closures. Note some are done when setting up arguments
-  if fun.closure.isNil:
-    assert code.freeVars.len == 0
-  else:
-    assert code.freevars.len == fun.closure.items.len
-    for idx, c in fun.closure.items:
-      assert c.ofPyCellObject
-      frame.cellVars[code.cellVars.len + idx] = PyCellObject(c)
-  frame
-
-
 # interfaces to upper level
 proc runCode*(co: PyCodeObject): PyObject = 
   when defined(debug):
@@ -846,12 +757,6 @@ proc runString*(input, fileName: string): PyObject =
     return compileRes
   runCode(PyCodeObject(compileRes))
 
-template orPrintTb(retRes): bool{.dirty.} =
-  if retRes.isThrownException:
-    PyExceptionObject(retRes).printTb
-    false
-  else:
-    true
 
 proc runSimpleString*(input, fileName: string): bool =
   ## returns if successful.
