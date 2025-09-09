@@ -102,22 +102,20 @@ proc Py_VaBuildTuple*(args: NimNode): NimNode =
   ## EXT.
   do_mktuple(args)
 
-proc Py_VaBuildValue*(args: NimNode): NimNode =
-  va_build_value(args)
+proc Py_VaBuildValue*(args: NimNode): NimNode = va_build_value(args)
+macro Py_BuildValue*(args: varargs[typed]): PyObject = Py_VaBuildValue(args)
 
 
 when isMainModule:
   import ./bltinmodule
-  macro pyBuildValue(args: varargs[typed]): PyObject =
-    Py_VaBuildValue(args)
 
-  assert pyBuildValue() == pyNone
+  assert Py_BuildValue() == pyNone
 
   let
     D = newPyDict({PyObject newPyInt 1: PyObject newPyInt 2})
 
-  assert pyBuildValue({1: 2}) == D
-  assert pyBuildValue({1: 2}, 3) == newPyTuple [
+  assert Py_BuildValue({1: 2}) == D
+  assert Py_BuildValue({1: 2}, 3) == newPyTuple [
     D,
     newPyInt(3)
   ]

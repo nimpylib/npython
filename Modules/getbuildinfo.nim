@@ -30,6 +30,7 @@ const
   tag = git.exec"describe --all --always --dirty"
   branch = git.exec"name-rev --name-only HEAD"
 
+proc gitversion*: string = version  ## Py_gitversion
 proc gitidentifier*: string =
   result = tag
   if result != "" and result != "undefined":

@@ -188,9 +188,14 @@ proc getOpionalItem*(dict: PyDictObject; key: PyObject): PyObject =
 
 implDictMagic getitem, [mutable: read]: self.getitem other
 
-implDictMagic setitem, [mutable: write]:
+template setItemImpl(self, arg1, arg2) =
   result.handleBadHash:
     self.table[arg1] = arg2
+proc setItem*(dict: PyDictObject, key, value: PyObject): PyBaseErrorObject =
+  dict.setItemImpl(key, value)
+
+implDictMagic setitem, [mutable: write]:
+  self.setItemImpl(arg1, arg2)
   pyNone
 
 proc pop*(self: PyDictObject, other: PyObject, res: var PyObject): bool =
