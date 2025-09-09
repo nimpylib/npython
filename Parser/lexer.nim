@@ -108,12 +108,12 @@ proc getNextToken(
     # fileName set elsewhere
     raiseSyntaxError(msg, "", lexer.lineNo, idx)
 
-  template addToken(tokenName:untyped, msg:string) =
+  template addToken(tokenName) =
     var content: string
     let first = idx
-    if not `parse tokenName`(line, content, start=idx):
-      raiseSyntaxError(msg)
-    idx.inc content.len
+    var msg: string
+    if not `parse tokenName`(line, content, idx=idx, msg=msg):
+      raiseSyntaxError(msg, lexer.fileName, lineNo=lexer.lineNo, colNo=idx)
     result = newTokenNode(Token.tokenName, lexer.lineNo, first, content)
 
   template addSingleCharToken(tokenName) = 
@@ -134,7 +134,7 @@ proc getNextToken(
       newTokenNode(Token.Tk, lexer.lineNo, idx)
 
   template addId =
-    addToken(Name, "Invalid identifier")
+    addToken(Name)
 
   template asIs(x): untyped = x  
   template addString(pairingChar: char, escaper: untyped = lexer.decode_unicode_with_escapes, tok=Token.String) =
@@ -173,7 +173,7 @@ proc getNextToken(
     else:
       addId
   of '0'..'9':
-    addToken(Number, "Invalid number")
+    addToken(Number)
   of StrLitQuote:
     if idx == line.len - 1:
       raiseSyntaxError("Invalid string syntax")
