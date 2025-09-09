@@ -796,14 +796,22 @@ proc hash*(self: PyIntObject): Hash {. inline, cdecl .} =
     result = result xor hash(digit)
 
 
-proc toIntUnsafe*(pyInt: PyIntObject): int = 
-  ## XXX: the caller should take care of overflow
-  ##  It raises `OverflowDefect` on non-danger build
+proc toSomeSignedIntUnsafe[T: SomeSignedInt](pyInt: PyIntObject): T = 
   for i in countdown(pyInt.digits.high, 0):
     result = result shl digitBits
-    result += int(pyInt.digits[i])
+    result += T(pyInt.digits[i])
   if pyInt.sign == Negative:
     result *= -1
+
+template genToIntUnsafe(T){.dirty.} =
+  proc `to T Unsafe`*(pyInt: PyIntObject): T =
+    ## XXX: the caller should take care of overflow
+    ##  It raises `OverflowDefect` on non-danger build
+    toSomeSignedIntUnsafe[T](pyInt)
+
+genToIntUnsafe int
+genToIntUnsafe int64
+genToIntUnsafe BiggestInt
 
 const PY_ABS_LONG_MIN = cast[uint](int.low) ## \
 ## we cannot use `0u - cast[uint](int.low)` unless with rangeChecks:off
