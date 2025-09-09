@@ -243,11 +243,25 @@ macro genMagicNames: untyped =
 genMagicNames
 
 
-method `$`*(obj: PyObject): string {.base, inline, raises: [].} = 
-  "Python object"
-
 template typeName*(o: PyObject): string =
   o.pyType.name
+
+method `$`*(obj: PyObject): string {.base, pyCFuncPragma.} =
+  result = "Python object "
+  if obj.pyType.isNil:
+    result.add "of unknown pytype(nil)"
+  else:
+    result.add "of pytype "
+    result.add obj.typeName
+    # we wanna use `__repr__` if possible
+    let fun = obj.pyType.magicMethods.repr
+    if not fun.isNil:
+      let ret = fun(obj)
+      # XXX: we haven't declared PyStr here
+      #  so cannot use ofPyStrObject
+      if ret.pyType.kind == Str:
+        return $ret
+      # exception occurs, just discard
 
 proc id*(obj: PyObject): int {. inline, cdecl .} = 
   when defined(js):
