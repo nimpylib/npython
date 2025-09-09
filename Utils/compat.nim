@@ -31,6 +31,7 @@ when defined(js):
   import std/jsffi
 
   when defined(nodejs):
+    let cgetAppFilenameCompat{.importc: "process.argv[0]".}: cstring
     proc processStdoutWrite(s: cstring){.importjs: "process.stdout.write(#)".}
     proc writeStdoutCompat*(s: string) =
       bind processStdoutWrite
@@ -139,6 +140,7 @@ when defined(js):
       waitFor x
 
   else:
+    let cgetAppFilenameCompat{.importjs: "(process?:process.argv[0]:'')".}: cstring
     import std/jsffi
     proc readLineCompat*(prompt: cstring): JsObject#[cstring or null]#{.importc: "prompt".}
 
@@ -161,6 +163,7 @@ when defined(js):
         bind errEchoCompat, quitCompat
         errEchoCompat(e)
         quitCompat QuitFailure
+  proc getAppFilenameCompat*: string = $cgetAppFilenameCompat
 
   # Years ago...
   # combining two seq directly leaded to a bug in the compiler when compiled to JS
@@ -198,6 +201,11 @@ when not declared(getCurrentDir):
   else:
     import std/os
     export getCurrentDir
+elif not defined(js):
+  import std/os
+
+when not declared(getAppFilenameCompat):
+  proc getAppFilenameCompat*: string {.inline.} = getAppFilename()
 
 when not declared(quitCompat):
   template quitCompat*(e: untyped = 0) = quit(e)
