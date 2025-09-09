@@ -23,7 +23,7 @@ macro declareSubError(E, baseE) =
     basePyTypeName = ident baseE.strVal & "Error"
     pyTypeName = ident E.strVal & "Error"
   declareSubErrorImpl(pyTypeName, baseE, basePyTypeName)
-macro declareSubBaseException(E) = declareSubErrorImpl(E, ident"BaseException", ident"BaseException")
+#macro declareSubBaseException(E) = declareSubErrorImpl(E, ident"BaseException", ident"BaseException")
 
 declareSubError Overflow, Arithmetic
 declareSubError ZeroDivision, Arithmetic
@@ -31,10 +31,9 @@ declareSubError Index, Lookup
 declareSubError Key, Lookup
 declareSubError UnboundLocal, Name
 declareSubError NotImplemented, Runtime
+declareSubError Recursion, Runtime
+declareSubError ModuleNotFound, Import
 
-declareSubBaseException SystemExit
-declareSubBaseException GeneratorExit
-declareSubBaseException KeyboardInterrupt
 
 template newAttributeError*(tobj: PyObject, attrName: PyStrObject): untyped =
   let msg = newPyStr(tobj.pyType.name) & newPyAscii" has no attribute " & attrName
