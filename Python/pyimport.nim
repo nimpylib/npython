@@ -14,6 +14,7 @@ import ../Objects/[pyobject,
 import ../Objects/stringobject/strformat
 
 let
+  mnamekey = newPyAscii"__name__"
   mpathkey = newPyAscii"__file__"
 
 when not defined(js):
@@ -63,6 +64,7 @@ proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
       echo co
     let fun = newPyFunc(name, co, newPyDict())
     let f = newPyFrame(fun)
+    f.globals[mnamekey] = name
     let retObj = rt.evalFrame(f)
     if retObj.isThrownException:
       return retObj

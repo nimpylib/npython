@@ -11,6 +11,7 @@ import ./getversion
 import ../Parser/[lexer, parser]
 import ../Objects/bundle
 import ../Utils/[utils, compat, getplatform]
+import ../Include/internal/pycore_global_strings
 
 proc getVersionString*(verbose=false): string =
   result = "NPython "
@@ -62,6 +63,7 @@ proc parseCompileEval*(input: string, lexer: Lexer,
       globals = prevF.globals
     else:
       globals = newPyDict()
+    globals[pyDUId name] = pyDUId main
     let fun = newPyFunc(newPyAscii("Bla"), co, globals)
     let f = newPyFrame(fun)
     var retObj = f.evalFrame
