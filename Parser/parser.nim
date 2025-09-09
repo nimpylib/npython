@@ -138,8 +138,8 @@ proc parseWithState*(input: string,
   ##      `_PyPegen_run_parser(Parser *p)` in Python 3.13
   lexer.lexString(input, mode)
   try:
-    var tokenSeq = lexer.tokenNodes
-    if tokenSeq.len == 0:
+    template tokenSeq: untyped = lexer.tokenNodes
+    if tokenSeq.len == 0 and mode != Mode.Single:
       return
     var parseNode: ParseNode
     var start = 0
@@ -157,7 +157,7 @@ proc parseWithState*(input: string,
       of Mode.Eval:
         rootToken = Token.eval_input
       if not (firstToken.token in (KeyError!grammarSet[rootToken]).firstSet):
-        raiseSyntaxError("SyntaxError", "", firstToken.lineNo, firstToken.colNo)
+        raiseSyntaxError("inner SyntaxError token", "", firstToken.lineNo, firstToken.colNo)
       parseNode = newParseNode(newTokenNode(rootToken), firstToken)
     else:
       parseNode = parseNodeArg
@@ -169,7 +169,7 @@ proc parseWithState*(input: string,
       of ParseStatus.Normal:
         continue
       else:
-        raiseSyntaxError("SyntaxError", "", token.lineNo, token.colNo)
+        raiseSyntaxError("inner SyntaxError ParseStatus: " & $status, "", token.lineNo, token.colNo)
     parseNode
   finally:
     # so that we won't process the same tokens again
