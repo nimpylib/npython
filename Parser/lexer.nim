@@ -296,7 +296,11 @@ proc getNextToken(
 
 proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline.} = 
   # Process one line at a time
-  assert line.find("\n") == -1
+  assert line.find('\n') == -1
+  var line = line
+  let hi = line.high
+  if hi >= 0 and line[hi] == '\r':
+    line.setLen hi
 
   var idx = 0
   var indentLevel = 0
@@ -353,7 +357,7 @@ proc lexString*(lexer: Lexer, input: string, mode=Mode.File) =
     addSource(lexer.fileName, input)
     return
 
-  for line in input.split("\n"):
+  for line in input.split('\n'):
     # lineNo starts from 1
     inc lexer.lineNo
     addSource(lexer.fileName, input)
