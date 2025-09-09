@@ -103,9 +103,7 @@ implBltinFunc dir(obj: PyObject):
   # why in CPython 0 argument becomes `locals()`? no idea
   # get mapping proxy first then talk about how do deal with __dict__ of type
   var res = newPyList()
-  template add(k) =
-    let ret = res.add k
-    assert ret.isPyNone
+  template add(k) = res.add k
   for k in obj.getTypeDict.keys(): add k
   if obj.hasDict:
     for k in (PyDictObject(obj.getDictUnsafe)).keys: add k

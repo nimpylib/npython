@@ -41,7 +41,7 @@ genSequenceMagics "list",
   newPyList, [mutable: read], [reprLockWithMsg"[...]", mutable: read],
   lsSeqToStr, initWithDictUsingPairs=true
 
-
+proc add*(self: PyListObject, o: PyObject) = self.items.add o
 template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dirty.} =
   ## `beforeAppend` body will be inserted before `append` method's implementation
   bind times, reverse
@@ -117,12 +117,17 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
 
   `impl S Magic` hash: unhashable self
 
-  proc add*(self: `Py S Object`, item: PyObject): PyObject =
+  when not compiles((var temp:`Py S Object`; temp.add temp)):
+    proc add*(self: `Py S Object`, item: PyObject): PyObject =
+      beforeAppend
+      self.items.add(item.mapper)
+      pyNone
+  proc append*(self: `Py S Object`, item: PyObject): PyObject =
     beforeAppend
     self.items.add(item.mapper)
     pyNone
 
-  `impl S Method` append(item: PyObject), [mutable: write]: self.add item
+  `impl S Method` append(item: PyObject), [mutable: write]: self.append item
 
   `impl S Method` clear(), [mutable: write]:
     self.items.setLen 0
