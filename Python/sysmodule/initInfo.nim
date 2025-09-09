@@ -1,13 +1,5 @@
 
-import ../../Objects/[
-  pyobjectBase,
-  exceptions,
-  stringobject,
-  dictobject,
-  listobject,
-]
-import ../../Objects/numobjects/intobject
-
+import ./initUtils
 import ../../Python/[
   getversion, modsupport,
 ]
@@ -17,18 +9,6 @@ import ../../Include/[
 import ../../Modules/[
   getbuildinfo,
 ]
-
-
-template SET_SYSimpl(key; v) =
-  retIfExc sysdict.setItem(newPyAscii key, v)
-template SET_SYS(key; value: PyIntObject|PyListObject|PyDictObject) = SET_SYSimpl(key, value)
-template SET_SYS(key; value: PyObject) =
-  let v = value
-  retIfExc v
-  SET_SYSimpl(key, v)
-template SET_SYS(key; value: string) =
-  ## SET_SYS_FROM_STRING
-  SET_SYSimpl(key, newPyStr(value))
 
 #TODO:PyStructSequence
 #proc make_version_info(): PyObject =

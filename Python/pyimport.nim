@@ -7,46 +7,20 @@ import ./[
 ]
 import ../Objects/[pyobject,
   stringobject,
-  dictobject,
+  dictobject, listobject,
   codeobject, funcobject, frameobject,
   exceptionsImpl, moduleobjectImpl,
   ]
-import ../Objects/numobjects/intobject
-import ./coreconfig
+import ../Objects/stringobject/strformat
 
 let
-  mtimekey = newPyAscii"_npython_module_changetime"
   mpathkey = newPyAscii"__file__"
 
-template getmtimeUnraisable(path): untyped =
-  try: path.getLastModificationTime except OSError: return
-
 when not defined(js):
-  import std/[os, times]
-  proc refresh(m: PyModuleObject, filepath: string) =
+  import std/os
+  proc init(m: PyModuleObject, filepath: string) =
     let d = m.getDict
-
     d[mpathkey] = newPyStr filepath
-
-    d[mtimekey] = newPyInt filepath.getmtimeUnraisable.toUnix
-
-
-proc fresh(m: PyModuleObject): bool =
-  let d = m.getDict
-  var res: PyObject
-
-  res = d.getOptionalItem(mtimekey)
-  if res.isNil:
-    # builtin module has no __file__
-    #  and doesn't need to refresh
-    return true
-  let mtime = PyIntObject res
-
-  res = d.getOptionalItem(mpathkey)
-  if res.isNil: return
-  let path = $PyStrObject(res)
-
-  mtime.toInt64Unsafe == path.getmtimeUnraisable.toUnix
 
 type Evaluator = object
   evalFrame: proc (f: PyFrameObject): PyObject {.raises: [].}
@@ -55,19 +29,24 @@ template newEvaluator*(f): Evaluator = Evaluator(evalFrame: f)
 proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
   let modu = sys.modules.getOptionalItem(name)
   if not modu.isNil:
-    let m = PyModuleObject modu
-    if fresh(m):
-      return modu
+    return modu
 
   when defined(js):
     newRunTimeError(newPyAscii"Can't import in js mode")
   else:
-    let filepath = pyConfig.path.joinPath($name.str).addFileExt("py")
-    if not filepath.fileExists:
-      let fp = newPyStr filePath
-      let msg = newPyAscii"File " & fp & newPyAscii" not found"
-      let exc = newImportError(msg)
-      exc.name = fp
+    var filepath: string
+    let sname = $name
+    for path in sys.path:
+      let p = joinPath($path, sname).addFileExt("py")
+      if p.fileExists:
+        filepath = p
+    
+    if filepath == "":
+      let msg = newPyStr&"No module named {name:R}"
+      retIfExc msg
+      let exc = newModuleNotFoundError(PyStrObject msg)
+      exc.name = name
+      exc.msg = msg
       return exc
     let input = try:
       readFile(filepath)
@@ -89,7 +68,7 @@ proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
       return retObj
     let module = newPyModule(name)
     module.dict = f.globals
-    module.refresh filepath
+    module.init filepath
     let ret = sys.modules.setItem(name, module)
     assert ret.isNil
     module

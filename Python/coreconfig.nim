@@ -1,12 +1,15 @@
 
-
+import ../Include/internal/str
 
 type
-  PyConfig = object
+  PyConfig* = object
     filepath*: string
     filename*: string
     quiet*, verbose*: bool
-    path*: string  # sys.path, only one for now
+    executable*: string
+    module_search_paths*,
+      argv*, orig_argv*
+        :seq[Str]
 
 var pyConfig* = PyConfig()
 

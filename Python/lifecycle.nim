@@ -4,6 +4,8 @@ import bltinmodule
 import ../Objects/[
   pyobject, exceptions,
   dictobject,
+  stringobject,
+  listobject,
   typeobject,
   ]
 import ../Utils/[utils, compat]
@@ -29,25 +31,40 @@ when not defined(js):
 
   system.setControlCHook(controlCHandler)
 
+template chk(e: PyBaseErrorObject, msg: string) =
+  let ret = e
+  if not ret.orPrintTb:
+    Py_FatalError msg
 
 proc pyInit*(args: seq[string]) =
 
-  # # pycore_init_types
+  # pycore_init_types
   for t in bltinTypes:
     t.typeReady
 
-  let ret = PySys_Create sys
-  if not ret.orPrintTb:
-    Py_FatalError("failed to create sys module")
+  chk PySys_Create(sys): "failed to create sys module"
+
   sys.modules[sys.name] = sys
 
+  pyConfig.executable = getAppFilenameCompat()
+  pyConfig.argv = args
+  #TODO:argv shall be filtered to remove `-X`,etc
+  pyConfig.orig_argv = @[pyConfig.executable] & args
+
+  chk PySys_UpdateConfig(sys, pyConfig): "failed to update sys from config"
+
   if args.len == 0:
-    pyConfig.path = getCurrentDir()
+    sys.path.add newPyAscii()
   else:
     pyConfig.filepath = joinPath(getCurrentDir(), args[0])
     pyConfig.filename = pyConfig.filepath.extractFilename()
-    pyConfig.path = pyConfig.filepath.parentDir()
+    let s = newPyStr pyConfig.filepath.parentDir()
+    when s is_not PyStrObject:
+      if s.isThrownException: Py_FatalError(
+        "failed to add parent dir " & pyConfig.filepath & " to sys.path"
+      )
+    sys.path.add s
   when defined(debug):
-    echo "Python path: " & pyConfig.path
+    echo "sys.path: " & $sys.path
 
   
