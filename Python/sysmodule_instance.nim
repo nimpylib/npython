@@ -1,5 +1,9 @@
 ## workaround, currently assume only one `sys.modules` exists
 
-import ../Objects/dictobject
 
-var sys* = (modules: newPyDict())
+import ./sysmodule/decl
+export decl
+
+var sys*: PySysModuleObject  ## unstable
+# will be init via PySys_Create in pyInit
+
