@@ -242,7 +242,7 @@ template instanceUnaryMethodTmpl(idx: int, nameIdent: untyped, isDel: bool) =
     when isDel:
       result = pyNone
       # Execute __del__ method, if any.
-      let fun = self.getTypeDict.getOpionalItem magicNameStr
+      let fun = self.getTypeDict.getOptionalItem magicNameStr
       if fun.isNil: return
     else:
       let fun = KeyError!self.getTypeDict[magicNameStr]

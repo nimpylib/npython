@@ -176,7 +176,7 @@ proc getItemRef*(dict: PyDictObject, key: PyStrObject, res: var PyObject): bool 
       exc = keyError key
   assert exc.isNil
 
-proc getOpionalItem*(dict: PyDictObject; key: PyObject): PyObject =
+proc getOptionalItem*(dict: PyDictObject; key: PyObject): PyObject =
   ## like PyDict_GetItemWithError, can be used as `PyMapping_GetOptionalItem`:
   ##   returns nil if missing `key`, TypeError if `key` unhashable
   var exc: PyBaseErrorObject
