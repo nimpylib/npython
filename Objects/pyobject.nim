@@ -303,6 +303,7 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
   code.body = body
   code
 
+const atomAllowAsImplHead = {nnkIdent, nnkSym, nnkStrLit}
 
 # works with thingks like `append(obj: PyObject)`
 # if no parenthesis, then return nil as argTypes, means do not check arg type
@@ -310,7 +311,7 @@ proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) =
   var prototype = prototype
   if prototype.kind == nnkOpenSymChoice:
     prototype = prototype[0]  # we only care its strVal, so pick from any
-  if prototype.kind == nnkIdent or prototype.kind == nnkSym:
+  if prototype.kind in atomAllowAsImplHead:
     return (prototype, nil)
   let argTypes = nnkPar.newTree()
   let methodName = prototype[0]
@@ -334,6 +335,47 @@ type
     Getter,
     Setter
 
+proc toIdentStr(s: string): string =
+  ## "__xx__" -> "DUxxDU", "xXx" -> "xxx"
+  ##   as Nim disallow ident starts or ends with underscore
+  const
+    DU = "DU"
+    SU = "SU"
+  template addDU = result.add DU
+  template addSU = result.add SU
+  var
+    lo = 0
+    hi = s.high
+  
+  # handle start
+  case s
+  of "_": addSU; return
+  of "__": addDU; return
+  elif s.startsWith"__":
+    addDU
+    lo.inc 2
+  elif s[0] == '_':
+    addSU
+    lo.inc
+  else: discard
+
+  # handle end
+  var ends = ""
+  if s.endsWith"__":
+    ends = DU
+    hi.dec 2
+  elif s[hi] == '_':
+    ends = SU
+    hi.dec
+  result.add s.toOpenArray(lo, hi).toLower
+  result.add ends
+
+proc toIdentStr(n: NimNode): string =
+  if n.kind == nnkStrLit:
+    n.strVal.toIdentStr
+  else: # shall be valid already
+    ($n).toLowerAscii
+
 proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind): NimNode = 
   # transforms user implementation code
   # prototype: function defination, contains argumetns to check
@@ -347,7 +389,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
     for i in ls:
       name.add i.strVal
     methodName = ident name
-  methodName.expectKind({nnkIdent, nnkSym, nnkClosedSymChoice})
+  methodName.expectKind({nnkClosedSymChoice}+atomAllowAsImplHead)
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)
   pragmas.expectKind(nnkBracket)
@@ -366,7 +408,8 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
   # implListMagic str = strPyListObjectMagic
   # implListMethod append = appendPyListObjectMethod
   # use tpMagic and tpMethod to build the name for internal use
-  let name = ident(($methodName).toLowerAscii & $ObjectType & tail)
+  let methodNimNameStr = methodName.toIdentStr
+  let name = ident(methodNimNameStr & $ObjectType & tail)
   var typeObjName = objName2tpObjName($ObjectType)
   let typeObjNode = ident(typeObjName)
 
@@ -571,15 +614,9 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   # the fields are not recognized as type attribute declaration
   # need to cast here, but can not handle object variants
   var reclist = nnkRecList.newTree()
-  proc addField(recList, name, tp: NimNode)=
-    let newField = nnkIdentDefs.newTree(
-      nnkPostFix.newTree(
-        ident("*"),
-        name
-      ),
-      tp,
-      newEmptyNode()
-    )  
+  proc addField(recList, name, tp: NimNode, fieldPrivate=false)=
+    let fid = if fieldPrivate: name else: name.postfix"*"
+    let newField = nnkIdentDefs.newTree(fid, tp, newEmptyNode())  
     recList.add(newField)
   let pyObjType = ident "py" & nameIdent.strVal & "ObjectType"
 
@@ -591,37 +628,43 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     field.expectKind(nnkCall)
     var name = field[0]
     let fieldType = field[1][0]
+    var fieldPrivate = false #XXX: historial
     if name.kind == nnkPragmaExpr:
       let pragmas = name[1]
       name = name[0]
       pragmas.expectKind nnkPragma
 
-      var memberPragma = pragmas[0]
       var memberPyId: NimNode
-      if memberPragma.kind == nnkCall:
-        expectLen memberPragma, 2
-        memberPyId = memberPragma[1]
-        memberPyId.expectKind {nnkStrLit, nnkRStrLit, nnkTripleStrLit}
-        memberPragma = memberPragma[0]
-        memberPragma.expectIdent"member"
-      else:
-        if memberPragma.eqIdent"dunder_member":
-          memberPyId = ident("__" & name.strVal & "__")
-        else:
-          memberPragma.expectIdent"member"
-          memberPyId = name
-      var flags = newCall(bindSym"pyMemberDefFlagsFromTags")
-      for i in 1..<pragmas.len:
-        let tag = pragmas[i]
-        tag.expectKind nnkIdent
-        flags.add tag
-      members.add newCall(bindSym"initPyMemberDef",
-        newStrLitNode memberPyId.strVal,
-        newCall("typeof", fieldType), # NIM-BUG: avoid not being regarded as typedesc
-        newCall(bindSym"offsetOf", fullNameIdent, name),
-        nnkExprEqExpr.newTree(ident("flags"), flags)
-      )
-    reclist.addField(name, fieldType)
+      for i in pragmas:
+        if i.eqIdent"member" or i.kind == nnkCall and i[0].eqIdent"member":
+          var memberPragma = i
+          if memberPragma.kind == nnkCall:
+            expectLen memberPragma, 2
+            memberPyId = memberPragma[1]
+            memberPyId.expectKind {nnkStrLit, nnkRStrLit, nnkTripleStrLit}
+            memberPragma = memberPragma[0]
+            memberPragma.expectIdent"member"
+          else:
+            memberPyId = name
+        elif i.kind == nnkIdent:
+          case i.strVal
+          of "dunder_member":
+            memberPyId = ident("__" & name.strVal & "__")
+          of "private": fieldPrivate = true
+      
+      if memberPyId != default NimNode:
+        var flags = newCall(bindSym"pyMemberDefFlagsFromTags")
+        for i in 1..<pragmas.len:
+          let tag = pragmas[i]
+          tag.expectKind nnkIdent
+          flags.add tag
+        members.add newCall(bindSym"initPyMemberDef",
+          newStrLitNode memberPyId.strVal,
+          newCall("typeof", fieldType), # NIM-BUG: avoid not being regarded as typedesc
+          newCall(bindSym"offsetOf", fullNameIdent, name),
+          nnkExprEqExpr.newTree(ident("flags"), flags)
+        )
+    reclist.addField(name, fieldType, fieldPrivate)
 
   # add fields related to options
   if reprLock:
