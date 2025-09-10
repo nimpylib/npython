@@ -16,11 +16,16 @@ import ./numobjects/intobject
 import ./hash
 import ./pyobject_apis/attrsGeneric
 export getTypeDict
-import ./typeobject/utils
+import ./typeobject/[
+  utils, object_new_init,
+]
 
 import ../Utils/[
   utils,
 ]
+
+pyObjectType.magicMethods.New = object_new_wrap
+pyObjectType.magicMethods.init = object_init_wrap
 
 # PyTypeObject is manually declared in pyobjectBase.nim
 # here we need to do some initialization
