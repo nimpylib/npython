@@ -1,4 +1,5 @@
 
+import std/tables
 import ../Include/internal/pycore_global_strings
 import ./[
   pyobject,
@@ -25,10 +26,10 @@ proc `name=`*(self; name: PyStrObject) =
   self.name = name
   self.def.m_name = $name
 
-implModuleGetter "__name__": self.name
-implModuleSetter "__name__":
+genProperty Module, "__name__", name, name(self):
   errorIfNotString other, "__name__'s rhs"
   `name=`(self, PyStrObject other)
+  pyNone
 
 proc getDict*(self): PyDictObject =
   ## _PyModule_GetDict(mod) must not be used after calling module_clear(mod)

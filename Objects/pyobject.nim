@@ -119,6 +119,16 @@ proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) =
     unreachable(fmt"Method {name} is registered twice for type {t.name}")
   t.bltinMethods[name] = fun
 
+template genProperty*(T; pyname: string; nname; getter, setter){.dirty.} =
+  bind `[]=`, tpGetter, tpSetter
+  `impl T Getter` nname: getter
+  `impl T Setter` nname: setter
+  `[]=`(`py T ObjectType`.getsetDescr, pyname, (tpGetter(T, nname), tpSetter(T, nname)))
+template roErr =
+  return newAttributeError newPyAscii"readonly attribute"
+template genProperty*(T, pyname, nname; getter){.dirty.} =
+  bind roErr
+  genProperty(T, pyname, nname, getter): roErr
 
 # assert self type then cast
 macro castSelf*(ObjectType: untyped, code: untyped): untyped = 

@@ -36,7 +36,8 @@ object.__base__ is None
 ]# 
 pyTypeObjectType.kind = PyTypeToken.Type
 
-implTypeGetter "__base__": self.base
+
+genProperty Type, "__base__", base, self.base
 
 implTypeMagic repr:
   newPyString(self.name)
@@ -44,13 +45,8 @@ implTypeMagic repr:
 implTypeMagic str:
   newPyString(fmt"<class '{self.name}'>")
 
-implTypeGetter dict:
-  newPyDictProxy(self.dict)
-
-implTypeSetter dict:
+genProperty Type, "__dict__", dict, newPyDictProxy(self.dict):
   newTypeError(newPyStr fmt"can't set attributes of built-in/extension type {self.name}")
-
-pyTypeObjectType.getsetDescr["__dict__"] = (tpGetter(Type, dict), tpSetter(Type, dict))
 
 # some generic behaviors that every type should obey
 proc defaultLe(o1, o2: PyObject): PyObject {. pyCFuncPragma .} =
