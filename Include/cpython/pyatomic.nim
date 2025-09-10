@@ -1,3 +1,6 @@
+
+template FT*(x): untyped = addr x  ## for FT_xxxx
+
 const SingleThread* = defined(js) or not compileOption"threads"
 when SingleThread:
   template orSingleThrd(body, js): untyped = js
