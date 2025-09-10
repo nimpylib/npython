@@ -1,8 +1,7 @@
 
 import ./numobjects_comm
-
-proc null_error*(): PyBaseErrorObject =
-  newSystemError newPyAscii"null argument to internal routine"
+import ../abstract/helpers
+export null_error
 
 template PyNumber_FloatOrIntImpl*(o: PyObject, resObj: typed; nameId; doWithIndexRes){.dirty.} =
   type T = `Py nameId Object`
