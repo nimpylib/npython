@@ -180,6 +180,29 @@ declarePyType Str(tpToken):
 proc `==`*(self, other: PyStrObject): bool {. inline, cdecl .} =
   self.str == other.str
 
+proc cmpAscii*(self: PyStrObject; s: string): int =
+  ## PyUnicode_CompareWithASCIIString
+  if self.str.ascii: return cmp(self.str.asciiStr, s)
+  else:
+    result = cmp(self.str.unicodeStr.len, s.len)
+    template loopCmp(eachPreDo){.dirty.} =
+      for i, rune in self.str.unicodeStr:
+        eachPredo
+        let rsi = Rune s[i]
+        if rune != rsi:
+          return (if rune <% rsi: -1 else: 1)
+    if result <= 0:
+      loopCmp: discard
+    else:
+      loopCmp:
+        if i > s.high:
+          return 1
+    # then return result
+
+proc eqAscii*(self: PyStrObject; s: string): bool =
+  ## `_PyUnicode_EqualToASCIIString`
+  self.cmpAscii(s) == 0
+
 proc hash*(self: PyStrObject): Hash {. inline, cdecl .} =
   result = hash(self.str) # don't write as self.str.hash as that returns attr
 
