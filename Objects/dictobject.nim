@@ -112,9 +112,8 @@ implDictMagic repr, [mutable: read, reprLockWithMsg"{...}"]:
       PyStrObject(vRepr).str.toRunes
   return newPyString(toRunes"{" & ss.joinAsRunes(", ") & toRunes"}")
 
-
-implDictMagic len, [mutable: read]:
-  newPyInt(self.table.len)
+template len*(self: PyDictObject): int = self.table.len
+implDictMagic len, [mutable: read]: newPyInt self.len
 
 implDictMagic hash: unhashable self
 implDictMagic eq:
