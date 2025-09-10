@@ -22,12 +22,18 @@ proc check_api_version(name: string, module_api_version: ApiVersion): PyBaseErro
 
 
 
-template PyModule_CreateInitialized*(t; module: PyModuleDef, module_api_version: ApiVersion): PyObject =
+template PyModule_CreateInitialized(T: typedesc[PyObject]; module: PyModuleDef, module_api_version: ApiVersion): PyObject =
   ## `_PyModule_CreateInitialized`
   bind newPyModuleImpl
   (proc (): PyObject =
     let tname = module.m_name
     retIfExc check_api_version(tname, module_api_version)
-    newPyModuleImpl(t, tname)
+    newPyModuleImpl(T, module.typ, tname)
   )()
 
+template PyModule_CreateInitialized*(nameId: untyped; module_api_version=NPYTHON_API_VERSION): PyObject =
+  bind newPyModuleDef
+  PyModule_CreateInitialized(`Py nameId ModuleObject`,
+    newPyModuleDef(astToStr(nameId), `py nameId ModuleObjectType`),
+    module_api_version
+  )

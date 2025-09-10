@@ -10,7 +10,7 @@ import ../../Objects/[
   dictobject,
   moduleobjectImpl,
 ]
-import ../../Include/modsupport
+
 import ../../Include/internal/pycore_initconfig
 
 proc PySys_UpdateConfig*(sysmod: var PySysModuleObject, config: PyConfig): PyBaseErrorObject =
@@ -49,10 +49,7 @@ proc PySys_Create*(sysmod: var PySysModuleObject): PyBaseErrorObject =
   Create sys module without all attributes.
    PySys_UpdateConfig() should be called later to add remaining attributes.]##
   let modules = PyImport_InitModules()
-  let sysmodE = PyModule_CreateInitialized(SysModule,
-    newPyModuleDef("sys", pySysModuleObjectType),
-    NPYTHON_API_VERSION
-  )
+  let sysmodE = PyModule_CreateInitialized(sys)
   retIfExc sysmodE
   sysmod = PySysModuleObject sysmodE
 

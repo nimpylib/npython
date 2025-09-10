@@ -30,18 +30,26 @@ proc initFrom_PyModule_NewObject(module: PyModuleObject) =
   module.dict = newPyDict()
   module.init_dict(module.getDict, module.name)
 
-template newPyModuleImpl*(T; nam: PyStrObject|string){.dirty.} =
+template newPyModuleImpl*(T: typedesc[PyModuleObject]; typ: PyTypeObject; nam: PyStrObject|string;
+    tp_alloc_may_exc = true
+  ){.dirty.} =
   ## for subtype
   bind newPyStr, initFrom_PyModule_NewObject
   block:
-    var res = `newPy T Simple`()
-    res.pyType = `py T ObjectType`
+    let resObj = typ.tp_alloc(typ, 0)
+    when tp_alloc_may_exc:
+      static:assert result is_not PyModuleObject,
+        "tp_alloc_may_exc is true but we cannot return exception for type " &
+          $typeof(result)
+      retIfExc resObj
+    let res = T resObj
+    res.pyType = typ
     res.name = newPyStr(nam)
     initFrom_PyModule_NewObject(res)
     result = res
 
 proc newPyModule*(name: PyStrObject|string): PyModuleObject =
-  newPyModuleImpl Module, name
+  newPyModuleImpl PyModuleObject, pyModuleObjectType, name, false
 
 type PyModuleDef* = object
   m_name*: string
