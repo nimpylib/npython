@@ -7,7 +7,7 @@ import ../Objects/[warningobject, pyobject,
   stringobject, exceptions,
   tupleobjectImpl, dictobject,
   pyobjectBase]
-import ../Objects/numobjects/intobject_decl
+import ../Objects/numobjects/intobject/decl
 export warningobject
 
 proc formatwarnmsg_impl_nonewline(msg: PyWarningMessageObject): string{.raises: [].} =

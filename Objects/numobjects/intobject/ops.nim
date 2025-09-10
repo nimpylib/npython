@@ -6,7 +6,7 @@ import strutils
 import math
 
 
-import ../numobjects_comm
+import ../numobjects_comm_with_warn
 export intobject_decl except Digit, TwoDigits, SDigit, digitBits, truncate,
  IntSign
 export PyNumber_Index

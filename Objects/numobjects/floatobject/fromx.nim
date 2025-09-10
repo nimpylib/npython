@@ -6,7 +6,7 @@ from std/parseutils import parseFloat
 import ./[decl, toval]
 import ../[numobjects_comm, helpers]
 import ../../../Python/[
-  warnings, pystrtod,
+  pystrtod,
 ]
 import ../../stringobject/strformat
 import ../../../Modules/unicodedata/decimalAndSpace

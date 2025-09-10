@@ -1,6 +1,6 @@
 
 import ./decl
-import ../numobjects_comm
+import ../numobjects_comm_with_warn
 import ../../[
   pyobjectBase,
   exceptions, 

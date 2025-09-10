@@ -2,9 +2,6 @@
 
 import ./[decl, ops]
 import ../[numobjects_comm, helpers]
-import ../../../Python/[
-  warnings,
-]
 import ../../stringobject/strformat
 import ../../../Modules/unicodedata/decimalAndSpace
 include ./bytes_h
