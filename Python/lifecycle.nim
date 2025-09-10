@@ -1,20 +1,19 @@
 import coreconfig
-# init bltinmodule
-import bltinmodule
 import ../Objects/[
   pyobject, exceptions,
-  dictobject,
   stringobject,
   listobject,
   typeobject,
   ]
-import ../Utils/[utils, compat]
+import ../Utils/[utils, compat, trans_imp]
 import ../Include/cpython/pyerrors
 import ./[
   neval_helpers,
   sysmodule_instance,
   sysmodule,
 ]
+impExp pylifecycle,
+  builtins
 
 import std/os except getCurrentDir
 
@@ -42,9 +41,9 @@ proc pyInit*(args: seq[string]) =
   for t in bltinTypes:
     t.typeReady
 
-  chk PySys_Create(sys): "failed to create sys module"
+  chk PySys_Create(sys): "can't initialize sys module"
 
-  sys.modules[sys.name] = sys
+  chk pycore_init_builtins(): "can't initialize builtins module"
 
   pyConfig.executable = getAppFilenameCompat()
   pyConfig.argv = args

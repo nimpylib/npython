@@ -10,6 +10,7 @@ type
     module_search_paths*,
       argv*, orig_argv*
         :seq[Str]
+    optimization_level*: int
 
 var pyConfig* = PyConfig()
 
