@@ -176,6 +176,7 @@ type
     dict*: PyObject
 
   PyTypeObject* = ref object of PyObjectWithDict
+    #mro: PyObject ## PyTupleObject
     name*: string
     base*: PyTypeObject
     # corresponds to `tp_flag` in CPython. Why not use bit operations? I don't know.
@@ -188,6 +189,22 @@ type
     tp_dealloc*: destructor
     tp_alloc*: proc (self: PyTypeObject, nitems: int): PyObject{.pyCFuncPragma.}  ## XXX: currently must not return exception
     tp_basicsize*: int ## NPython won't use var-length struct, so no tp_itemsize needed.
+
+static:assert not compiles((var t: PyTypeObject; t.mro))
+template forMro*(baseVar; tp: PyTypeObject; body) =
+  #TODO:mro
+  var baseVar = tp
+  while not baseVar.isNil:
+    body
+    baseVar = baseVar.base
+iterator iterMro*(tp: PyTypeObject): PyTypeObject =
+  forMro i, tp: yield i
+template forMroNoSelf*(baseVar; tp: PyTypeObject; body) =
+  #TODO:mro
+  var baseVar = tp.base
+  while not baseVar.isNil:
+    body
+    baseVar = baseVar.base
 
 template def_tp_alloc(body): untyped{.dirty.} =
   proc (self: PyTypeObject, nitems: int): PyObject{.pyCFuncPragma.} = body
@@ -242,6 +259,8 @@ macro genMagicNames: untyped =
 
 genMagicNames
 
+template mro*(self: PyTypeObject): untyped = PyTupleObject self.mro  ##\
+## returns PyTupleObject, not declared yet
 
 template typeName*(o: PyObject): string =
   o.pyType.name
