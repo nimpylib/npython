@@ -6,6 +6,7 @@ import ../../Objects/[
   dictobject,
   listobject,
 ]
+export name, `name=`
 declarePyType SysModule(base(Module)):
   modules{.member.}: PyDictObject  # dict[str, Module]
   path{.member.}: PyListObject  # list[str]

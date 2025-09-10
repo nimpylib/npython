@@ -5,15 +5,31 @@ import ./[
   stringobject,
   noneobject,
   dictobject,
+  moduledefs,
+  exceptions,
 ]
+export moduledefs
 
 declarePyType Module(dict):
-  name{.dunder_member.}: PyStrObject  ## `->md_def->md_name`
+  def: PyModuleDef
+  name{.private.}: PyStrObject  ## will get consistent with `->md_def->md_name`
   # optional
   #package{.dunder_member.}: PyObject
   #spec{.dunder_member.}: PyObject
 
 using self: PyModuleObject
+proc name*(self): PyStrObject =
+  result = self.name
+  assert $result == self.def.m_name
+proc `name=`*(self; name: PyStrObject) =
+  self.name = name
+  self.def.m_name = $name
+
+implModuleGetter "__name__": self.name
+implModuleSetter "__name__":
+  errorIfNotString other, "__name__'s rhs"
+  `name=`(self, PyStrObject other)
+
 proc getDict*(self): PyDictObject =
   ## _PyModule_GetDict(mod) must not be used after calling module_clear(mod)
   result = PyDictObject self.dict
@@ -34,7 +50,7 @@ template newPyModuleImpl*(T: typedesc[PyModuleObject]; typ: PyTypeObject; nam: P
     tp_alloc_may_exc = true
   ){.dirty.} =
   ## for subtype
-  bind newPyStr, initFrom_PyModule_NewObject
+  bind newPyStr, initFrom_PyModule_NewObject, newPyModuleDef
   block:
     let resObj = typ.tp_alloc(typ, 0)
     when tp_alloc_may_exc:
@@ -45,18 +61,10 @@ template newPyModuleImpl*(T: typedesc[PyModuleObject]; typ: PyTypeObject; nam: P
     let res = T resObj
     res.pyType = typ
     res.name = newPyStr(nam)
+    res.def = newPyModuleDef($nam, typ)
     initFrom_PyModule_NewObject(res)
     result = res
 
 proc newPyModule*(name: PyStrObject|string): PyModuleObject =
   newPyModuleImpl PyModuleObject, pyModuleObjectType, name, false
 
-type PyModuleDef* = object
-  m_name*: string
-  typ*: PyTypeObject
-
-proc newPyModuleDef*(name: string, typ: PyTypeObject): PyModuleDef =
-  PyModuleDef(
-    m_name: name,
-    typ: typ,
-  )
