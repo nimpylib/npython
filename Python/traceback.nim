@@ -2,7 +2,11 @@ import strformat
 import strutils
 import algorithm
 
-import ../Objects/bundle
+import ../Objects/[
+  pyobject,
+  exceptionsImpl,
+  stringobject,
+]
 import ../Parser/lexer
 import ../Utils/compat
 

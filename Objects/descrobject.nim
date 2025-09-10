@@ -8,7 +8,6 @@ import methodobject
 import ../Include/descrobject as incDescr
 export incDescr
 
-import ../Python/call
 import ../Utils/utils
 
 # method descriptor
@@ -100,8 +99,6 @@ implPropertyMagic init:
   self.getter = args[0]
   pyNone
 
-implPropertyMagic get:
-  fastCall(self.getter, [other])
 
 
 declarePyType MemberDescr():

@@ -3,11 +3,13 @@ import strformat
 import neval
 import builtindict
 import ./compile
-import ../Objects/[bundle, typeobject, methodobject, descrobject, funcobject,
+import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject,
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
   listobject,
   ]
+
+
 import ../Utils/[utils, macroutils, compat]
 
 

@@ -5,9 +5,15 @@ import ./descrobject
 import ./exceptions
 import ../Python/[
   structmember,
-  sysmodule,
 ]
+import ../Python/call
+import ../Python/sysmodule/audit
 {.used.}
+methodMacroTmpl(Property)
+implPropertyMagic get:
+  fastCall(self.getter, [other])
+
+
 methodMacroTmpl(MemberDescr)
 
 implMemberDescrMagic get:
