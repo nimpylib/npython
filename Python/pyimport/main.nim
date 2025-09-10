@@ -11,7 +11,10 @@ import ../../Objects/[pyobject,
   codeobject, funcobject, frameobject,
   exceptionsImpl, moduleobjectImpl,
   ]
+import std/os
+import ../../Utils/compat_io_os
 import ../../Objects/stringobject/strformat
+import ./utils
 
 let
   mnamekey = newPyAscii"__name__"
@@ -20,17 +23,18 @@ let
 proc init(m: PyModuleObject, filepath: string) =
   let d = m.getDict
   d[mpathkey] = newPyStr filepath
-import ../../Utils/compat_io_os
-import std/os
 
 type Evaluator = object
   evalFrame: proc (f: PyFrameObject): PyObject {.raises: [].}
 template newEvaluator*(f): Evaluator = Evaluator(evalFrame: f)
 
+
 proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
-  let modu = sys.modules.getOptionalItem(name)
-  if not modu.isNil:
-    return modu
+  var alreadyIn: bool
+  let module = import_add_module(name, alreadyIn)
+
+  if alreadyIn:
+    return module
 
   var filepath: string
   let sname = $name
@@ -66,9 +70,7 @@ proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
   let retObj = rt.evalFrame(f)
   if retObj.isThrownException:
     return retObj
-  let module = newPyModule(name)
+
   module.dict = f.globals
   module.init filepath
-  let ret = sys.modules.setItem(name, module)
-  assert ret.isNil
   module
