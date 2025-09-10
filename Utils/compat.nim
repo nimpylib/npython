@@ -1,6 +1,7 @@
 # from ./utils import InterruptError
 #  currently uses EOFError
 when defined(js):
+  import ./jsdispatch
   import std/jsconsole
   const
     dKarax = defined(karax)
@@ -140,7 +141,7 @@ when defined(js):
       waitFor x
 
   else:
-    let cgetAppFilenameCompat{.importjs: "(process?:process.argv[0]:'')".}: cstring
+    let cgetAppFilenameCompat{.importjs: ifOr(notDecl"process", "''", "process.argv[0]").}: cstring
     import std/jsffi
     proc readLineCompat*(prompt: cstring): JsObject#[cstring or null]#{.importc: "prompt".}
 
