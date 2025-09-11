@@ -8,7 +8,7 @@ import std/hashes
 import pyobject
 import baseBundle
 import ./iterobject
-
+import ./stringobject
 import ./tupleobjectImpl
 import ../Utils/[utils]
 import ./hash
@@ -45,6 +45,21 @@ template getItemsMayIter(s: PyObject): HashSet =
       pyFrozenSetObjectType.pyType.magicMethods.init(s, @[])
     ).items
 
+proc ofExactPyAnySet*(x: PyObject): bool =
+  ## PyAnySet_CheckExact
+  x.ofExactPySetObject or x.ofExactPyFrozenSetObject
+proc ofPyAnySet*(x: PyObject): bool =
+  ## PyAnySet_Check
+  x.ofPySetObject or x.ofPyFrozenSetObject
+
+template borrowFunc1s(R; name; S){.dirty.} =
+  proc name*(self: `Py S Object`; other: PyStrObject): R{.pyCFuncPragma.} =
+    DictError!self.items.name other
+
+template borrowFunc1sVoid(name; S){.dirty.} =
+  proc name*(self: `Py S Object`; other: PyStrObject){.pyCFuncPragma.} =
+    DictError!!self.items.name other
+
 #NOTE: only getItem shall use `DictError!`,
 # for getItemsMayIter, use `handleHashExc`
 template genOp(S, mutRead, pyOp, nop){.dirty.} =
@@ -76,6 +91,10 @@ template genSet(S, setSeqToStr, mutRead, mutReadRepr){.dirty.} =
 
   proc `newPy S`*(items: openArray[PyObject]): `Py S Object` =
     `newPy S` items.toHashSet
+
+  borrowFunc1s bool, containsOrIncl, S
+  borrowFunc1s bool, contains, S
+  borrowFunc1sVoid incl, S
 
   `impl S Method` copy(), mutRead:
     let newL = `newPy S`()
