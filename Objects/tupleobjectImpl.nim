@@ -12,42 +12,6 @@ import ./numobjects/intobject/[decl, ops, idxHelpers]
 
 methodMacroTmpl(Tuple)
 
-proc isPyTrueObj(obj: PyObject): bool = system.`==`(obj, pyTrueObj)
-template genCollectMagics*(items,
-  implNameMagic,
-  ofPyNameObject, PyNameObject,
-  mutRead, mutReadRepr, seqToStr){.dirty.} =
-  bind newPyInt, pyTrueObj, pyFalseObj, isPyTrueObj
-
-  template len*(self: PyNameObject): int = self.items.len
-  template `[]`*(self: PyNameObject, i: int): PyObject = self.items[i]
-  iterator items*(self: PyNameObject): PyObject =
-    for i in  self.items: yield i
-
-  implNameMagic contains, mutRead:
-    for item in self:
-      let retObj =  item.callMagic(eq, other)
-      if retObj.isThrownException:
-        return retObj
-      if isPyTrueObj(retObj):
-        return pyTrueObj
-    return pyFalseObj
-
-
-  implNameMagic repr, mutReadRepr:
-    var ss: seq[UnicodeVariant]
-    for item in self:
-      var itemRepr: PyStrObject
-      let retObj = item.callMagic(repr)
-      errorIfNotString(retObj, "__repr__")
-      itemRepr = PyStrObject(retObj)
-      ss.add itemRepr.str
-    return newPyString(seqToStr(ss))
-
-
-  implNameMagic len, mutRead:
-    newPyInt(self.len)
-
 template genGetitem*(nameStr, implNameMagic, newPyName, mutRead; getter: untyped = `[]`){.dirty.} =
   bind ofPySliceObject, getIndex, PySliceObject, getSliceItems
   bind ofPyIntObject, PyIntObject
@@ -71,19 +35,12 @@ proc times*[T](s: openArray[T], n: int): seq[T] =
   for _ in 1..n:
     result.add s
 
-template genSequenceMagics*(nameStr,
+template genSequenceMagicsBesidesBaseCollect(nameStr,
     implNameMagic, implNameMethod;
     ofPyNameObject, PyNameObject,
-    newPyName; mutRead, mutReadRepr;
-    seqToStr; initWithDictUsingPairs=false): untyped{.dirty.} =
-
-  bind isPyTrueObj
-  bind genCollectMagics, PyNumber_AsSsize_t, pyNone, newPyInt
-  genCollectMagics items,
-    implNameMagic,
-    ofPyNameObject, PyNameObject,
-    mutRead, mutReadRepr, seqToStr
-
+    newPyName; mutRead;
+    initWithDictUsingPairs=false): untyped{.dirty.} =
+  bind PyNumber_AsSsize_t
   iterator pairs*(self: PyNameObject): (int, PyObject) =
     for i, v in  self.items.pairs: yield (i, v)
   implNameMagic mul, mutRead:
@@ -163,23 +120,38 @@ template genSequenceMagics*(nameStr,
       if isPyTrueObj(retObj):
         inc count
     newPyInt(count)
-proc tupleSeqToString(ss: openArray[UnicodeVariant]): UnicodeVariant =
-  ## one-element tuple must be out as "(1,)"
-  result = newUnicodeUnicodeVariant "("
-  case ss.len
-  of 0: discard
-  of 1:
-    result.unicodeStr.add ss[0].toRunes
-    result.unicodeStr.add ','
-  else:
-    result.unicodeStr.add ss.joinAsRunes", "
-  result.unicodeStr.add ')'
 
+template genSequenceMagics*(nameStr,
+    implNameMagic, implNameMethod;
+    ofPyNameObject, PyNameObject,
+    newPyName; mutRead, mutReadRepr;
+    seqToStr; initWithDictUsingPairs=false): untyped{.dirty.} =
+
+  bind isPyTrueObj
+  bind genCollectMagics, genSequenceMagicsBesidesBaseCollect, PyNumber_AsSsize_t, pyNone, newPyInt
+  genCollectMagics items,
+    implNameMagic,
+    ofPyNameObject, PyNameObject,
+    mutRead, mutReadRepr, seqToStr
+  genSequenceMagicsBesidesBaseCollect nameStr,
+    implNameMagic, implNameMethod,
+    ofPyNameObject, PyNameObject,
+    newPyName, mutRead,
+    initWithDictUsingPairs
+
+
+genSequenceMagicsBesidesBaseCollect "tuple",
+  implTupleMagic, implTupleMethod,
+  ofPyTupleObject, PyTupleObject,
+  newPyTuple, [],
+  false
+#[
 genSequenceMagics "tuple",
   implTupleMagic, implTupleMethod,
   ofPyTupleObject, PyTupleObject,
   newPyTuple, [], [reprLock],
   tupleSeqToString
+]#
 
 template hashCollectionImpl*(items; hashForEmpty): Hash =
   var result: Hash

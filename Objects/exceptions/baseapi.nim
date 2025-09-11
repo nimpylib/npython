@@ -1,6 +1,7 @@
 
 import std/strformat
-import ../[pyobjectBase, stringobject, tupleobject]
+import ../[pyobjectBase, stringobject]
+include ./common_h
 import ./base
 template isThrownException*(pyObj: PyObject): bool = 
   if pyObj.ofPyExceptionObject:

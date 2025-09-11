@@ -7,7 +7,8 @@
 # This might be a bit slower but we are not pursueing ultra performance anyway
 import std/enumutils
 
-import ../[pyobject, stringobject, noneobject, tupleobject]
+import ../[pyobject, stringobject, noneobject]
+include ./common_h
 import ./[basetok, utils]
 export ExceptionToken
 

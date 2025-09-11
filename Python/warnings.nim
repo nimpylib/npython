@@ -5,7 +5,7 @@ import std/strformat
 import ../Utils/[compat]
 import ../Objects/[warningobject, pyobject,
   stringobject, exceptions,
-  tupleobjectImpl, dictobject,
+  tupleobject, dictobject,
   pyobjectBase]
 import ../Objects/numobjects/intobject/decl
 export warningobject
