@@ -5,9 +5,10 @@ import std/strformat
 import ../Utils/[compat]
 import ../Objects/[warningobject, pyobject,
   stringobject, exceptions,
-  tupleobject, dictobject,
+  tupleobject, dictobject/ops,
+  numobjects/intobject/decl,
   pyobjectBase]
-import ../Objects/numobjects/intobject/decl
+
 export warningobject
 
 proc formatwarnmsg_impl_nonewline(msg: PyWarningMessageObject): string{.raises: [].} =
