@@ -143,6 +143,8 @@ type
     iter: UnaryMethod
     iternext: UnaryMethod
 
+    reversed: UnaryMethod
+
 
   PyObjectObj* = object
     ## unstable
