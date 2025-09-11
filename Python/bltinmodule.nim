@@ -6,7 +6,7 @@ import ./compile
 import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject,
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
-  listobject,
+  listobject, enumobject,
   ]
 
 
@@ -171,24 +171,27 @@ implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build
 
 
 registerBltinObject("NotImplemented", pyNotImplemented)
-registerBltinObject("bool", pyBoolObjectType)
 registerBltinObject("Ellipsis", pyEllipsis)
 registerBltinObject("None", pyNone)
-registerBltinObject("type", pyTypeObjectType)
-registerBltinObject("object", pyObjectType)
-registerBltinObject("range", pyRangeObjectType)
-registerBltinObject("slice", pySliceObjectType)
-registerBltinObject("list", pyListObjectType)
-registerBltinObject("tuple", pyTupleObjectType)
+
+registerBltinObject("bool", pyBoolObjectType)
+registerBltinObject("bytearray", pyByteArrayObjectType)
+registerBltinObject("bytes", pyBytesObjectType)
 registerBltinObject("dict", pyDictObjectType)
-registerBltinObject("set", pySetObjectType)
+registerBltinObject("enumerate", pyEnumerateObjectType)
+registerBltinObject("float", pyFloatObjectType)
 registerBltinObject("frozenset", pyFrozenSetObjectType)
 registerBltinObject("int", pyIntObjectType)
-registerBltinObject("float", pyFloatObjectType)
-registerBltinObject("str", pyStrObjectType)
-registerBltinObject("bytes", pyBytesObjectType)
-registerBltinObject("bytearray", pyByteArrayObjectType)
+registerBltinObject("list", pyListObjectType)
+registerBltinObject("object", pyObjectType)
 registerBltinObject("property", pyPropertyObjectType)
+registerBltinObject("range", pyRangeObjectType)
+registerBltinObject("reversed", pyReversedObjectType)
+registerBltinObject("set", pySetObjectType)
+registerBltinObject("str", pyStrObjectType)
+registerBltinObject("slice", pySliceObjectType)
+registerBltinObject("type", pyTypeObjectType)
+registerBltinObject("tuple", pyTupleObjectType)
 # not ready to use because no setup code is done when init new types
 # registerBltinObject("staticmethod", pyStaticMethodObjectType)
 
