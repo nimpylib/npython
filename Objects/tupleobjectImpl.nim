@@ -8,7 +8,7 @@ import ./tupleobject
 export tupleobject
 import ./exceptions
 import ./[iterobject, stringobject, sliceobject, noneobject, boolobject]
-import ./numobjects/intobject/[decl, ops, idxHelpers]
+import ./numobjects/intobject/[decl, ops_imp_warn, idxHelpers]
 
 methodMacroTmpl(Tuple)
 

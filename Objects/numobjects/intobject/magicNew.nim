@@ -2,7 +2,7 @@
 
 import ../numobjects_comm
 import ./[
-  ops, fromx
+  ops_imp_warn, fromx
 ]
 include ./bytes_h
 

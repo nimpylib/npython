@@ -1,6 +1,6 @@
 
 
-import ./[decl, ops]
+import ./[decl, ops_imp_warn]
 import ../[numobjects_comm, helpers]
 import ../../stringobject/strformat
 import ../../../Modules/unicodedata/decimalAndSpace

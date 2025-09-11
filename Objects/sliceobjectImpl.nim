@@ -3,7 +3,7 @@ import std/strformat
 import ../Python/getargs
 import ./pyobject
 import ./tupleobject
-import ./numobjects/intobject/[decl, ops]
+import ./numobjects/intobject/[decl, ops_imp_warn]
 import ./noneobject
 import ./[exceptions, stringobject]
 import ./sliceobject

@@ -6,7 +6,7 @@ import pyobject
 import ./[
   exceptions, stringobject, boolobject, noneobject,
 ]
-import ./numobjects/intobject/[decl, ops, idxHelpers]
+import ./numobjects/intobject/[decl, ops_imp_warn, idxHelpers]
 
 import ./sliceobjectImpl
 import ./hash
@@ -45,6 +45,7 @@ proc add*(self: PyListObject, o: PyObject) = self.items.add o
 template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dirty.} =
   ## `beforeAppend` body will be inserted before `append` method's implementation
   bind times, reverse
+  bind PyNumber_AsSsize_t
   bind ofPySliceObject, PySliceObject, getIterableWithCheck, toNimSlice,
     iterInt, unhashable, delete, indices, getIndex
   bind echoCompat
