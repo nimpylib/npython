@@ -15,11 +15,11 @@ proc excess_args(args: PyTupleObject, kwds: PyDictObject): bool =
         (not kwds.isNil and ofPyDictObject(kwds) and kwds.len != 0)
 
 template wrapAsBltinFunc(fun): untyped{.dirty.} =
-  proc `fun wrap`*(args: seq[PyObject]): PyObject{.pyCFuncPragma.} =
-    fun(PyTypeObject args[0], newPyTuple args[1..^1], nil)
+  proc `fun wrap`*(args: seq[PyObject]; kwargs: PyObject): PyObject{.pyCFuncPragma.} =
+    fun(PyTypeObject args[0], newPyTuple args[1..^1], PyDictObject kwargs)
 template wrapAsBinFunc(fun): untyped{.dirty.} =
-  proc `fun wrap`*(self: PyObject, args: seq[PyObject]): PyObject{.pyCFuncPragma.} =
-    fun(self, newPyTuple args, nil)
+  proc `fun wrap`*(self: PyObject, args: seq[PyObject]; kwargs: PyObject): PyObject{.pyCFuncPragma.} =
+    fun(self, newPyTuple args, PyDictObject kwargs)
 
 
 proc object_new*(typ: PyTypeObject, args: PyTupleObject, kwds: PyDictObject): PyObject{.pyCFuncPragma.}

@@ -2,6 +2,7 @@
 
 import pyobject
 import exceptions
+import ../Python/getargs
 
 
 import stringobject
@@ -28,18 +29,21 @@ declarePyType NimFunc(tpToken):
 implNimFuncMagic call:
   case self.kind
   of NFunc.BltinFunc:
-    return cast[BltinFunc](self.fun)(args)
+    return cast[BltinFunc](self.fun)(args, kwargs)
   of NFunc.UnaryMethod:
+    PyArg_NoKw self.name
     checkArgNum(0)
     return cast[UnaryMethod](self.fun)(self.self)
   of NFunc.BinaryMethod:
+    PyArg_NoKw self.name
     checkArgNum(1)
     return cast[BinaryMethod](self.fun)(self.self, args[0])
   of NFunc.TernaryMethod:
+    PyArg_NoKw self.name
     checkArgNum(2)
     return cast[TernaryMethod](self.fun)(self.self, args[0], args[1])
   of NFunc.BltinMethod:
-    return cast[BltinMethod](self.fun)(self.self, args)
+    return cast[BltinMethod](self.fun)(self.self, args, kwargs)
 
 
 # diff with methods: no `self` init

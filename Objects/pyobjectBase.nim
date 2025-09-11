@@ -57,8 +57,11 @@ type
 
 
   # for those that number of arguments unknown (and potentially kwarg?)
-  BltinFunc* = proc (args: seq[PyObject]): PyObject {. pyCFuncPragma .}
-  BltinMethod* = proc (self: PyObject, args: seq[PyObject]): PyObject {. pyCFuncPragma .}
+  PyKwArgType* = PyObject ## \
+  ## kw is of PyDictObject
+  #TODO:rec-dep: shall be PyDictObject
+  BltinFunc* = proc (args: seq[PyObject], kwargs: PyKwArgType): PyObject {. pyCFuncPragma .}
+  BltinMethod* = proc (self: PyObject, args: seq[PyObject]; kwargs: PyKwArgType): PyObject {. pyCFuncPragma .}
 
 
   destructor* = proc (arg: var PyObjectObj){.pyDestructorPragma.}

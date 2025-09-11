@@ -42,7 +42,7 @@ template getItems(s: PyObject): HashSet =
 template getItemsMayIter(s: PyObject): HashSet =
   getItems s:
     PyFrozenSetObject(
-      pyFrozenSetObjectType.pyType.magicMethods.init(s, @[])
+      pyFrozenSetObjectType.pyType.magicMethods.init(s, @[], nil)
     ).items
 
 proc ofExactPyAnySet*(x: PyObject): bool =

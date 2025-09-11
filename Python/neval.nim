@@ -112,6 +112,15 @@ when defined(js):
   var valStack: seq[PyObject]
   var blockStack: seq[TryBlock]
 
+template evalBuildMapTo(d) =
+  let d = newPyDict()
+  for i in 0..<opArg:
+    let key = sPop()
+    let value = sPop()
+    let retObj = tpMagic(Dict, setitem)(d, key, value)
+    if retObj.isThrownException:
+      handleException(retObj)
+
 proc evalFrame*(f: PyFrameObject): PyObject = 
   # instructions are fetched so frequently that we should build a local cache
   # instead of doing tons of dereference
@@ -471,13 +480,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               sPush newSet
 
             of OpCode.BuildMap:
-              let d = newPyDict()
-              for i in 0..<opArg:
-                let key = sPop()
-                let value = sPop()
-                let retObj = tpMagic(Dict, setitem)(d, key, value)
-                if retObj.isThrownException:
-                  handleException(retObj)
+              evalBuildMapTo(d)
               sPush d
 
             of OpCode.LoadAttr:
@@ -619,7 +622,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                   let newFunc = PyTypeObject(obj).magicMethods.New
                   if newFunc.isNil:
                     unreachable("__new__ of exceptions should be initialized")
-                  excp = newFunc(@[])
+                  excp = newFunc(@[], nil)
                 else:
                   excp = obj
                 if not excp.ofPyExceptionObject:
@@ -651,7 +654,42 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                   let msg = fmt"{funcObjNoCast.pyType.name} is not callable"
                   retObj = newTypeError(newPyStr msg)
                 else:
-                  retObj = callFunc(funcObjNoCast, args)
+                  retObj = callFunc(funcObjNoCast, args, nil)
+              if retObj.isThrownException:
+                handleException(retObj)
+              sPush retObj
+            of OpCode.CallFunction_EX:
+              # cpython/Python/bytecodes.c
+              var args = newseq[PyObject](opArg)
+              for i in 1..opArg:
+                args[^i] = sPop()
+              let funcObjNoCast = sPop()
+
+              let kw = PyDictObject sPop()
+
+              var retObj: PyObject
+              # runtime function, evaluate recursively
+              if funcObjNoCast.ofPyFunctionObject:
+                let msg = "call python non-builtin function with keyword is not implemented yet"
+                return newNotImplementedError(newPyAscii msg) # no need to handle
+
+                #[
+                let funcObj = PyFunctionObject(funcObjNoCast)
+                # may fail because of wrong number of args, etc.
+                let newF = newPyFrame(funcObj, args, f)
+                if newF.isThrownException:
+                  handleException(newF)
+                retObj = PyFrameObject(newF).evalFrame
+              # todo: should first dispatch Nim level function (same as CPython). 
+              # this is of low priority because profit is unknown
+                ]#
+              else:
+                let callFunc = funcObjNoCast.pyType.magicMethods.call
+                if callFunc.isNil:
+                  let msg = fmt"{funcObjNoCast.pyType.name} is not callable"
+                  retObj = newTypeError(newPyStr msg)
+                else:
+                  retObj = callFunc(funcObjNoCast, args, kw)
               if retObj.isThrownException:
                 handleException(retObj)
               sPush retObj

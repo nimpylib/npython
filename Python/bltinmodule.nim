@@ -11,6 +11,7 @@ import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject
 
 
 import ../Utils/[utils, macroutils, compat]
+import ./getargs
 
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
@@ -73,7 +74,8 @@ macro implBltinFunc(prototype, body:untyped): untyped =
 # luckily it does not require much boilerplate
 
 const NewLine = "\n"
-proc builtinPrint*(args: seq[PyObject]): PyObject {. cdecl .} =
+proc builtinPrint*(args: seq[PyObject], kwargs: PyObject): PyObject {. cdecl .} =
+  #TODO:kwargs
   const
     sep = " "
     endl = NewLine
@@ -134,19 +136,23 @@ template callWithKeyAndMayDefault(call; tk; N) =
     return defVal
 
 template genBltWithKeyAndMayDef(blt; tk; N, call){.dirty.} =
-  proc `builtin blt`*(args: seq[PyObject]): PyObject {. cdecl .} =
+  const `blt name` = astToStr(blt)
+  proc `builtin blt`*(args: seq[PyObject]; kwargs: PyObject): PyObject {. cdecl .} =
+    PyArg_NoKw `blt name`, kwargs
     template callNext(obj): PyObject = call
     callWithKeyAndMayDefault callNext, tk, N
-  registerBltinFunction(astToStr(blt), `builtin blt`)
+  registerBltinFunction(`blt name`, `builtin blt`)
 
 genBltWithKeyAndMayDef next, StopIter, 1: obj.callMagic(iternext)
 genBltWithKeyAndMayDef getattr, Attribute, 2: PyObject_GetAttr(args[0], obj)
 
 template genBltOfNArg(blt; N, call){.dirty.} =
-  proc `builtin blt`*(args: seq[PyObject]): PyObject {. cdecl .} =
+  const `blt name` = astToStr(blt)
+  proc `builtin blt`*(args: seq[PyObject]; kwargs: PyObject): PyObject {. cdecl .} =
+    PyArg_NoKw `blt name`, kwargs
     checkArgNum N
     call
-  registerBltinFunction(astToStr(blt), `builtin blt`)
+  registerBltinFunction(`blt name`, `builtin blt`)
 
 genBltOfNArg setattr, 3: PyObject_Setattr(args[0], args[1], args[2])
 genBltOfNArg delattr, 2: PyObject_Delattr(args[0], args[1])

@@ -165,6 +165,12 @@ let ternaryMethodParams {. compileTime .} = unaryMethodParams & @[
       newIdentDefs(ident("arg2"), ident("PyObject")),
     ]
 
+let kwDefs {.compileTime.} =
+      newIdentDefs(
+        ident"kwargs",
+        ident"PyKwArgType", #TODO:rec-dep shall be PyDictObject
+        newNilLit(),
+      )
 let bltinMethodParams {. compileTime .} = unaryMethodParams & @[
       newIdentDefs(
         ident("args"), 
@@ -172,8 +178,9 @@ let bltinMethodParams {. compileTime .} = unaryMethodParams & @[
         nnkPrefix.newTree( # default arg
           ident("@"),
           nnkBracket.newTree()
-        )                      
+        )
       ),
+      kwDefs
     ]
 
 # used in bltinmodule.nim
@@ -187,6 +194,7 @@ let bltinFuncParams* {. compileTime .} = @[
           nnkBracket.newTree()
         )                      
       ),
+      kwDefs
     ]
 
 proc getParams(methodName: NimNode): seq[NimNode] = 
@@ -260,6 +268,14 @@ template castTypeOrRetTE*[O: PyObject](obj: PyObject, tp: typedesc[O]; extraArgs
 proc isSeqObject(n: NimNode): bool =
   n.kind == nnkBracketExpr and n[0].eqIdent"seq" and n[1].eqIdent"PyObject"
 
+proc paramsLastSeqObjectOrWithDict(oriParams: NimNode; lastIsKw: var bool): bool =
+  let last = oriParams.last
+  lastIsKw = last[1].eqIdent"PyKwArgType" and last[2].kind == nnkNilLit
+  let seqIdx =
+    if lastIsKw: ^2
+    else: ^1
+  oriParams[seqIdx][1].isSeqObject
+
 macro checkArgTypes*(nameAndArg, code: untyped): untyped = 
   let methodName = nameAndArg[0]
   var argTypes = nameAndArg[1]
@@ -271,7 +287,8 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
     varargName = varargs[1].strVal
   let argNum = argTypes.len
   let oriParams = code.params
-  let multiArg = argNum > 1 or oriParams[^1][1].isSeqObject
+  var lastIsKw: bool
+  let multiArg = argNum > 1 or oriParams.paramsLastSeqObjectOrWithDict lastIsKw
   if multiArg:
     if varargName == "":
       #  return `checkArgNum(1, "append")` like
@@ -733,7 +750,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       obj
 
     # default for __new__ hook, could be overrided at any time
-    proc `newPy name Default`(args: seq[PyObject]): PyObject {. cdecl .} = 
+    proc `newPy name Default`(args: seq[PyObject]; kwargs: PyObject = nil): PyObject {. cdecl .} = 
       `newPy name Simple`()
     `pyObjType`.magicMethods.New = `newPy name Default`
 
