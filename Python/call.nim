@@ -25,3 +25,7 @@ proc vectorcallMethod*(name: PyStrObject, args: openArray[PyObject]
   let callable = PyObject_GetAttr(self, name)
   retIfExc callable
   fastCall(callable, args)
+
+proc call*(fun: PyObject): PyObject =
+  ## `_PyObject_CallNoArgs`
+  fun.fastCall([])
