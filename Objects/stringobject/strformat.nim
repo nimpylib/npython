@@ -9,7 +9,7 @@ import ../typeobject/getters
 import ../pyobject_apis/strings
 import ../../Utils/utils
 
-type FormatPyObjectError = object of CatchableError
+type FormatPyObjectError* = object of CatchableError  ## inner
 
 var exc: PyBaseErrorObject
 

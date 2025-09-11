@@ -163,6 +163,9 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
     template visitSeq(s) =
       for astNode in s:
         toVisitPerSte.add(astNode)
+    template visitKeywords(keywords: seq[Asdlkeyword]) =
+      for k in keywords:
+        visit k.value
 
     template addBodies(TypeName) = 
       for node in TypeName(astNode).body:
@@ -326,7 +329,8 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           let callNode = AstCall(astNode)
           visit callNode.fun
           visitSeq callNode.args
-          assert callNode.keywords.len == 0
+          #TODO:check_name callNode.keywords
+          visitKeywords callNode.keywords
 
         of AsdlExprTk.Attribute:
           visit AstAttribute(astNode).value

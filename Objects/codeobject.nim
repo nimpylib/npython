@@ -83,7 +83,7 @@ method `$`*(code: PyCodeObject): string{.raises: [].} =
           line &= fmt" ({code.cellVars[opArg]})"
         else:
           line &= fmt" ({code.freeVars[opArg - code.cellVars.len]})"
-      of OpCode.CallFunction, jumpSet, OpCode.BuildList, 
+      of OpCode.CallFunction, OpCode.CallFunction_EX, jumpSet, OpCode.BuildList, 
          OpCode.BuildTuple, OpCode.UnpackSequence, OpCode.MakeFunction,
          OpCode.RaiseVarargs:
         discard

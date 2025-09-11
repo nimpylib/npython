@@ -10,7 +10,11 @@ import asdl
 import symtable
 import opcode
 import ../Parser/parser
-import ../Objects/[pyobject, stringobjectImpl, exceptionsImpl, codeobject, noneobject]
+import ../Objects/[
+  pyobject, stringobjectImpl, exceptionsImpl,
+  setobject,
+  codeobject, noneobject]
+import ../Objects/stringobject/strformat
 import ../Utils/utils
 
 type
@@ -730,17 +734,20 @@ compileMethod Set:
     lineNo = c.lastLineNo
   c.addOp(newArgInstr(OpCode.BuildSet, n, lineNo))
   
+template compileDictFromIt(c: Compiler; n: int; keyIt, valueIt; iter; lineNo: int) =
+  for it{.inject.} in iter:
+    c.compile(valueIt)
+    c.compile(keyIt)
+  c.addOp(newArgInstr(OpCode.BuildMap, n, lineNo))
+
 compileMethod Dict:
   let n = astNode.values.len
-  for i in 0..<astNode.keys.len:
-    c.compile(astNode.values[i])
-    c.compile(astNode.keys[i])
   var lineNo: int
   if astNode.keys.len == 0:
     lineNo = astNode.lineNo.value
   else:
     lineNo = c.lastLineNo
-  c.addOp(newArgInstr(OpCode.BuildMap, n, lineNo))
+  c.compileDictFromIt n, astNode.keys[it], astNode.values[it], 0..<astNode.keys.len, lineNo
 
 compileMethod ListComp:
   let lineNo = astNode.lineNo.value
@@ -796,13 +803,34 @@ compileMethod Compare:
   else:
     unreachable
 
+proc validate_keywords(c: Compiler, keywords: seq[Asdlkeyword]; baseAst: AstCall) =
+  ## codegen_validate_keywords
+  var has = newPySet()
+  for kw in keywords:
+    if kw.arg.isNil: continue  # when will be nil?
+    let name = kw.arg.value
+    if has.containsOrIncl name:
+      FormatPyObjectError!!raiseSyntaxError(
+        &"keyword argument repeated: {name:U}", baseAst)
 
 compileMethod Call:
+  let kwL = astNode.keywords.len
+  var op: OpCode
+  if kwL == 0:
+    op = Opcode.CallFunction
+  else:
+    let lineNo = astNode.lineNo.value
+    template compile(c: Compiler; dictKey: PyStrObject) =
+      c.addLoadConst dictKey, lineNo
+    # firstly push kw as a dict
+    c.validate_keywords astNode.keywords, astNode
+    c.compileDictFromIt kwL, it.arg.value, it.value, astNode.keywords, lineNo
+    op = OpCode.CallFunction_EX
+
   c.compile(astNode.fun)
   for arg in astNode.args:
     c.compile(arg)
-  assert astNode.keywords.len == 0
-  c.addOp(newArgInstr(OpCode.CallFunction, astNode.args.len, astNode.lineNo.value))
+  c.addOp(newArgInstr(op, astNode.args.len, astNode.lineNo.value))
 
 
 compileMethod Attribute:

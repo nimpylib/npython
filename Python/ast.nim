@@ -161,7 +161,7 @@ proc astTestList(parseNode: ParseNode): AsdlExpr
 proc astDictOrSetMaker(parseNode: ParseNode): AsdlExpr
 proc astClassDef(parseNode: ParseNode): AstClassDef
 proc astArglist(parseNode: ParseNode, callNode: AstCall): AstCall
-proc astArgument(parseNode: ParseNode): AsdlExpr
+#proc astKeyword(parseNode: ParseNode): Asdlkeyword
 proc astSyncCompFor(parseNode: ParseNode): seq[AsdlComprehension]
 proc astCompFor(parseNode: ParseNode): seq[AsdlComprehension]
 {.pop.}
@@ -1327,24 +1327,50 @@ ast classdef, [AstClassDef]:
   setNo(result, parseNode.children[0])
   result.name = newIdentifier(parseNode.children[1].tokenNode.content)
   result.body = astSuite(parseNode.children[^1])
-  
+
+
+proc getNameNodeFromTest(parseNode: ParseNode): ParseNode =
+  result = parseNode
+  while result.children.len == 1: result = result.children[0]
+  assert result.tokenNode.token == Token.Name
+
+#ast keyword, [AsdlKeyword]:
+proc astKeyword(parseNode: ParseNode): Asdlkeyword =
+  let res = newAstKeyword()
+  let nameNode = parseNode.children[0]
+  assert nameNode.children.len == 1
+  let name = nameNode.getNameNodeFromTest.tokenNode.content  #TODO: how to get `Name` from `test`
+  res.arg = newIdentifier(name)
+  res.value = astTest(parseNode.children[2])
+  res
+
+proc arg*(self: AsdlKeyword): AsdlIdentifier = self.AstKeyword.arg
+proc value*(self: AsdlKeyword): AsdlExpr = self.AstKeyword.value
+# argument  ( test [comp_for] | test '=' test | '**' test | '*' test  )
+#ast argument, [AsdlExpr]:
+proc addArg(call: AstCall, parseNode: ParseNode){.raises: [SyntaxError].} =
+  #of AsdlexprTk.Keyword: call.keywords.add a
+  case parseNode.children.len
+  of 1:
+    let child = parseNode.children[0]
+    call.args.add astTest(child)
+  of 2:
+    raiseSyntaxError("*args or **kws not implemented yet", 
+      parseNode.children[1])
+  of 3:
+    call.keywords.add astKeyword(parseNode)
+  else:
+    unreachable
+
 # arglist  argument (',' argument)*  [',']
 ast arglist, [AstCall, callNode: AstCall]:
   # currently assume `argument` only has simplest `test`, e.g.
   # print(1,3,4), so we can do this
   for child in parseNode.children: 
     if child.tokenNode.token == Token.argument:
-      callNode.args.add(astArgument(child))
+      callNode.addArg(child)
   callNode
-  
-# argument  ( test [comp_for] | test '=' test | '**' test | '*' test  )
-ast argument, [AsdlExpr]:
-  if not (parseNode.children.len == 1):
-    raiseSyntaxError("Only simple identifiers for function argument", 
-      parseNode.children[1])
-  let child = parseNode.children[0]
-  result = astTest(child)
-  assert result != nil
+
 
 #ast comp_iter:
 #  discard
