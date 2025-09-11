@@ -1,23 +1,63 @@
 import pyobject
 import exceptions
+import ../Include/cpython/pyerrors
+import ./abstract/sequence
+import ./stringobject
 
 
-declarePyType SeqIter():
+declarePyType NimSeqIter():
     items: seq[PyObject]
     idx: int
 
-implSeqIterMagic iter:
+implNimSeqIterMagic iter:
   self
 
-implSeqIterMagic iternext:
-  if self.idx == self.items.len:
-    return newStopIterError()
+template stopIter =
+  return newStopIterError()
+
+implNimSeqIterMagic iternext:
+  if self.idx == self.items.len: stopIter
   result = self.items[self.idx]
   inc self.idx
 
-proc newPySeqIter*(items: seq[PyObject]): PySeqIterObject = 
-  result = newPySeqIterSimple()
+proc newPySeqIter*(items: seq[PyObject]): PyNimSeqIterObject = 
+  result = newPyNimSeqIterSimple()
   result.items = items
+
+
+declarePyType SeqIter():
+    sequ: PyObject
+    idx: int
+
+implSeqIterMagic iter: self
+
+implSeqIterMagic iternext:
+  #{.push warning[OverflowCheck]: off.}
+  let sequ = self.sequ
+  if sequ.isNil: stopIter
+
+  if self.idx == high int:
+    return newOverflowError newPyAscii"iter index too large"
+  result = PySequence_GetItemNonNil(sequ, self.idx)
+  if not result.isThrownException:
+    self.idx.inc
+    return
+  if result.ofPyIndexErrorObject or result.isExceptionOf(StopIter):
+    self.sequ = nil
+  #{.pop.}
+
+proc newPySeqIter*(sequ: PyObject; exc: var PyBaseErrorObject): PySeqIterObject =
+  result = newPySeqIterSimple()
+  if not PySequence_Check(sequ):
+    exc = PyErr_BadInternalCall()
+    return
+  result.idx = 0
+  result.sequ = sequ
+
+proc newPySeqIter*(sequ: PyObject): PyObject =
+  var exc: PyBaseErrorObject
+  result = newPySeqIter(sequ, exc)
+  if result.isNil: result = exc
 
 template pyForIn*(it; iterableToLoop: PyObject; doWithIt) =
   ## pesudo code: `for it in iterableToLoop: doWithIt`

@@ -12,14 +12,20 @@ proc PyIter_Check*(obj: PyObject): bool =
 template PyObject_GetIter*(o: PyObject): PyObject =
   bind newTypeError, newPyStr, getMagic, newPySeqIter
   bind fmt, formatValue
-  bind ifPySequence_Check
+  bind ifPyNimSequence_Check, PySequence_Check
   let f = o.getMagic(iter)
   if f.isNil:
-    ifPySequence_Check(o):
+    ifPyNimSequence_Check(o):
       newPySeqIter(o.items)
     do:
-      let n{.inject.} = o.pyType.name
-      newTypeError newPyStr(
-        fmt"'{n:.200s}' object is not iterable"
-      )
+      ifPyNimSequence_Check(o):
+        newPySeqIter(o.items)
+      do:
+        if PySequence_Check(o):
+          newPySeqIter(o)
+        else:
+          let n{.inject.} = o.pyType.name
+          newTypeError newPyStr(
+            fmt"'{n:.200s}' object is not iterable"
+          )
   else: f(o)
