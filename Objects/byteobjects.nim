@@ -4,7 +4,7 @@ import std/hashes
 import ./pyobject
 from ./abstract/iter import PyObject_GetIter
 import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
-import ./numobjects/intobject/[decl, ops]
+import ./numobjects/intobject/[decl, ops_imp_warn]
 declarePyType Bytes(tpToken):
   items: string
   setHash: bool
