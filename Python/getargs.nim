@@ -5,6 +5,9 @@ import ../Objects/[
   exceptions,
   stringobject,
 ]
+import ../Utils/trans_imp
+impExp getargs,
+  nokw
 
 
 using args: openArray[PyObject]
@@ -12,11 +15,6 @@ using name: string
 using nargs: int
 
 
-template PyArg_NoKw*(funcname; kw) =
-  ## unlike `PyArg_NoKwname`, kw shall be PyDictObject
-  bind newTypeError, newPyStr
-  if not kw.isNil: return newTypeError newPyStr(funcname)&newPyStr"() takes no keyword arguments"
-template PyArg_NoKw*(funcname) = PyArg_NoKw funcname, kwargs
 
 proc PyArg_CheckPositional(name; nargs: int, min, max: static int): PyTypeErrorObject =
   static:
