@@ -34,9 +34,17 @@ const ExcAttrs = toTable {
   Syntax: "end_lineno,end_offset,filename,lineno,msg,offset,print_file_and_line,text",
   OS: "myerrno,strerror,filename,filename2,winerror,written",
 }
-iterator extraAttrs*(tok: ExceptionToken): NimNode =
+when (NimMajor, NimMinor, NimPatch) > (2,3,1):
+ iterator extraAttrs*(tok: ExceptionToken): NimNode =
   ExcAttrs.withValue(tok, value):
     for n in value.split(','):
+      yield ident n
+else:
+ # nim-lang/Nim#25162
+ iterator extraAttrs*(tok: ExceptionToken): NimNode =
+    let value = ExcAttrs.getOrDefault(tok, "")
+    if value != "":
+     for n in value.split(','):
       yield ident n
 
 
