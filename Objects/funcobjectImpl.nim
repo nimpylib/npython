@@ -21,7 +21,7 @@ implFunctionMagic call:
 
 implBoundMethodMagic call:
   # todo: eliminate the nil
-  let f = newPyFrame(self.fun, @[self.self] & args, nil)
+  let f = newPyFrame(self.fun, @[self.self] & @args, nil)
   if f.isThrownException:
     return f
   PyFrameObject(f).evalFrame

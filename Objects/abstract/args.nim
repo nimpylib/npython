@@ -30,7 +30,7 @@ template intLikeOptArgAt*(args: seq[PyObject]; i: int, def: int): int =
   bind optionalTLikeArg, numAsIntOrRetE
   optionalTLikeArg(args, i, def, numAsIntOrRetE)
 
-template clampedIndexOptArgAt*(args: seq[PyObject]; i: int, def: int, size: int): int =
+template clampedIndexOptArgAt*(args: openArray[PyObject]; i: int, def: int, size: int): int =
   ## parse arg `x: Optional[<object has __index__>] = None`, clamped result in `0..<size`
   bind optionalTLikeArg, numAsIntOrRetE
   template t(x): int{.genSym.} =

@@ -174,7 +174,7 @@ let kwDefs {.compileTime.} =
 let bltinMethodParams {. compileTime .} = unaryMethodParams & @[
       newIdentDefs(
         ident("args"), 
-        nnkBracketExpr.newTree(ident("seq"), ident("PyObject")),
+        nnkBracketExpr.newTree(ident("openArray"), ident("PyObject")),
         nnkPrefix.newTree( # default arg
           ident("@"),
           nnkBracket.newTree()
@@ -188,7 +188,7 @@ let bltinFuncParams* {. compileTime .} = @[
       ident("PyObject"),  # return type
       newIdentDefs(
         ident("args"), 
-        nnkBracketExpr.newTree(ident("seq"), ident("PyObject")),
+        nnkBracketExpr.newTree(ident("openArray"), ident("PyObject")),
         nnkPrefix.newTree( # default arg
           ident("@"),
           nnkBracket.newTree()
@@ -266,7 +266,7 @@ template castTypeOrRetTE*[O: PyObject](obj: PyObject, tp: typedesc[O]; extraArgs
   cast[tp](obj)
 
 proc isSeqObject(n: NimNode): bool =
-  n.kind == nnkBracketExpr and n[0].eqIdent"seq" and n[1].eqIdent"PyObject"
+  n.kind == nnkBracketExpr and n[0].eqIdent"openArray" and n[1].eqIdent"PyObject"
 
 proc paramsLastSeqObjectOrWithDict(oriParams: NimNode; lastIsKw: var bool): bool =
   let last = oriParams.last
@@ -750,7 +750,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       obj
 
     # default for __new__ hook, could be overrided at any time
-    proc `newPy name Default`(args: seq[PyObject]; kwargs: PyObject = nil): PyObject {. cdecl .} = 
+    proc `newPy name Default`(args: openArray[PyObject]; kwargs: PyObject = nil): PyObject {. cdecl .} = 
       `newPy name Simple`()
     `pyObjType`.magicMethods.New = `newPy name Default`
 

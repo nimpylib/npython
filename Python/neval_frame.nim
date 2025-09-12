@@ -14,7 +14,7 @@ import ../Utils/[
   utils,
 ]
 proc newPyFrame*(fun: PyFunctionObject, 
-                 args: seq[PyObject], 
+                 args: openArray[PyObject], 
                  back: PyFrameObject): PyObject{.raises: [].}
 
 proc newPyFrame*(fun: PyFunctionObject): PyFrameObject = 
@@ -25,7 +25,7 @@ proc newPyFrame*(fun: PyFunctionObject): PyFrameObject =
     return PyFrameObject(obj)
 
 proc newPyFrame*(fun: PyFunctionObject, 
-                 args: seq[PyObject], 
+                 args: openArray[PyObject], 
                  back: PyFrameObject): PyObject{.raises: [].} =
   let code = fun.code
   # handle wrong number of args

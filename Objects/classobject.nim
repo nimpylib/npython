@@ -69,7 +69,7 @@ template instanceBltinMethodTmpl(idx: int, nameIdent: untyped) =
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
     let fun = KeyError!self.getTypeDict[magicNameStr]
-    return fun.fastCall(@[PyObject(self)] & args)
+    return fun.fastCall(@[PyObject(self)] & @args)
 
 
 macro implInstanceMagics: untyped = 

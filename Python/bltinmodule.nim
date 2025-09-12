@@ -72,7 +72,7 @@ macro implBltinFunc(prototype, body:untyped): untyped =
 
 
 const NewLine = "\n"
-proc builtinPrint*(args: seq[PyObject], kwargs: PyObject): PyObject {. pyCFuncPragma .} =
+proc builtinPrint*(args: openArray[PyObject], kwargs: PyObject): PyObject {. pyCFuncPragma .} =
   let kwargs = PyDictObject kwargs
   #retIfExc PyArg_UnpackKeywordsToAs("print", kwargs, sep, `end`, file, flush)
   retIfExc PyArg_UnpackKeywordsAs("print", kwargs,
@@ -162,7 +162,7 @@ template callWithKeyAndMayDefault(call; tk; N) =
 
 template genBltWithKeyAndMayDef(blt; tk; N, call){.dirty.} =
   const `blt name` = astToStr(blt)
-  proc `builtin blt`*(args: seq[PyObject]; kwargs: PyObject): PyObject {. cdecl .} =
+  proc `builtin blt`*(args: openArray[PyObject]; kwargs: PyObject): PyObject {. cdecl .} =
     PyArg_NoKw `blt name`, kwargs
     template callNext(obj): PyObject = call
     callWithKeyAndMayDefault callNext, tk, N
@@ -173,7 +173,7 @@ genBltWithKeyAndMayDef getattr, Attribute, 2: PyObject_GetAttr(args[0], obj)
 
 template genBltOfNArg(blt; N, call){.dirty.} =
   const `blt name` = astToStr(blt)
-  proc `builtin blt`*(args: seq[PyObject]; kwargs: PyObject): PyObject {. cdecl .} =
+  proc `builtin blt`*(args: openArray[PyObject]; kwargs: PyObject): PyObject {. cdecl .} =
     PyArg_NoKw `blt name`, kwargs
     checkArgNum N
     call
