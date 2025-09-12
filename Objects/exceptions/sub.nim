@@ -33,6 +33,7 @@ declareSubError UnboundLocal, Name
 declareSubError NotImplemented, Runtime
 declareSubError Recursion, Runtime
 declareSubError ModuleNotFound, Import
+declareSubError IO, OS
 
 
 template newAttributeError*(tobj: PyObject, attrName: PyStrObject): untyped =

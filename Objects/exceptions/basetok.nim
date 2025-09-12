@@ -11,6 +11,7 @@ type ExceptionToken* {. pure .} = enum
   Type,
   Arithmetic,
   Attribute,
+  Buffer,
   Value,
   Lookup,
   StopIter,
@@ -21,6 +22,8 @@ type ExceptionToken* {. pure .} = enum
   Syntax,
   Memory,
   System,
+  OS,
+  EOF
 
 const ExcAttrs = toTable {
   # values will be `split(',')`
@@ -28,7 +31,8 @@ const ExcAttrs = toTable {
   Attribute: "name,obj",
   StopIter: "value",
   Import: "msg,name,name_from,path",
-  Syntax: "end_lineno,end_offset,filename,lineno,msg,offset,print_file_and_line,text"
+  Syntax: "end_lineno,end_offset,filename,lineno,msg,offset,print_file_and_line,text",
+  OS: "myerrno,strerror,filename,filename2,winerror,written",
 }
 iterator extraAttrs*(tok: ExceptionToken): NimNode =
   ExcAttrs.withValue(tok, value):
