@@ -106,6 +106,10 @@ proc pop*(self: PyDictObject, other: PyObject, res: var PyObject): bool =
   res = keyError other
   return false
 
+proc pop*(self: PyDictObject, other: PyStrObject, res: var PyObject): bool =
+  ## no exception may be raised
+  DictError!self.table.pop(other, res)
+
 proc delitemImpl*(self: PyDictObject, other: PyObject): PyObject =
   ## internal use. (in typeobject)
   if self.pop(other, result):
