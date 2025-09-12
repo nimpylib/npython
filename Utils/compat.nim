@@ -188,7 +188,7 @@ else:
   template addCompat*[T](a, b: seq[T]) = 
     a.add b
   
-  template writeCompat*(s) =
+  template writeStdoutCompat*(s) =
     stdout.write s
 
 when not declared(async):

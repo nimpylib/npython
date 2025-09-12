@@ -8,10 +8,12 @@ import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
   listobject, enumobject,
   ]
-
+import ../Objects/stringobject/strformat
+import ../Objects/exceptions/ioerror
 
 import ../Utils/[utils, macroutils, compat]
 import ./getargs
+import ./getargs/[kwargs, optionstr,]
 
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
@@ -69,16 +71,28 @@ macro implBltinFunc(prototype, body:untyped): untyped =
   getAst(implBltinFunc(prototype, newLit(""), body))
 
 
-# haven't thought of how to deal with infinite num of args yet
-# kwargs seems to be neccessary. So stay this way for now
-# luckily it does not require much boilerplate
-
 const NewLine = "\n"
-proc builtinPrint*(args: seq[PyObject], kwargs: PyObject): PyObject {. cdecl .} =
-  #TODO:kwargs
-  const
+proc builtinPrint*(args: seq[PyObject], kwargs: PyObject): PyObject {. pyCFuncPragma .} =
+  let kwargs = PyDictObject kwargs
+  #retIfExc PyArg_UnpackKeywordsToAs("print", kwargs, sep, `end`, file, flush)
+  retIfExc PyArg_UnpackKeywordsAs("print", kwargs,
+    ["sep", "end", "file", "flush"],
+    osep, oend, ofile, oflush,
+  )
+  var
     sep = " "
     endl = NewLine
+  retIfExc getOptionalStr("sep", osep, sep)
+  retIfExc getOptionalStr("end", oend, endl)
+  
+  template notImpl(argname, obj) =
+    if not obj.isNil and not obj.isPyNone:
+      return newNotImplementedError(
+        newPyAscii argname & " currently can only be None"
+      )
+  #TODO:kwargs
+  notImpl "file", ofile
+  notImpl "flush", oflush
 
   const noWrite = not declared(writeStdoutCompat)
   when noWrite:
@@ -88,17 +102,28 @@ proc builtinPrint*(args: seq[PyObject], kwargs: PyObject): PyObject {. cdecl .} 
     let objStr = PyObject_StrNonNil obj
     retIfExc(objStr)
     $PyStrObject(objStr).str
-  if args.len != 0:
-    writeStdoutCompat args[0].toStr
-    if args.len > 1:
-      for i in 1..<args.len:
-        writeStdoutCompat sep
-        writeStdoutCompat args[i].toStr
-  when noWrite:
-    assert endl == NewLine
-    echoCompat res
-  else:
-    writeStdoutCompat endl
+  try:
+    if args.len != 0:
+      writeStdoutCompat args[0].toStr
+      if args.len > 1:
+        for i in 1..<args.len:
+          writeStdoutCompat sep
+          writeStdoutCompat args[i].toStr
+    when noWrite:
+      let stripNL = endl
+      if endl == NewLine:
+        echoCompat res
+      elif endl.len > 1 and endl[^1] == NewLine[0]:
+        writeStdoutCompat endl[0..^2]
+        echoCompat res
+      else:
+        return newNotImplementedError(
+          newPyAscii"this build target cannot print if `not end.endswith('\n')`"
+        )
+    else:
+      writeStdoutCompat endl
+  except IOError as e:
+    return newIOError e
   pyNone
 registerBltinFunction("print", builtinPrint)
 
