@@ -1,2 +1,2 @@
-import numobjects, exceptions, noneobject, stringobject, boolobject
-export numobjects, exceptions, noneobject, stringobject, boolobject
+import numobjects, exceptions, noneobject, stringobject, boolobject, bltcommon
+export numobjects, exceptions, noneobject, stringobject, boolobject, bltcommon

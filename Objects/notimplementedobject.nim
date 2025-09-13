@@ -1,6 +1,7 @@
 import ./pyobject
 import ./stringobject
 import ./exceptions
+import ./bltcommon; export bltcommon
 
 declarePyType NotImplemented():
   discard
@@ -17,5 +18,5 @@ method `$`*(self: PyNotImplementedObject): string =
 implNotImplementedMagic repr:
   newPyAscii self.dollar
 
-implNotImplementedMagic New(tp: PyObject):
+implNotImplementedMagic New(_: PyObject):
   return pyNotImplemented

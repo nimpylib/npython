@@ -4,6 +4,7 @@ import ./[
 ]
 import ./numobjects/intobject/[decl, ops, idxHelpers]
 import ../Utils/rangeLen
+import ./bltcommon
 
 declarePyType Slice(tpToken):
   start{.member,readonly.}: PyObject
@@ -113,5 +114,5 @@ method `$`*(self: PyEllipsisObject): string =
 implEllipsisMagic repr:
   newPyAscii self.dollar
 
-implEllipsisMagic New(tp: PyObject):
+implEllipsisMagic New(_: PyObject):
   return pyEllipsis

@@ -9,6 +9,7 @@ import ./boolobject
 export boolobject
 import ./numobjects/intobject_decl
 import ./noneobject
+import ./bltcommon; export bltcommon
 
 
 method `$`*(obj: PyBoolObject): string = 
@@ -75,7 +76,7 @@ proc PyObject_IsTrue*(v: PyObject, res: var bool): PyBaseErrorObject =
   #   as_mapping
   ret true
 
-implBoolMagic New(tp: PyObject, obj: PyObject):
+implBoolMagic New(_: PyObject, obj):
   var b: bool
   retIfExc PyObject_IsTrue(obj, b)
   newPyBool b

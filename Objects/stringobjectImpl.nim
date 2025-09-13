@@ -7,7 +7,7 @@ import ./[stringobject,
 import ./numobjects/intobject/[decl, ops, idxHelpers]
 import ../Utils/[sequtils, sequtils2, trans_imp]
 from ./abstract/args import clampedIndexOptArgAt
-
+import ./bltcommon; export bltcommon
 export stringobject
 impExp stringobject,
   utf8apis, internal
@@ -43,7 +43,7 @@ implStrMagic hash:
 
 
 # TODO: encoding, errors params
-implStrMagic New(tp: PyObject, obj: PyObject):
+implStrMagic New(_: PyObject, obj):
   # ref: unicode_new -> unicode_new_impl -> PyObject_Str
   PyObject_StrNonNil obj
 

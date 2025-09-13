@@ -9,6 +9,7 @@ import pyobject
 import ./[
   exceptions, stringobject, boolobject, noneobject,
   ]
+import ./bltcommon; export bltcommon
 import ./numobjects/intobject_decl
 import ../Utils/[utils, optres]
 export GetItemRes

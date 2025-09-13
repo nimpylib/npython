@@ -283,7 +283,7 @@ template noKw(name){.dirty.} =
   when declared(PyArg_NoKw):
     PyArg_NoKw(name)
   #TODO:rec-dep
-  #else: {.error: "please import Objects/bltcommon".}
+  else: {.error: "please import Objects/bltcommon".}
 
 macro checkArgTypes*(nameAndArg, code: untyped): untyped = 
   let methodName = nameAndArg[0]

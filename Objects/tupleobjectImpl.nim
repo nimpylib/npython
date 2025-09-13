@@ -9,6 +9,7 @@ export tupleobject
 import ./exceptions
 import ./[iterobject, stringobject, sliceobject, noneobject, boolobject]
 import ./numobjects/intobject/[decl, ops_imp_warn, idxHelpers]
+import ./bltcommon; export bltcommon
 
 methodMacroTmpl(Tuple)
 
