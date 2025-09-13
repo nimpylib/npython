@@ -14,3 +14,4 @@ type
 
 var pyConfig* = PyConfig()
 
+proc Py_GetConfig*: PyConfig = pyConfig

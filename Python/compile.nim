@@ -4,7 +4,7 @@ import algorithm
 import macros
 
 import tables
-
+import ./coreconfig
 import ast
 import asdl
 import symtable
@@ -16,7 +16,8 @@ import ../Objects/[
   codeobject, noneobject]
 import ../Objects/stringobject/strformat
 import ../Utils/utils
-
+import ../Include/cpython/compile as compile_h
+export compile_h
 type
   Instr = ref object of RootObj
     opCode*: OpCode
@@ -57,7 +58,9 @@ type
     st: SymTable
     interactive: bool
     fileName: PyStrObject
-
+    flags: PyCompilerFlags
+    optimize: int
+#TODO:compile flags current no use
 proc `$`*(i: Instr): string =
   $i.opCode
 
@@ -96,11 +99,13 @@ proc newCompilerUnit(st: SymTable,
   result.codeName = codeName
 
 
-proc newCompiler(root: AsdlModl, fileName: PyStrObject): Compiler{.raises: [SyntaxError].} =
+proc newCompiler(root: AsdlModl, fileName: PyStrObject, flags: PyCompilerFlags, optimize: int): Compiler{.raises: [SyntaxError].} =
   result = new Compiler
   result.st = newSymTable(root)
   result.units.add(newCompilerUnit(result.st, root, newPyAscii"<module>"))
   result.fileName = fileName
+  result.flags = flags
+  result.optimize = if optimize == -1: Py_GetConfig().optimization_level else: optimize
 
 
 method toTuple(instr: Instr): (OpCode, OpArg, int) {.base, raises: [].} =
@@ -630,6 +635,7 @@ compileMethod Try:
 
 
 compileMethod Assert:
+  if c.optimize > 0: return
   let lineNo = astNode.lineNo.value
   var ending = newBasicBlock()
   c.compile(astNode.test)
@@ -931,36 +937,22 @@ compileMethod Slice:
 compileMethod Index:
   c.compile(astNode.value)
 
-
-template cmoOpMethod(methodName, TokenName) = 
-  compileMethod methodName:
-    c.addOp(newArgInstr(OpCode.COMPARE_OP, int(CmpOp.TokenName), astNode.lineNo.value))
-
-
 compileMethod Arguments:
   unreachable()
 
-proc compile(astRoot: AsdlModl, fileName: string): PyObject{.raises: [SyntaxError].} = 
-  let c = newCompiler(astRoot, newPyStr(fileName))
+template compile*(astRoot: AsdlModl, fileNameV: PyStrObject|string, flags=initPyCompilerFlags(), optimize = -1): PyObject = 
+  bind newPyStr, fromBltinSyntaxError, assemble, compile
+  let fileName = newPyStr fileNameV
+  var c: Compiler
   try:
+    c = newCompiler(astRoot, fileName, flags, optimize)
     c.compile(astRoot)
-  except SyntaxError:
-    let e = SyntaxError(getCurrentException())
-    return fromBltinSyntaxError(e, newPyStr(fileName))
+  except SyntaxError as e:
+    return fromBltinSyntaxError(e, fileName)
   c.tcu.assemble(c.fileName)
 
-proc compile*(input, fileName: string): PyObject =
-  try:
-    let astRoot = ast(input, fileName)
-    return compile(astRoot, fileName)
-  except SyntaxError:
-    let e = SyntaxError(getCurrentException())
-    return fromBltinSyntaxError(e, newPyStr(fileName))
+proc compile*(input, fileName: PyStrObject|string, flags=initPyCompilerFlags(), optimize = -1): PyObject{.raises: [].} =
+  ast($input, $fileName).compile fileName, flags, optimize
 
-proc compile*(input: ParseNode, fileName: string): PyObject =
-  try:
-    let astRoot = ast(input)
-    return compile(astRoot, fileName)
-  except SyntaxError:
-    let e = SyntaxError(getCurrentException())
-    return fromBltinSyntaxError(e, newPyStr(fileName))
+proc compile*(input: ParseNode, fileName: PyStrObject|string, flags=initPyCompilerFlags(), optimize = -1): PyObject{.raises: [].} =
+  ast(input).compile fileName, flags, optimize
