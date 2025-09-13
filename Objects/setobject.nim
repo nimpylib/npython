@@ -145,19 +145,19 @@ proc hash*(self: PyFrozenSetObject): Hash = self.hashCollection
 implFrozenSetMagic hash: newPyInt DictError!hash(self)
 implSetMagic hash: unhashable self
 
-implSetMethod update(args), [mutable: write]:
+implSetMethod update(*args), [mutable: write]:
   handleHashExc:
     for other in args:
       self.items.incl(other.getItemsMayIter)
   pyNone
 
-implSetMethod intersection_update(args), [mutable: write]:
+implSetMethod intersection_update(*args), [mutable: write]:
   handleHashExc:
     for other in args:
       self.items = DictError!(self.items * (other.getItemsMayIter))
   pyNone
 
-implSetMethod difference_update(args), [mutable: write]:
+implSetMethod difference_update(*args), [mutable: write]:
   handleHashExc:
     for other in args:
       self.items = self.items - (other.getItemsMayIter)

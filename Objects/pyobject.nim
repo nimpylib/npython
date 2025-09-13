@@ -268,29 +268,57 @@ template castTypeOrRetTE*[O: PyObject](obj: PyObject, tp: typedesc[O]; extraArgs
 proc isSeqObject(n: NimNode): bool =
   n.kind == nnkBracketExpr and n[0].eqIdent"openArray" and n[1].eqIdent"PyObject"
 
-proc paramsLastSeqObjectOrWithDict(oriParams: NimNode; lastIsKw: var bool): bool =
+proc paramsLastSeqObjectOrWithDict(oriParams: NimNode; orilastIsKw: var bool): bool =
   let last = oriParams.last
-  lastIsKw = last[1].eqIdent"PyKwArgType" and last[2].kind == nnkNilLit
+  orilastIsKw = last[1].eqIdent"PyKwArgType" and last[2].kind == nnkNilLit
   let seqIdx =
-    if lastIsKw: ^2
+    if orilastIsKw: ^2
     else: ^1
   oriParams[seqIdx][1].isSeqObject
+
+template castKw(dst){.dirty.} =
+  when declared(PyDictObject):
+    let dst = PyDictObject kwargs
+template noKw(name){.dirty.} =
+  when declared(PyArg_NoKw):
+    PyArg_NoKw(name)
+  #TODO:rec-dep
+  #else: {.error: "please import Objects/bltcommon".}
 
 macro checkArgTypes*(nameAndArg, code: untyped): untyped = 
   let methodName = nameAndArg[0]
   var argTypes = nameAndArg[1]
   let body = newStmtList()
-  var varargName: string
-  if (argTypes.len != 0) and (argTypes[^1].kind == nnkPrefix):
-    let varargs = argTypes[^1]
-    assert varargs[0].strVal == "*"
-    varargName = varargs[1].strVal
-  let argNum = argTypes.len
-  let oriParams = code.params
-  var lastIsKw: bool
-  let multiArg = argNum > 1 or oriParams.paramsLastSeqObjectOrWithDict lastIsKw
-  if multiArg:
-    if varargName == "":
+  let argNum = argTypes.len  # origin py params len
+  let oriParams = code.params  # origin nim params
+
+  var oriLastIsKw: bool
+  let oriMultiArg = oriParams.paramsLastSeqObjectOrWithDict oriLastIsKw
+  var varargId, kwargId: NimNode
+  var vargs: NimNode  # args or kwargs
+
+  template popNameTo(res) =
+      res = vargs[1]
+      argTypes.del(argTypes.len-1, 1)
+  if argNum > 0 and (vargs = argTypes.last; vargs.kind == nnkPrefix):
+    case vargs[0].strVal
+    of "*": popNameTo varargId
+    of "**":
+      popNameTo kwargId
+      if argNum > 1 and (vargs = argTypes.last; vargs.kind == nnkPrefix):
+        assert vargs[0].strVal == "*"
+        popNameTo varargId
+  if not kwargId.isNil:
+    if not oriLastIsKw:
+      error "kwargs is not allowed for this kind of functions", code
+    body.add getAst castKw(kwargId)
+  elif oriLastIsKw:
+    body.add getAst noKw $methodName
+  if not varargId.isNil:
+    if not oriMultiArg:
+      error "varargs is not allowed for this kind of functions", code
+  if oriMultiArg:
+    if varargId.isNil:
       #  return `checkArgNum(1, "append")` like
       body.add newCall(ident("checkArgNum"), 
                 newIntLitNode(argNum), 
@@ -301,32 +329,44 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
                 newIntLitNode(argNum - 1), 
                 newStrLitNode($methodName)
               )
-      let remainingArgNode = ident(varargname)
+      let remainingArgNode = varargId
+      let nowNum = argTypes.len
       body.add(quote do:
-        let `remainingArgNode` = args[`argNum`-1..^1]
+        let `remainingArgNode` = @args[`nowNum`..^1]
       )
 
+  template addLetDecl(name, value) =
+    discard body.add newLetStmt(name, value)
+  let toUnpackVargs = oriMultiArg
   for idx, child in argTypes:
-    if child.kind == nnkPrefix:
-      continue
-    let obj = if multiArg: nnkBracketExpr.newTree(
-      ident("args"),
-      newIntLitNode(idx),
-    ) else: oriParams[idx+2][0]
-    let name = child[0]
-    let tp = child[1]
-    if tp.strVal == "PyObject":  # won't bother checking 
-      body.add(quote do:
-          let `name` = `obj`
-      )
+    let obj =
+      if toUnpackVargs:
+        nnkBracketExpr.newTree(
+          ident("args"),
+          newIntLitNode(idx),
+        )
+      else:
+        let p = oriParams[idx+1]  #  #0 is restype
+        p[0]
+    case child.kind
+    of nnkIdent:
+      addLetDecl(child, obj)
+    of nnkPrefix:
+      # valid item shall be pop-ed before
+      error "only *args, **kwargs is allowed (and each no more than one)", child
     else:
-      let tpObj = ident(objName2tpObjName(tp.strVal))
-      let methodNameStrNode = newStrLitNode(methodName.strVal)
-      body.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
-      body.add(quote do:
-        let `name` = `tp`(`obj`)
-      )
-  body.add(code.body)
+      let name = child[0]
+      let tp = child[1]
+      if tp.strVal == "PyObject":  # won't bother checking 
+        addLetDecl(name, obj)
+      else:
+        let tpObj = ident(objName2tpObjName(tp.strVal))
+        let methodNameStrNode = newStrLitNode(methodName.strVal)
+        body.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
+        body.add(quote do:
+          let `name` = `tp`(`obj`)
+        )
+  body.add code.body
   code.body = body
   code
 
@@ -345,8 +385,9 @@ proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) =
   if prototype.kind == nnkObjConstr:
     for i in 1..<prototype.len:
       argTypes.add prototype[i]
-  elif prototype.kind == nnkCall: # `clear()` for no arg case
-    discard # empty arg list
+  elif prototype.kind == nnkCall:
+    for i in 1..<prototype.len:
+      argTypes.add prototype[i]
   elif prototype.kind == nnkPrefix:
     error("got prefix prototype, forget to declare object as mutable?")
   else:
