@@ -6,11 +6,13 @@ import ../Objects/[
   stringobject,
   tupleobject,
   exceptions,
+  noneobject,
+  typeobject,
 ]
 import ../Objects/bltcommon; export bltcommon
 import ../Utils/trans_imp
 impExp sysmodule,
-  decl, init, audit
+  decl, init, audit, hooks, attrs
 
 
 methodMacroTmpl(SysModule)
@@ -21,3 +23,6 @@ implSysModuleMethod audit(eventObj: PyStrObject, *args):
     return newValueError newPyAscii"embeded null character"
   auditTuple(cstring event, newPyTuple args)
 
+implSysModuleMethod excepthook(exctype: PyTypeObject, value: PyBaseErrorObject, traceback):
+  excepthook(exctype, value, traceback)
+  pyNone
