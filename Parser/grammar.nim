@@ -79,7 +79,7 @@ proc matchG(grammar: Grammar): GrammarNode
 proc matchH(grammar: Grammar): GrammarNode  
 
 proc newGrammarNode(name: string, tokenString=""): GrammarNode 
-proc hash(node: GrammarNode): Hash
+proc hash(node: GrammarNode): Hash{.raises: [].}
 proc assignId(node: GrammarNode)
 proc nextInTree(node: GrammarNode): HashSet[GrammarNode]
 proc isOptional*(node: GrammarNode): bool
