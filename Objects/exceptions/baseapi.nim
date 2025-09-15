@@ -3,6 +3,7 @@ import std/strformat
 import ../[pyobjectBase, stringobject]
 include ./common_h
 import ./base
+import ../../Utils/compat
 template isThrownException*(pyObj: PyObject): bool = 
   if pyObj.ofPyExceptionObject:
     cast[PyExceptionObject](pyObj).thrown
@@ -35,6 +36,18 @@ template retIfExc*(e: PyObject) =
   let exc = e
   if exc.isThrownException:
     return PyBaseErrorObject exc
+
+
+when NPythonAsyncReadline:
+  template retIfExc*(e: MayPromise[PyBaseErrorObject]) =
+    let exc = mayAwait e
+    if not exc.isNil:
+      return mayNewPromise exc
+
+  template retIfExc*(e: MayPromise[PyObject]) =
+    let exc = mayAwait e
+    if exc.isThrownException:
+      return mayNewPromise PyBaseErrorObject exc
 
 template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) = 
   var retTuple: (PyObject, UnaryMethod)

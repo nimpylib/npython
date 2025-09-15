@@ -32,6 +32,7 @@ when defined(js):
   import std/jsffi
 
   when defined(nodejs):
+    const NPythonAsyncReadline* = true
     let cgetAppFilenameCompat{.importc: "process.argv[0]".}: cstring
     proc processStdoutWrite(s: cstring){.importjs: "process.stdout.write(#)".}
     proc writeStdoutCompat*(s: string) =
@@ -42,9 +43,11 @@ when defined(js):
       InterfaceConstructorWrapper = object
         obj: InterfaceConstructor
       Promise[T] = JsObject
+      MayPromise*[T] = Promise[T]
     template wrapPromise[T](x: T): Promise[T] = cast[Promise[T]](x) ## \
     ## async's result will be wrapped by JS as Promise'
     ## this is just to bypass Nim's type system
+    template wrapPromise[T](x: Promise[T]): Promise[T] = x
     import std/macros
     macro async(def): untyped =
       var origType = def.params[0]
@@ -58,7 +61,7 @@ when defined(js):
             newLit"async function $2($3)"
         )
         if not none:
-          def.body = newCall(bindSym"wrapPromise", def.body)
+          def.body = newCall(nnkBracketExpr.newTree(bindSym"wrapPromise", origType), def.body)
       def
 
     #template await*[T](exp: Promise[T]): T = {.emit: ["await ", exp].}
@@ -76,6 +79,11 @@ when defined(js):
     
     template await[T](exp: Promise[T]): T =
       waitFor exp
+
+
+    proc Promise_resolve[T](x: T): Promise[T]{.importjs: "Promise.resolve(@)".}
+    template newPromise[T](x: T): Promise[T] =
+      Promise_resolve(x)
 
     {.emit: """/*INCLUDESECTION*/
      import {createInterface}  from 'node:readline/promises';
@@ -139,6 +147,10 @@ when defined(js):
       ## top level await
       bind waitFor
       waitFor x
+    
+    template mayNewPromise*(x): untyped =
+      bind newPromise
+      newPromise(x)
 
   else:
     let cgetAppFilenameCompat{.importjs: ifOr(notDecl"process", "''", "process.argv[0]").}: cstring
@@ -192,9 +204,12 @@ else:
     stdout.write s
 
 when not declared(async):
+  const NPythonAsyncReadline* = false
   template mayAsync*(def): untyped = def
   template mayAwait*(x): untyped = x
   template mayWaitFor*(x): untyped = x
+  template mayNewPromise*(x): untyped = x
+  type MayPromise*[T] = T
 
 when not declared(getCurrentDir):
   when defined(js):
