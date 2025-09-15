@@ -8,6 +8,7 @@ import ./[
   dictobject,
   moduledefs,
   exceptions,
+  methodobject,
 ]
 export moduledefs
 
@@ -41,11 +42,16 @@ proc init_dict(modu: PyModuleObject, md_dict: PyDictObject, name: PyStrObject) =
   md_dict[pyDUId loader] = pyNone
   md_dict[pyDUId spec] = pyNone
 
+  # `_add_methods_to_object`
+  for name, meth in modu.pyType.bltinMethods:
+    let namePyStr = newPyAscii(name)
+    md_dict[namePyStr] = newPyNimFunc(meth, namePyStr, modu)
 
 proc initFrom_PyModule_NewObject(module: PyModuleObject) =
   ## like `PyModule_NewObject` but is a `init`
-  module.dict = newPyDict()
-  module.init_dict(module.getDict, module.name)
+  let dict = newPyDict()
+  module.dict = dict
+  module.init_dict(dict, module.name)
 
 template newPyModuleImpl*(T: typedesc[PyModuleObject]; typ: PyTypeObject; nam: PyStrObject|string;
     tp_alloc_may_exc = true
