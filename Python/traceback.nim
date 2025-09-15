@@ -7,6 +7,7 @@ import ../Objects/[
   exceptionsImpl,
   stringobject,
 ]
+import ../Objects/numobjects/intobject_decl
 import ../Parser/lexer
 import ../Utils/compat
 
@@ -46,3 +47,15 @@ proc printTb*(excp: PyExceptionObject) =
     cur = cur.context
   let joinMsg = "\n\nDuring handling of the above exception, another exception occured\n\n"
   errEchoCompat excpStrs.reversed.join(joinMsg)
+
+declarePyType Traceback():
+  #TODO:traceback
+  #tb_next: PyTracebackObject
+  #tb_frame: PyFrameObject
+  #tb_lasti{.member, readonly.}: PyIntObject
+  tb_lineno{.member, readonly.}: PyIntObject
+
+proc newPyTraceback*(t: TraceBack): PyTracebackObject =
+  result = newPyTracebackSimple()
+  #result.colon = newPyInt t.colNo
+  result.tb_lineno = newPyInt t.lineNo
