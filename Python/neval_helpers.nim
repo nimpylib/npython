@@ -1,20 +1,18 @@
 
-import ./[
-  traceback,
-]
+import ./pythonrun/pyerr
 import ../Objects/exceptions
 
 template orPrintTb*(retRes: PyBaseErrorObject): bool{.dirty.} =
-  bind printTb, PyExceptionObject
+  bind PyErr_Print, PyExceptionObject
   if retRes.isNil: true
   else:
-    printTb PyExceptionObject(retRes)
+    PyErr_Print PyExceptionObject(retRes)
     false
 
 template orPrintTb*(retRes): bool{.dirty.} =
-  bind printTb, PyExceptionObject
+  bind PyErr_Print, PyExceptionObject
   if retRes.isThrownException:
-    printTb PyExceptionObject(retRes)
+    PyErr_Print PyExceptionObject(retRes)
     false
   else:
     true
