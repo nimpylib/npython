@@ -1,6 +1,7 @@
-
+## this module's APIs is unstable
 when defined(js):
   import std/jsffi
+  export jsffi
   var ibindExpr{.compileTime.}: int
   template bindExpr*[T=JsObject](asIdent; exprOfJs: string) =
     ## helpers to cache exp (make sure `exp` evaluated by js only once)
@@ -25,8 +26,11 @@ when defined(js):
     ifOr(notNodeInJs, denoOr(deno, def), node)
   #NOTE: As ./compat.nim uses js top-level import, so the whole JS file is
   # ES module, thus `require` is not defined, which we cannot use here.
-  bindExpr[] fsOrDeno, nodeno("(await (import('node:fs')))", "Deno", "null")
+  template genXorDeno(name; s){.dirty.} =
+    bindExpr[] name, nodeno("(await (import('node:"&s&"')))", "Deno", "null")
   # using `await import` without paran will causes js SyntaxError on non-nodejs
+  genXorDeno fsOrDeno, "fs"
+  genXorDeno ttyOrDeno, "tty"  # for .isatty
 
   template fsDeno*(s): untyped =
     bind fsOrDenoInJs
