@@ -10,7 +10,7 @@ from ./abstract/args import clampedIndexOptArgAt
 import ./bltcommon; export bltcommon
 export stringobject
 impExp stringobject,
-  utf8apis, internal
+  utf8apis, internal, codec
 
 
 # redeclare this for these are "private" macros
