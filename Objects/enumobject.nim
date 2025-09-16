@@ -7,6 +7,7 @@ import ./[
   noneobject,
   stringobject,
   typeobject,
+  dictobject,
 ]
 import ./numobjects/intobject
 import ./abstract/[
@@ -15,6 +16,7 @@ import ./abstract/[
 import ../Python/[
   getargs, call,
 ]
+import ../Python/getargs/va_and_kw
 import ../Include/cpython/[
   pyatomic, critical_section,
 ]
@@ -79,11 +81,11 @@ proc newPyEnumerate*(iter: PyObject, start: PyIntObject): PyObject =
   newPyEnumerateImpl pyEnumerateObjectType:
     en.set_index start
 
-implEnumerateMagic New(typ: PyTypeObject, *actualArgs):
-  var iter, start: PyObject
-  unpackOptArgs(actualArgs, "enumerate.__new__", 1, 2, iter, start)
-  newPyEnumerate(iter, start, typ)
-  
+implEnumerateMagic New(typ: PyTypeObject, *actualArgs, **kw):
+  retIfExc PyArg_ParseTupleAndKeywordsAs("enumerate.__new__", actualArgs, kw, [],
+    iterable, start
+  )
+  newPyEnumerate(iterable, start, typ)
 
 type enumobject = PyEnumerateObject
 
