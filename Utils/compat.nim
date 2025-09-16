@@ -17,7 +17,6 @@ when defined(js):
   elif dKarax:
     include karax/prelude
     var stream*: seq[(kstring, kstring)]
-    proc log*(prompt, info: cstring) {. importc .}
     template echoCompat*(content: string) =
       echo content
       stream.add((kstring"", kstring(content)))
@@ -151,7 +150,9 @@ when defined(js):
     template mayNewPromise*(x): untyped =
       bind newPromise
       newPromise(x)
-
+  elif dKarax:
+    let cgetAppFilenameCompat = cstring""
+    proc readLineCompat*(prompt: string): string = doAssert false, "not impl in js karax backend"
   else:
     let cgetAppFilenameCompat{.importjs: ifOr(notDecl"process", "''", "process.argv[0]").}: cstring
     import std/jsffi

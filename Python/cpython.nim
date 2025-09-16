@@ -2,16 +2,16 @@
 import std/parseopt
 import strformat
 
-import neval
 import compile
 import coreconfig
-import traceback
 import lifecycle
 import ./getversion
-import ../Parser/[lexer, parser]
+import ../Parser/[lexer, parser, apis,]
 import ../Objects/bundle
-import ../Utils/[utils, compat, getplatform]
-import ../Include/internal/pycore_global_strings
+import ../Utils/[utils, compat, getplatform, fileio,]
+import ./pythonrun
+import ./pythonrun/utils
+import ./main as pymain
 
 proc getVersionString*(verbose=false): string =
   result = "NPython "
@@ -30,90 +30,71 @@ proc pymain_header =
 
 const Fstdin = "<stdin>"
 
-proc parseCompileEval*(input: string, lexer: Lexer, 
-  rootCst: var ParseNode, prevF: var PyFrameObject, finished: var bool
-  ) =
-    ## stuff to change, just a compatitable layer for ./jspython
-    try:
-      rootCst = parseWithState(input, lexer, Mode.Single, rootCst)
-    except SyntaxError:
-      let e = SyntaxError(getCurrentException())
-      let excpObj = fromBltinSyntaxError(e, newPyAscii(Fstdin))
-      excpObj.printTb
-      finished = true
-      return
+type PyExecutor* = object
+  ## unstable. for karax
+  lexer: Lexer
+  cst: ParseNode
+  filename_obj: PyStrObject
+  globals: PyDictObject
+  nextPrompt*: string
+  flags*: PyCompilerFlags
 
-    if rootCst.isNil:
-      return
-    finished = rootCst.finished
-    if not finished:
-      return
+proc newPyExecutor*(filename = Fstdin): PyExecutor =
+  ## this shall be singleton
+  PyRun_InteractiveLoopPre()
+  result = PyExecutor(
+    lexer: newLexer(filename),
+    filename_obj: newPyStr filename,
+    globals: newPyDict(),
+    nextPrompt: getSysPsEnc().ps1
+  )
 
-    let compileRes = compile(rootCst, Fstdin)
-    if compileRes.isThrownException:
-      PyExceptionObject(compileRes).printTb
-      return
-    let co = PyCodeObject(compileRes)
+proc feedImpl(py: var PyExecutor, input: string): PyBaseErrorObject =
+  # if finished (exception also means finished)
+  audit_PyParser_AST py.filename_obj
+  let finished = tokenize_and_cst_one(input, py.lexer, py.cst, result, py.filename_obj)
+  if not finished:
+    py.nextPrompt = getSysPsEnc().ps2
+    return
+  let rootCst = py.cst
+  py.cst = nil
+  retIfExc result
 
-    when defined(debug):
-      echo co
+  let compileRes = compile(rootCst, py.filename_obj, py.flags)
+  retIfExc compileRes
+  let co = PyCodeObject(compileRes)
 
-    var globals: PyDictObject
-    if prevF != nil:
-      globals = prevF.globals
-    else:
-      globals = newPyDict()
-    globals[pyDUId name] = pyDUId main
-    let fun = newPyFunc(newPyAscii("Bla"), co, globals)
-    let f = newPyFrame(fun)
-    var retObj = f.evalFrame
-    if retObj.isThrownException:
-      PyExceptionObject(retObj).printTb
-    else:
-      prevF = f
+  when defined(debug):
+    echo co
+
+  retIfExc run_eval_code_with_audit(co, py.globals, py.globals)
+  py.nextPrompt = getSysPsEnc().ps1
+
+proc feed*(py: var PyExecutor, input: string) =
+  # stuff to change, just a compatitable layer for ./karaxpython
+  let exc = py.feedImpl input  
+  if not exc.isNil:
+    PyErr_Print exc
+
 
 proc interactiveShell*{.mayAsync.} =
-  var finished = true
-  # the root of the concrete syntax tree. Keep this when user input multiple lines
-  var rootCst: ParseNode
-  let lexer = newLexer(Fstdin)
-  var prevF: PyFrameObject
   pymain_header()
-  while true:
-    var input: string
-    var prompt: string
-    if finished:
-      prompt = ">>> "
-      rootCst = nil
-      lexer.clearIndent
-    else:
-      prompt = "... "
-      assert (not rootCst.isNil)
-
-    try:
-      input = mayAwait readLineCompat(prompt)
-    except EOFError, IOError:
-      quitCompat(0)
-    
-    parseCompileEval(input, lexer, rootCst, prevF, finished)
+  let _ = mayAwait PyRun_AnyFileExFlags(stdin, Fstdin)
 
 
 template exit0or1(suc) = quitCompat(if suc: 0 else: 1)
 
-proc nPython*(args: seq[string],
-    fileExists: proc(fp: string): bool,
-    readFile: proc(fp: string): string,
-  ){.mayAsync.} =
+
+proc nPython(args: seq[string]){.mayAsync.} =
   pyInit(args)
-  if pyConfig.filepath == "":
+  let filename = pyConfig.run_filename
+  if filename == "":
     mayAwait interactiveShell()
   else:
-    if not fileExists(pyConfig.filepath):
-      echo fmt"File does not exist ({pyConfig.filepath})"
-      quitCompat()
-    let input = readFile(pyConfig.filepath)
-    runSimpleString(input, pyConfig.filepath).exit0or1
-
+    #pymain_run_file
+    discard pymain.run_file(pyConfig) #TODO:exit
+  #TODO:exit^C
+  #if PyRuntime.signals.unhandled_keyboard_interrupt
 
 proc echoUsage() =
   echoCompat "usage: python [option] [-c cmd | file]"
@@ -129,8 +110,7 @@ proc echoHelp() =
   echoCompat "file   : program read from script file"
 
 
-proc main*(cmdline: string|seq[string] = "",
-    nPython: proc (args: seq[string]){.mayAsync.}){.mayAsync.} =
+proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
   proc unknownOption(p: OptParser){.noReturn.} =
     var origKey = "-"
     if p.kind == cmdLongOption: origKey.add '-'
@@ -176,7 +156,7 @@ proc main*(cmdline: string|seq[string] = "",
           if p.val != "": p.val
           else: p.remainingArgs()[0]
         pyInit(@[])
-        runSimpleString(code, "<string>").exit0or1
+        PyRun_SimpleString(code).exit0or1
       of "":  # allow -
         discard
       else:
@@ -188,10 +168,7 @@ proc main*(cmdline: string|seq[string] = "",
   else: echoVersion(verbose=true)
 
 when isMainModule:
-  import std/os # file existence
-  proc wrap_nPython(args: seq[string]){.mayAsync.} =
-    mayAwait nPython(args, os.fileExists, readFile)
   when defined(js):
     {.error: "python.nim is for c target. Compile jspython.nim as js target" .}
 
-  mayWaitFor main(nPython=wrap_nPython)
+  mayWaitFor main()

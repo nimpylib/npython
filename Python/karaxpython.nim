@@ -1,25 +1,14 @@
 {.used.}
 
 import std/strutils
-import ./cpython
+import ./[cpython, pythonrun,]
 
-import ../Utils/compat
+import ../Utils/[compat, fileio,]
 
 import ./lifecycle
-import ../Objects/frameobject
+import ../Objects/[frameobject, stringobject,]
 import ../Parser/[lexer, parser]
 pyInit(@[])
-
-var finished = true
-var rootCst: ParseNode
-let lexerInst = newLexer("<stdin>")
-var prevF: PyFrameObject
-proc interactivePython(input: string) {. exportc .} =
-  echo input
-  if finished:
-    rootCst = nil
-    lexerInst.clearIndent
-  parseCompileEval(input, lexerInst, rootCst, prevF, finished)
 
 let info = getVersionString(verbose=true)
 const gitRepoUrl{.strdefine.} = ""
@@ -28,8 +17,6 @@ const repoInfoPre = "This website is frontend-only. Open-Source at "
 include karax/prelude
 import karax/kdom
 import karax/vstyles
-
-var prompt: kstring
 
 let
   suitHeight = (StyleAttr.height, kstring"wrap-content") # XXX: still too height
@@ -181,6 +168,10 @@ proc postRenderCallback() =
   let edit = nodes[0]
   edit.focus()
 
+const fstdin = "<stdin>"
+var pyrunner = newPyExecutor fstdin
+
+var prompt: kstring
 proc createDom(): VNode =
   result = buildHtml(tdiv):
     tdiv(class="header"):
@@ -198,10 +189,7 @@ proc createDom(): VNode =
             text prompt, text content
           )
     oneReplLineNode("expr " & isEditingClass, true, block:
-      prompt = if finished:
-        kstring">>> "
-      else:
-        kstring"... "
+      prompt = kstring pyrunner.nextPrompt
       text prompt
     ,
     block:
@@ -213,7 +201,7 @@ proc createDom(): VNode =
           let kInput = getCurInput()
           let input = $kInput
           pushHistory(prompt, input)
-          interactivePython(input)
+          pyrunner.feed input
           n.dom.innerHTML = kstring""
         of "ArrowUp":
           let kInput = getCurInput()

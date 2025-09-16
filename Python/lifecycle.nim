@@ -45,7 +45,20 @@ proc pyInit*(args: seq[string]) =
 
   chk pycore_init_builtins(): "can't initialize builtins module"
 
-  pyConfig.executable = getAppFilenameCompat()
+  #_PyPathConfig_UpdateGlobal
+  # COPY2(program_full_path, executable)
+
+  #
+  #[initconfig.c:config_parse_cmdline
+  const wchar_t* program = config->program_name;
+  if (!program && argv->length >= 1) {
+      program = argv->items[0];
+  }
+  ]#
+  pyConfig.program_name = getAppFilenameCompat()
+  pyConfig.executable = pyConfig.program_name
+  when compiles(expandFilename""):
+    pyConfig.executable = pyConfig.executable.expandFilename()
   pyConfig.argv = args
   #TODO:argv shall be filtered to remove `-X`,etc
   pyConfig.orig_argv = @[pyConfig.executable] & args
@@ -55,12 +68,13 @@ proc pyInit*(args: seq[string]) =
   if args.len == 0:
     sys.path.add newPyAscii()
   else:
-    pyConfig.filepath = joinPath(getCurrentDir(), args[0])
-    pyConfig.filename = pyConfig.filepath.extractFilename()
-    let s = newPyStr pyConfig.filepath.parentDir()
+    let filepath = joinPath(getCurrentDir(), args[0])
+    pyConfig.run_filename = filepath
+    pyConfig.filename = filepath.extractFilename()
+    let s = newPyStr filepath.parentDir()
     when s is_not PyStrObject:
       if s.isThrownException: Py_FatalError(
-        "failed to add parent dir " & pyConfig.filepath & " to sys.path"
+        "failed to add parent dir " & filepath & " to sys.path"
       )
     sys.path.add s
   when defined(debug):

@@ -1,5 +1,4 @@
 
-import ./neval
 import ./cpython
 import ../Utils/[compat, compat_io_os]
 
@@ -11,10 +10,7 @@ const
   deno = defined(deno)
   dKarax = defined(karax)
 when isMain(nodejs or deno):
-  proc wrap_nPython(args: seq[string]){.mayAsync.} =
-    mayAwait nPython(args, fileExistsCompat, readFileCompat)
-  mayWaitFor main(commandLineParamsCompat(), wrap_nPython)
-
+  mayWaitFor main(commandLineParamsCompat())
 else:
   when isMain(dKarax):
     import ./karaxpython
