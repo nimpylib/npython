@@ -6,6 +6,8 @@ import ../../Objects/[
   exceptions,
   stringobject,
 ]
+import ./tovalsBase
+export tovalsBase
 
 using args: openArray[PyObject]
 using name: string
@@ -37,41 +39,57 @@ template checkPosArgNum(name, nargs, min, max) =
   retIfExc PyArg_CheckPositional(name, nargs, min, max)
 
 
-macro unpack_stack(args; nargs; name; min, max: int, vargs#[: varargs[PyObject]]#) =
-  # like unpack_stack but only for optional args
+template PyArg_DoTupleImpl(asgn){.dirty.} =
   result = newStmtList()
+  let nargs = newCall("len", args)
   result.add getAst(checkPosArgNum(name, nargs, min, max))
-  template asgn(vargs, args, i): NimNode =
-    newAssignment(
-        vargs[i], nnkBracketExpr.newTree(args, newLit i)
-      )#getAst(asgn(vargs, args, i))
   for i in 0..<vargs.len:
-    let body = asgn(vargs, args, i)
+    let v = vargs[i]
+    let body = getAst(asgn(v, args, i))
     result.add quote do:
       if `nargs` > `i`: `body`
 
-template PyArg_UnpackTuple*(args: openArray[PyObject]; name; min, max: Natural;
+proc PyArg_VaUnpackTuple(name: string; args: NimNode#[openArray[PyObject]]#; min, max: Natural;
+  vargs: NimNode#[varargs[PyObject]]#,
+): NimNode =
+  template asgn(v, args, i): NimNode =
+    v = args[i]
+  PyArg_DoTupleImpl asgn
+
+proc PyArg_VaParseTuple*(name: string; args: NimNode#[openArray[PyObject]]#; min, max: Natural;
+  vargs: NimNode#[varargs[PyObject]]#,
+): NimNode =
+  #TODO: current this expr is void, using `retIfExc` to `return` exception, change to become an expr
+  template asgn(v, args, i): NimNode =
+    bind retIfExc
+    retIfExc toval(args[i], v)
+  PyArg_DoTupleImpl asgn
+
+macro unpack_stack(name: static[string]; args; min, max: static[int], vargs#[: varargs[PyObject]]#) =
+  # like CPython's unpack_stack but only for optional args
+  PyArg_VaUnpackTuple(name, args, min, max, vargs)
+
+template PyArg_UnpackTuple*(name; args: openArray[PyObject]; min, max: Natural;
   vargs: varargs[PyObject],
 ) =
   bind unpack_stack
-  let nargs = args.len
-  unpack_stack(args, nargs, name, min, max, vargs)
+  unpack_stack(name, args, min, max, vargs)
 
-template PyArg_UnpackTuple*(args: PyTupleObject, name; min, max: Natural;
+template PyArg_UnpackTuple*(name; args: PyTupleObject, min, max: Natural;
   vargs: varargs[PyObject],
 ) =
   bind PyArg_UnpackTuple
-  PyArg_UnpackTuple(args.items, name, min, max, vargs)
+  PyArg_UnpackTuple(name, args.items, min, max, vargs)
 
 
 template unpackOptArgs*(args; name; min, max: Natural;
     vargs: varargs[PyObject]) =
   ## EXT.
   bind retIfExc, PyArg_UnpackTuple
-  PyArg_UnpackTuple(args, name, min, max, vargs)
+  PyArg_UnpackTuple(name, args, min, max, vargs)
 
 template unpackOptArgs*(name: string; min, max: Natural;
     vargs: varargs[PyObject]) =
   ## EXT.
-  PyArg_UnpackTuple(args, name, min, max, vargs)
+  PyArg_UnpackTuple(name, args, min, max, vargs)
 
