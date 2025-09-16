@@ -10,8 +10,31 @@ import ../Objects/[
 import ../Objects/stringobject/strformat
 import ./pythonrun
 import ./coreconfig
-import ../Utils/[fileio, compat,]
+import ../Utils/[fileio, compat, ]
+import ./main/utils
 
+proc stdin_is_interactive(config: PyConfig): bool =
+  ## Return if stdin is a TTY or if -i command line option is used
+  isatty(fileno(stdin)) or config.interactive
+
+using config: PyConfig
+proc config_run_code(config): bool =
+  ## Return if filename, command (-c) or module (-m) is set on the command line
+  const NULL = ""
+  (config.run_command != NULL or
+            config.run_filename != NULL or
+            config.run_module != NULL)
+
+proc header*(config) =
+  ## pymain_header
+
+  if config.quiet: return
+  if not config.verbose and (config_run_code(config) or not stdin_is_interactive(config)):
+    return
+  errEchoCompat getVersionString(verbose=true)
+  when declared(COPYRIGHT):
+    if config.site_import:
+      errEchoCompat COPYRIGHT
 
 using exc: PyBaseErrorObject
 proc err_print(exc; exitcode_p: var int): bool =

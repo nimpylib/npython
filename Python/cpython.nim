@@ -8,25 +8,15 @@ import lifecycle
 import ./getversion
 import ../Parser/[lexer, parser, apis,]
 import ../Objects/bundle
-import ../Utils/[utils, compat, getplatform, fileio,]
+import ../Utils/[utils, compat, fileio,]
 import ./pythonrun
 import ./pythonrun/utils
 import ./main as pymain
+from ./main/utils import getVersionString
+export getVersionString
 
-proc getVersionString*(verbose=false): string =
-  result = "NPython "
-  if not verbose:
-    result.add Version
-    return
-  result.add Py_GetVersion()
-  result.add " on "
-  result.add PLATFORM
 template echoVersion(verbose=false) =
   echoCompat getVersionString(verbose)
-
-proc pymain_header =
-  if pyConfig.quiet: return
-  errEchoCompat getVersionString(verbose=true)
 
 const Fstdin = "<stdin>"
 
@@ -78,7 +68,7 @@ proc feed*(py: var PyExecutor, input: string) =
 
 
 proc interactiveShell*{.mayAsync.} =
-  pymain_header()
+  pymain.header(pyConfig)
   let _ = mayAwait PyRun_AnyFileExFlags(stdin, Fstdin)
 
 
@@ -152,11 +142,11 @@ proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
       of "c":
         p.noLongOption()
         #let argv = @["-c"] & p.remainingArgs()
-        let code =
+        pyConfig.run_command =
           if p.val != "": p.val
           else: p.remainingArgs()[0]
         pyInit(@[])
-        PyRun_SimpleString(code).exit0or1
+        PyRun_SimpleString(pyConfig.run_command).exit0or1
       of "":  # allow -
         discard
       else:
