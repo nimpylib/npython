@@ -3,7 +3,7 @@
 when defined(nimPreviewSlimSys):
   import std/syncio
 
-import ../Utils/[compat]
+import ../Utils/[compat, utils]
 when not declared(stdout):
   import ../Utils/[compat_io_os, jsdispatch,]
   type
@@ -67,9 +67,33 @@ else:
   proc fileno*(f: File): cint = cint f.getFileHandle
   export readLineFromStdin
 
+  # condition copied from source code of rdstdin
+  const notSupLinenoise = defined(windows) or defined(genode)
+  when not notSupLinenoise:
+    import std/linenoise
   proc readLine*(stdinF, stdoutF: File, prompt: string): string{.mayAsync.} =
-    stdoutF.write prompt
-    mayAwait stdinF.readLine()
+    when notSupLinenoise:
+      stdoutF.write prompt
+      mayNewPromise stdinF.readLine()
+    else:
+      assert stdinF == stdin
+      var res: ReadLineResult
+      # readLineFromStdin cannot distinguish ctrlC and ctrlD and other error
+      while true:
+        readLineStatus(prompt, res)
+        case res.status
+        of lnCtrlC:
+          #raise new InterruptError
+          #errEchoCompatNoRaise"KeyboardInterrupt"
+          raise new InterruptError #KeybordInterrupt
+        of lnCtrlD:
+          raise new EOFError
+        of lnCtrlUnkown:
+          # neither ctrl-c nor ctrl-d getten
+          #  e.g. simple input and pass Enter
+          break
+      historyAdd cstring res.line
+      mayNewPromise res.line
   
   proc flush_io*() =
     stderr.flushFile
