@@ -5,7 +5,6 @@ import std/sets
 import compile
 import opcode
 import builtindict
-import traceback
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
                    setobject, notimplementedobject, boolobjectImpl,
@@ -13,7 +12,6 @@ import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
 import ../Utils/utils
 import ./[
   neval_frame,
-  neval_helpers,
   pyimport,
 ]
 export pyimport, neval_frame
@@ -175,8 +173,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   template sEmpty: bool = 
     valStack.len == 0
 
-  template sLen: int = 
-    valStack.len
 
   template setStackLen(s: int) = 
     # gh-10651
@@ -203,9 +199,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   template hasTryBlock: bool = 
     0 < blockStack.len
 
-  template getTryHandler: int = 
-    blockStack[^1].handler
-    
 
   template addTryBlock(opArg, stackPtr: int, cxt:PyExceptionObject=nil) = 
     blockStack.add(TryBlock(handler:opArg, sPtr:stackPtr, context:cxt))
@@ -781,29 +774,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
 
 # interfaces to upper level
-proc runCode*(co: PyCodeObject): PyObject = 
+proc runCode*(co: PyCodeObject, globals = newPyDict()): PyObject = 
   when defined(debug):
     echo co
-  let fun = newPyFunc(newPyAscii("<module>"), co, newPyDict())
+  let fun = newPyFunc(co.codeName, co, globals)
   let f = newPyFrame(fun)
   f.evalFrame
 
-
-proc runString*(input, fileName: string): PyObject = 
-  let compileRes = compile(input, fileName)
-  if compileRes.isThrownException:
-    return compileRes
-  runCode(PyCodeObject(compileRes))
-
-
-proc runSimpleString*(input, fileName: string): bool =
-  ## returns if successful.
-  ##
-  ## a little like `_PyRun_SimpleStringFlagsWithName`
-  ## but as you may know, it only returns -1 for failure and
-  ## 0 for success, so returing a bool is better
-  let compileRes = compile(input, fileName)
-  result = compileRes.orPrintTb
-  if not result: return
-  let runRes = runCode(PyCodeObject(compileRes))
-  result = runRes.orPrintTb
+proc evalCode*(co: PyCodeObject; globals = newPyDict(), locals: PyDictObject = nil): PyObject =
+  ## PyEval_EvalCode
+  if not locals.isNil:
+    assert system.`==`(globals, locals), "Currently, locals must be literal equal to globals"
+  co.runCode globals
