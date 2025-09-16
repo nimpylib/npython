@@ -12,7 +12,7 @@ import ./[
 import ../Python/[
   sysmodule, asdl, ast,
 ]
-import ../Objects/[
+import ../Objects/[pyobject,
   stringobject, exceptionsImpl,
   noneobject,
 ]
@@ -46,11 +46,17 @@ template interactiveHandleErrcode*(res: untyped=nil) =
   if errcode == E_EOF:
     return
 
+declarePyType InteractiveSrc(base(Str)): lineNo: int
+proc newPyInteractiveSrc* : PyInteractiveSrcObject = newPyInteractiveSrcSimple()  ##XXX: unstable, \
+## workaround for repl lineNo tracking
+##  (otherwise it will always be 1, as we create a new Lexer whose lineNo is initialized each time)
+
 proc tokenize_and_cst(fp; filename_obj: PyStrObject; enc: string, ps1, ps2: string,
     errcode: var ParseErrorcode,
     rootCst: var ParseNode, # out. the root of the concrete syntax tree. 
+    interactive_src: var PyInteractiveSrcObject,
     ): PyBaseErrorObject {.mayAsync.} =
-  let lexer = newLexer($filename_obj)
+  let lexer = newLexer($filename_obj, interactive_src.lineNo)
 
   var input: string
   var exc: PyBaseErrorObject
@@ -72,12 +78,13 @@ proc tokenize_and_cst(fp; filename_obj: PyStrObject; enc: string, ps1, ps2: stri
     if tokenize_and_cst_one(input, lexer, rootCst, exc, filename_obj):
       result = mayNewPromise exc
       break
+  interactive_src.lineNo = lexer.lineNo
   retIfExc result
   result
 
 
 proc run_parser_from_file_pointer(fp; mode: Mode, filename_obj: PyStrObject; enc: string, ps1, ps2: string, flags: PyCompilerFlags,
-    errcode: var ParseErrorcode, interactive_src: var PyStrObject,
+    errcode: var ParseErrorcode, interactive_src: var PyInteractiveSrcObject,
     res: var Asdlmodl
     ): PyBaseErrorObject {.mayAsync.} =
   ## roughly equal to `_PyPegen_run_parser_from_file_pointer`
@@ -90,7 +97,7 @@ proc run_parser_from_file_pointer(fp; mode: Mode, filename_obj: PyStrObject; enc
   var rootCst: ParseNode
 
   # _PyTokenizer_FromFile
-  retIfExc tokenize_and_cst(fp, filename_obj, enc, ps1, ps2, errcode, rootCst)
+  retIfExc tokenize_and_cst(fp, filename_obj, enc, ps1, ps2, errcode, rootCst, interactive_src)
   interactiveHandleErrcode
 
   try:
@@ -148,7 +155,7 @@ template audit_PyParser_AST_mayAsync*(filename_obj) =
   retIfExc mayNewPromise audit("compile", pyNone, filename_obj)
 
 proc PyParser_InteractiveASTFromFile*(fp; filename_obj: PyStrObject; enc: string, mode: Mode, ps1, ps2: string, flags: PyCompilerFlags,
-    errcode: var ParseErrorcode, interactive_src: var PyStrObject,
+    errcode: var ParseErrorcode, interactive_src: var PyInteractiveSrcObject,
     res: var Asdlmodl
     ): PyBaseErrorObject {.mayAsync.} =
   audit_PyParser_AST_mayAsync filename_obj

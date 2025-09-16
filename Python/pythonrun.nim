@@ -58,7 +58,7 @@ proc run_mod(modu; filename; globals; locals: PyDictObject; flags): PyObject = r
 
 using errcode: var ParseErrorcode
 
-proc pyrun_one_parse_ast(fp; filename; flags; pmod; interactive_src: var PyStrObject, errcode): PyBaseErrorObject{.mayAsync, pyCFuncPragma.} =
+proc pyrun_one_parse_ast(fp; filename; flags; pmod; interactive_src: var PyInteractiveSrcObject, errcode): PyBaseErrorObject{.mayAsync, pyCFuncPragma.} =
   ## Call _PyParser_ASTFromFile() with sys.stdin.encoding, sys.ps1 and sys.ps2
   assert fp == stdin
   let (ps1, ps2, encoding) = getSysPsEnc()
@@ -71,11 +71,10 @@ proc pyrun_one_parse_ast(fp; filename; flags; pmod; interactive_src: var PyStrOb
   mayNewPromise PyBaseErrorObject nil
 
 
-proc PyRun_InteractiveOneObjectEx(fp; filename; flags; main_dict: PyDictObject, errcode): PyBaseErrorObject{.mayAsync, pyCFuncPragma.} =
+proc PyRun_InteractiveOneObjectEx(fp; filename; flags; main_dict: PyDictObject; interactive_src: var PyInteractiveSrcObject, errcode): PyBaseErrorObject{.mayAsync, pyCFuncPragma.} =
   ##[A PyRun_InteractiveOneObject() auxiliary function that does not print the
   error on failure.]##
   var modu: AsdlModl
-  var interactive_src: PyStrObject
   retIfExc pyrun_one_parse_ast(fp, filename, flags, modu, interactive_src, errcode)
   interactiveHandleErrcode
 
@@ -105,7 +104,7 @@ export PyRun_InteractiveLoopPre
 
 template runIteractOneAndhandleExc =
   var errcode{.inject.}: ParseErrorcode
-  let exc = mayAwait PyRun_InteractiveOneObjectEx(fp, filename, flags, main_dict, errcode)
+  let exc = mayAwait PyRun_InteractiveOneObjectEx(fp, filename, flags, main_dict, interactive_src, errcode)
   interactiveHandleErrcode true
   if not exc.isNil:
     PyErr_Print(exc)
@@ -123,6 +122,7 @@ proc PyRun_InteractiveLoopObjectImpl(fp; filename; flags): bool {.mayAsync.} =
   ## returns if fails
   PyRun_InteractiveLoopPre()
 
+  var interactive_src = newPyInteractiveSrc()
   let main_dict = getMainDict(mayNewPromise true)
 
   while true:
@@ -221,7 +221,7 @@ proc PyRun_AnyFileExFlags*(fp; filename: string; closeit=false, flags=initPyComp
 # PyRun_AnyFileExFlags
 #  PyRun_AnyFileExFlags
 
-
+#[
 proc PyRun_InteractiveOneObject*(fp; filename; flags): PyBaseErrorObject{.mayAsync, pyCFuncPragma.} =
   let main_dict = getMainDict(nil)
   var errcode: ParseErrorcode
@@ -230,7 +230,7 @@ proc PyRun_InteractiveOneObject*(fp; filename; flags): PyBaseErrorObject{.mayAsy
   if not res.isNil:
     PyErr_Print res
   res
-
+]#
 using str: string
 proc PyRun_StringFlagsWithName(str; name: PyStrObject, mode; globals; locals; flags; generate_new_source: bool): PyObject{.raises: [].} =
   var modu: Asdlmodl

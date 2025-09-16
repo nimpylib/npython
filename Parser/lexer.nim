@@ -71,6 +71,9 @@ proc newLexer*(fileName: string): Lexer =
   new result
   result.fileName = fileName
   result.indentStack = @[0] # Start with a single zero on the stack
+proc newLexer*(fileName: string, lineNo: int): Lexer = 
+  result = newLexer(fileName)
+  result.lineNo = lineNo
 
 # when we need a fresh start in interactive mode
 proc clearTokens*(lexer: Lexer) = 
