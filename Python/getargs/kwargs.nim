@@ -7,8 +7,8 @@ import ../../Objects/[
   stringobject,
   dictobject,
 ]
-import ./tovalsBase
-export tovalsBase
+import ./[tovalsBase, tovalUtils, paramsMeta]
+export tovalsBase, paramsMeta
 
 proc PyArg_UnpackKeywords*(kwargs: PyDictObject; keywords: openArray[string]): seq[PyObject] =
   for k in keywords:
@@ -22,11 +22,11 @@ const
 
 
 template lukImpl(exc; kwargs: PyDictObject, v, k; parseBlk){.dirty.} =
-  bind pop, newPyStr
+  bind pop, newPyStr, tovalAux
   block:
     var res: PyObject
     if kwargs.pop(newPyStr k, res):
-      exc = toval(res, v)
+      exc = tovalAux(res, v)
       if not exc.isNil:
         break parseBlk
 

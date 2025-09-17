@@ -6,8 +6,8 @@ import ../../Objects/[
   exceptions,
   stringobject,
 ]
-import ./tovalsBase
-export tovalsBase
+import ./[tovalsBase, tovalUtils, paramsMeta]
+export tovalsBase, paramsMeta
 
 using args: openArray[PyObject]
 using name: string
@@ -60,9 +60,9 @@ proc PyArg_VaParseTuple*(name: string; args: NimNode#[openArray[PyObject]]#; min
   vargs: NimNode#[varargs[PyObject]]#,
 ): NimNode =
   #TODO: current this expr is void, using `retIfExc` to `return` exception, change to become an expr
-  template asgn(v, args, i): NimNode =
-    bind retIfExc
-    retIfExc toval(args[i], v)
+  template asgn(v, args, i): untyped =
+    bind retIfExc, tovalAux
+    retIfExc tovalAux(args[i], v)
   PyArg_DoTupleImpl asgn
 
 macro unpack_stack(name: static[string]; args; min, max: static[int], vargs#[: varargs[PyObject]]#) =

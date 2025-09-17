@@ -1,8 +1,8 @@
 
 
 import std/macros
-import ./[kwargs, vargs, tovals]
-export tovals
+import ./[kwargs, vargs, tovals, tovalUtils, paramsMeta]
+export tovals, paramsMeta
 import ../../Objects/[
   pyobject,
   exceptions,
@@ -19,7 +19,7 @@ proc PyArg_VaParseTupleAndKeywords*(funcname: string, args: NimNode#[openArray[P
   for i in kwOnlyIdx..<vargs.len:
     let v = vargs[i]
     kvargs.add v
-    kwlist.add v.strVal
+    kwlist.add v.getNameOfParam.strVal
   result.add PyArg_VaUnpackKeywords(funcname, keywords, kwList, kvargs)
 
 proc PyArg_VaParseTupleAndKeywordsAs*(funcname: string, args: NimNode#[openArray[PyObject]]#, keywords: NimNode#[PyDictObject]#,
@@ -38,13 +38,25 @@ proc PyArg_VaParseTupleAndKeywordsAs*(funcname: string, args: NimNode#[openArray
       let name = i[0]
       result.add newVarStmt(name, i[1])
       vars.add name
+    elif i.kind == nnkIdentDefs:
+      let varname = i[0]
+      result.add nnkVarSection.newTree i
+      vars.add varname
     else:
-      result.add nnkVarSection.newTree newIdentDefs(i, bindSym"PyObject")
-      vars.add i
+      let (varname, typ) =
+        if i.kind == nnkExprColonExpr:
+          (i[0], i[1])
+        else:
+          (i, bindSym"PyObject")
+      result.add nnkVarSection.newTree newIdentDefs(varname, typ)
+      vars.add varname
   result.add PyArg_VaParseTupleAndKeywords(funcname, args, keywords, kwOnlyList, vars)
 
 macro PyArg_ParseTupleAndKeywords*(funcname: static[string], args: openArray[PyObject], keywords: PyDictObject,
     kwOnlyList: static openArray[string]; vargs: varargs[typed]): PyBaseErrorObject =
+  ## vargs can be, e.g.:
+  ## `v: int` or `v = 1`,
+  ## also pragma like `convertVia`_ is supported
   PyArg_VaParseTupleAndKeywords(funcname, args, keywords, kwOnlyList, vargs)
 
 macro PyArg_ParseTupleAndKeywordsAs*(funcname: static[string], args: openArray[PyObject], keywords: PyDictObject,
