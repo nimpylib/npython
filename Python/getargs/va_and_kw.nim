@@ -19,7 +19,7 @@ proc PyArg_VaParseTupleAndKeywords*(funcname: string, args: NimNode#[openArray[P
   for i in kwOnlyIdx..<vargs.len:
     let v = vargs[i]
     kvargs.add v
-    kwlist.add v.getNameOfParam.strVal
+    kwlist.add v.getPyNameOfParamAsStr
   result.add PyArg_VaUnpackKeywords(funcname, keywords, kwList, kvargs)
 
 proc PyArg_VaParseTupleAndKeywordsAs*(funcname: string, args: NimNode#[openArray[PyObject]]#, keywords: NimNode#[PyDictObject]#,

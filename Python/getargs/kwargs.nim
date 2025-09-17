@@ -55,17 +55,10 @@ template implWithKeywords(){.dirty.} =
     for i, k in keywords:
       asgn(vars[i], k)
 
-proc getIdentName(n: NimNode): string =
-  if n.kind == nnkAccQuoted:
-    n.expectLen 1
-    n[0].strVal
-  else:
-    n.strVal
-
 template implWithVars(){.dirty.} =
   result.withBlk:
     for i, v in vars:
-      asgn(v, v.getIdentName)
+      asgn(v, v.getPyNameOfParamAsStr)
 
 template resStmt{.dirty.} =  
   result = newStmtList()
