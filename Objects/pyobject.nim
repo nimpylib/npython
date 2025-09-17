@@ -704,9 +704,10 @@ macro declarePyType*(prototype, fields: untyped): untyped =
 
       var memberPyId: NimNode
       for i in pragmas:
-        if i.eqIdent"member" or i.kind == nnkCall and i[0].eqIdent"member":
+        var isMemberCall: bool
+        if i.eqIdent"member" or (isMemberCall = i.kind in {nnkCall, nnkCallStrLit}; isMemberCall) and i[0].eqIdent"member":
           var memberPragma = i
-          if memberPragma.kind == nnkCall:
+          if isMemberCall:
             expectLen memberPragma, 2
             memberPyId = memberPragma[1]
             memberPyId.expectKind {nnkStrLit, nnkRStrLit, nnkTripleStrLit}
