@@ -3,6 +3,6 @@ import ./stringobject
 import ../Utils/trans_imp
 export stringobject
 impExp stringobject,
-  utf8apis, internal, codec, meth
-
+  utf8apis, internal, meth
+# XXX: import codec causes rec-dep
 

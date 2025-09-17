@@ -14,6 +14,7 @@ import ../Objects/[
   stringobjectImpl, exceptionsImpl,
   dictobject,
 ]
+import ../Objects/stringobject/codec
 from ./pylifecycle/utils import Py_FdIsInteractive
 import ./pythonrun/utils
 impExp pythonrun,
