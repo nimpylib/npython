@@ -9,12 +9,12 @@ import cellobject
 
 declarePyType Frame():
   # currently not used?
-  back: PyFrameObject
-  code: PyCodeObject
+  back{.member"f_back", readonly.}: PyFrameObject
+  code{.member"f_code", readonly.}: PyCodeObject
   # dicts and sequences for variable lookup
   # locals not used for now
   # locals*: PyDictObject
-  globals: PyDictObject
+  globals{.member"f_globals", readonly.}: PyDictObject
   # builtins: PyDictObject
   fastLocals: seq[PyObject]
   cellVars: seq[PyCellObject]

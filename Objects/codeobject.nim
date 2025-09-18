@@ -1,8 +1,12 @@
 import strformat
 import strutils
 
-import pyobject
-import stringobject
+import ./[pyobject,
+  exceptions,
+  stringobject,
+  byteobjects,
+]
+import ./numobjects/intobject_decl
 import ../Python/[opcode, symtable]
 
 type
@@ -12,21 +16,44 @@ declarePyType Code(tpToken):
     # for convenient and not performance critical accessing
     code: seq[(OpCode, OpArg)]
     lineNos: seq[int]
-    constants: seq[PyObject]
+    constants{.member"co_consts", readonly.}: seq[PyObject]
 
     # store the strings for exception and debugging infomation
-    names: seq[PyStrObject]
-    localVars: seq[PyStrObject]
-    cellVars: seq[PyStrObject]
-    freeVars: seq[PyStrObject]
+    names{.member"co_names", readonly.}: seq[PyStrObject]
+    localVars{.member"co_varnames", readonly.}: seq[PyStrObject]
+    cellVars{.member"co_cellvars", readonly.}: seq[PyStrObject]
+    freeVars{.member"co_freevars", readonly.}: seq[PyStrObject]
 
     argNames: seq[PyStrObject]
     argScopes: seq[(Scope, int)]
 
     # for tracebacks
-    codeName: PyStrObject
-    fileName: PyStrObject
+    codeName{.member"co_name", readonly.}: PyStrObject
+    fileName{.member"co_filename", readonly.}: PyStrObject
 
+    # cache
+    code_adaptive_cached{.private.}: PyBytesObject
+    code_len_when_last_cached{.private.}: int
+
+genProperty Code, "co_argcount", argcount, newPyInt self.argNames.len
+genProperty Code, "co_firstlineno", firstlineno, newPyInt self.lineNos[0]
+static: assert OpCode.high.BiggestInt <= char.high.BiggestInt
+proc code_adaptiveImpl(self: PyCodeObject): seq[char] =
+  result = newSeqOfCap[char](2*self.code.len)
+  template push(i) = result.add cast[char](i)
+  for (ocode, oarg) in self.code:
+    push ocode
+    if oarg > OpArg 0:
+      push oarg
+    push 0
+proc code_adaptive*(self: PyCodeObject): PyBytesObject =
+  let curLen = self.code.len
+  if curLen == self.code_len_when_last_cached: return self.code_adaptive_cached
+  result = newPyBytes self.code_adaptiveImpl
+  self.code_adaptive_cached = result
+  self.code_len_when_last_cached = curLen
+
+genProperty Code, "co_code", code, self.code_adaptive
 
 # most attrs of code objects are set in compile.nim
 proc newPyCode*(codeName, fileName: PyStrObject, length: int): PyCodeObject =
@@ -95,3 +122,6 @@ method `$`*(code: PyCodeObject): string{.raises: [].} =
   for otherCode in otherCodes:
     result &= $otherCode
 
+when not defined(release):
+  # EXT. for debug
+  implCodeMethod "_npython_repr": newPyStr $self
