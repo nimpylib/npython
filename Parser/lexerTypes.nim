@@ -4,9 +4,9 @@ import ../Utils/[utils]
 
 type
   Mode* {.pure.} = enum
-    Single
-    File
-    Eval
+    Single = "single"
+    File = "exec"
+    Eval = "eval"
   #[
   LexerState* = enum
     E_OK = 10
@@ -35,7 +35,15 @@ type
       ]
     ]  ## is handling triple string (multiline string)
 
-
+proc parseModeEnum*(s: string, res: var Mode): bool =
+  template ret(x) =
+    res = Mode.x
+    return true
+  case s
+  of "single": ret Single
+  of "exec": ret File
+  of "eval": ret Eval
+  else: return false
 
 proc cont*(lexer: Lexer): bool{.inline.} = lexer.tripleStr.within
 
