@@ -697,12 +697,13 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     var name = field[0]
     let fieldType = field[1][0]
     var fieldPrivate = false #XXX: historial
+    var memberPyId: NimNode
+    var memberNameDiffer = false
     if name.kind == nnkPragmaExpr:
       let pragmas = name[1]
       name = name[0]
       pragmas.expectKind nnkPragma
 
-      var memberPyId: NimNode
       for i in pragmas:
         var isMemberCall: bool
         if i.eqIdent"member" or (isMemberCall = i.kind in {nnkCall, nnkCallStrLit}; isMemberCall) and i[0].eqIdent"member":
@@ -713,12 +714,14 @@ macro declarePyType*(prototype, fields: untyped): untyped =
             memberPyId.expectKind {nnkStrLit, nnkRStrLit, nnkTripleStrLit}
             memberPragma = memberPragma[0]
             memberPragma.expectIdent"member"
+            memberNameDiffer = true
           else:
             memberPyId = name
         elif i.kind == nnkIdent:
           case i.strVal
           of "dunder_member":
             memberPyId = ident("__" & name.strVal & "__")
+            memberNameDiffer = true
           of "private": fieldPrivate = true
       
       if memberPyId != default NimNode:
@@ -733,7 +736,17 @@ macro declarePyType*(prototype, fields: untyped): untyped =
           newCall(bindSym"offsetOf", fullNameIdent, name),
           nnkExprEqExpr.newTree(ident("flags"), flags)
         )
-    reclist.addField(name, fieldType, fieldPrivate)
+    var fld = if fieldPrivate: name
+    else: name.postfix"*"
+    when defined(js):
+      # XXX: structmember.nim rely on JS's object attr name to get/set `{.member.}` field
+      if memberNameDiffer:
+        fld = nnkPragmaExpr.newTree(fld, nnkPragma.newTree(
+          nnkExprColonExpr.newTree(
+            ident"exportc", #XXX: exportjs not allowed by Nim here
+            newStrLitNode memberPyId.strVal)
+        ))
+    reclist.addField(fld, fieldType, true)
 
   # add fields related to options
   if reprLock:
