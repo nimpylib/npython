@@ -2,6 +2,7 @@
 
 
 import std/hashes
+from std/sugar import collect
 import ../[
   pyobject,
 ]
@@ -18,6 +19,12 @@ proc newPyTuple*(items: seq[PyObject]): PyTupleObject =
   result = newPyTuple()
   # shallow copy
   result.items = items
+
+template PyTuple_Collect*(body): PyTupleObject =
+  ## EXT. use as std/sugar's collect.
+  ## this exists as we cannot define `PyTuple_New`(which accepts int as len)
+  bind collect, newPyTuple
+  newPyTuple collect body
 
 proc newPyTuple*[T: PyObject](items: openArray[T]): PyTupleObject{.inline.} = 
   newPyTuple @items

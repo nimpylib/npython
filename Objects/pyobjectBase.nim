@@ -305,6 +305,7 @@ when defined(js):
 proc idStr*(obj: PyObject): string {. inline .} = 
   fmt"{obj.id:#x}"
 
+converter toObjSeq*[Py: PyObject](s: seq[Py]): seq[PyObject]{.inline.} = cast[seq[PyObject]](s)  ## allow auto upcast
 
 # record builtin types defined. Make them ready for Python level usage in typeReady
 var bltinTypes*: seq[PyTypeObject]
