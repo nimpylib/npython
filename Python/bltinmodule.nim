@@ -14,7 +14,9 @@ import ../Objects/exceptions/ioerror
 import ../Utils/[utils, macroutils, compat]
 import ./getargs
 import ./getargs/[kwargs, optionstr,]
-
+import ../Utils/trans_imp
+impExp bltinmodule,
+  compile_eval_exec, iterobjects
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
   let nameStr = newPyAscii(name)
@@ -26,6 +28,8 @@ proc registerBltinObject(name: string, obj: PyObject) =
   let nameStr = newPyAscii(name)
   assert (not bltinDict.hasKey(nameStr))
   bltinDict[nameStr] = obj
+
+register_compile_eval_exec
 
 # make it public so that neval.nim can use it
 macro implBltinFunc*(prototype, pyName, body: untyped): untyped = 
@@ -205,6 +209,7 @@ registerBltinObject("NotImplemented", pyNotImplemented)
 registerBltinObject("Ellipsis", pyEllipsis)
 registerBltinObject("None", pyNone)
 
+register_iter_objects
 registerBltinObject("bool", pyBoolObjectType)
 registerBltinObject("bytearray", pyByteArrayObjectType)
 registerBltinObject("bytes", pyBytesObjectType)
