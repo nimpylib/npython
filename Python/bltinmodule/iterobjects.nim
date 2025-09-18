@@ -7,10 +7,12 @@ import ../../Objects/[
   noneobject,
   stringobject,
 ]
+import ../call
 import ../../Objects/abstract/[
   iter, sequence,
 ]
 import ../getargs/[kwargs, tovals,]
+import ./utils
 
 # zip object *********
 declarePyType Zip():
@@ -108,9 +110,59 @@ proc next*(self): PyObject =
 implZipMagic iternext: self.next()
 implZipMagic iter: self
 
-template reg(f) =
-  registerBltinObject astToStr(f), `py f ObjectType`
-template register_iter_objects* =
-  reg zip
 
+# map object **********
+declarePyType Map():
+  iters: PyTupleObject
+  fun: PyObject
+  strict: bool
+
+
+type mapobject = PyMapObject
+
+template newPyMapImpl(tp_alloc_may_exc: static bool; args: PyTupleObject, tfun: PyObject; tstrict: bool; typ=pyMapObjectType) =
+  #  Get iterator.
+  let iters = PyTuple_Collect:
+    for item in args:
+      let it = PyObject_GetIter(item)
+      retIfExc it
+      it
+  # create mapobject structure
+  let res = typ.tp_alloc(typ, 0)
+  when tp_alloc_may_exc:
+    retIfExc res
+  let lz = mapobject res
+  lz.iters = iters
+  lz.fun = tfun
+  lz.strict = tstrict
+  result = lz
+  
+proc newPyMap*(args: openArray[PyObject], fun: PyObject, strict: bool; typ: PyTypeObject): PyObject =
+  newPyMapImpl(true, newPyTuple args, fun, strict, typ)
+proc newPyMap*(args: openArray[PyObject], fun: PyObject, strict=false): PyObject =
+  newPyMapImpl(false,newPyTuple args, fun, strict, pyMapObjectType)
+
+proc newPyMap*(args: PyTupleObject, fun: PyObject, strict: bool; typ: PyTypeObject): PyObject =
+  newPyMapImpl(true, args, fun, strict, typ)
+proc newPyMap*(args: PyTupleObject, fun: PyObject, strict=false): PyObject =
+  newPyMapImpl(false, args, fun, strict, pyMapObjectType)
+
+implMapMagic New(tp: PyObject, fun, *iters, **kw):
+  var strict = false
+  retIfExc PyArg_UnpackKeywordsTo("map", kw, strict)
+  newPyMap(iters, fun, strict, PyTypeObject tp)
+
+using self: mapobject
+proc next*(self): PyObject =
+  var stack = newSeqOfCap[PyObject](self.iters.len)
+  loopIter self.iters, "map":
+    stack.add item
+  fastCall(self.fun, stack)
+
+implMapMagic iternext: self.next()
+implMapMagic iter: self
+
+template register_iter_objects* =
+  regobj zip
+  regobj map
 
