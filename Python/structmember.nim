@@ -4,13 +4,14 @@ import ../Include/cpython/pyatomic
 import ../Objects/[
   pyobjectBase, exceptions,
   numobjects, boolobject, stringobjectImpl, noneobject,
+  tupleobject,
 ]
 import ./[
   warnings, errors,
 ]
 
 import ../Include/descrobject
-
+type NimPyTuple = seq[PyObject]
 const Js = defined(js)
 when Js:
   # As of Nim 2.3.1, ref object or object is simply
@@ -34,7 +35,10 @@ when Js:
 else:
   type Addr = pointer|int
   proc loadAt[T](p: Addr): T{.cdecl,inline.} =
-    Py_atomic_load_relaxed(cast[ptr T](p))
+    when T is NimPyTuple:
+      (cast[ptr NimPyTuple](p))[]
+    else:
+      Py_atomic_load_relaxed(cast[ptr T](p))
 
   template storeAt[T](p: ptr T, v: T) = Py_atomic_store_relaxed(p, v)
   template storeAt[T](p: Addr, v: T) = storeAt cast[ptr T](p), v
@@ -111,6 +115,10 @@ proc PyMember_GetOne*(obj_addr: PyObject, l: PyMemberDef): PyObject =
   of akChar: As char, newPyStr
   of akPyObject: As PyObject, member_get_object
   of akNone: result = pyNone  # `_Py_T_NONE` Deprecated. Value is always None.
+  of akSequence:
+    assert l.flags.readonly, "{.member.} for seq[PyObject] must be readonly, "&
+      "if mutable needed, please handy write getter and setter"
+    As NimPyTuple, newPyTuple # py:tuple for nim:seq[PyObject] (readonly)
   else: sysErr newPyAscii"bad memberdescr type"
 
 template WARN(s) =

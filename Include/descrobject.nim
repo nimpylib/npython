@@ -61,8 +61,8 @@ template genTypeToAnyKind*(PyObject){.dirty.} =
   bind AnyKind
   mixin parseEnum, newLit, strVal
 
-  template typeToAnyKind*[T: PyObject](t: typedesc[T]): AnyKind =
-    akPyObject
+  template typeToAnyKind*[T: PyObject](t: typedesc[T]): AnyKind = akPyObject
+  template typeToAnyKind*[Py: PyObject](t: typedesc[seq[Py]]): AnyKind = akSequence
   macro typeToAnyKind*[T](t: typedesc[T]): AnyKind =
     let res = parseEnum[AnyKind]("ak" & t.strVal)
     newLit res
