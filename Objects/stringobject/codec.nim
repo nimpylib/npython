@@ -15,7 +15,7 @@ proc PyUnicode_FSDecoder*(arg: PyObject, val: var PyStrObject): PyBaseErrorObjec
   retIfExc path
   let output = if path.ofPyStrObject: PyStrObject path
   elif path.ofPyBytesObject:
-    PyUnicode_DecodeFSDefault PyBytesObject(path).items
+    PyUnicode_DecodeFSDefault PyBytesObject(path).asString
   else:
     return newTypeError newPyStr(
       "path should be string, bytes, or os.PathLike, not " & arg.typeName.substr(0, 199))

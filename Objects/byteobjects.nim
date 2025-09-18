@@ -5,8 +5,9 @@ import ./pyobject
 from ./abstract/iter import PyObject_GetIter
 import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
 import ./numobjects/intobject/[decl, ops_imp_warn]
+#XXX: Nim's string ops has bugs for NUL('\0') char, e.g. len('1\02') gives 2
 declarePyType Bytes(tpToken):
-  items: string
+  items: seq[char]
   setHash: bool
   privateHash: Hash
 
@@ -55,7 +56,8 @@ proc getInt*(s: PyByteLike, i: int): PyIntObject = newPyInt s[i]
 
 template impl(B, InitT, newTOfCap){.dirty.} =
 
-  method `$`*(s: `Py B Object`): string = $s.items
+  proc asString*(s: `Py B Object`): string = $s.items
+  method `$`*(s: `Py B Object`): string = s.asString
   proc `newPy B`*(s: InitT = default InitT): `Py B Object` =
     result = `newPy B Simple`()
     result.items = s
@@ -64,22 +66,22 @@ template impl(B, InitT, newTOfCap){.dirty.} =
   proc `&`*(s1, s2: `Py B Object`): `Py B Object` =
     `newPy B`(s1.items & s2.items)
 
-impl Bytes, string, newString
+impl Bytes, seq[char], newSeq[char]
 impl ByteArray, seq[char], newSeq[char]
 
 
 proc finish*(self: sink PyBytesWriter): PyObject =
   if self.use_bytearray: newPyByteArray move self.s
-  else: newPyBytes $(move self.s)
+  else: newPyBytes move self.s
 
 proc finish*(self: sink PyBytesWriter, res: PyObject) =
   if self.use_bytearray: PyByteArrayObject(res).items = move self.s
-  else: PyBytesObject(res).items = $(move self.s)
+  else: PyBytesObject(res).items = move self.s
 
-proc newPyBytes*(s: seq[char]): PyBytesObject = newPyBytes $s
+proc newPyBytes*(s: openArray[char]): PyBytesObject = newPyBytes @s
 
 proc repr*(b: PyBytesObject): string =
-  'b' & '\'' & b.items & '\'' # TODO
+  'b' & '\'' & $b.items & '\'' # TODO
 
 proc repr*(b: PyByteArrayObject): string =
   "bytearray(" &
