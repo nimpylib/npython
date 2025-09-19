@@ -33,3 +33,7 @@ proc vectorcallMethod*(name: PyStrObject, args: openArray[PyObject]
 proc call*(fun: PyObject): PyObject =
   ## `_PyObject_CallNoArgs`
   fun.fastCall([])
+
+proc call*(fun, arg: PyObject): PyObject =
+  ## `_PyObject_CallOneArg`
+  fun.fastCall([arg])

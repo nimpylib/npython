@@ -6,7 +6,7 @@ import builtindict
 import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject,
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
-  listobject, enumobject,
+  listobjectImpl, enumobject,
   ]
 import ../Objects/stringobject/strformat
 
