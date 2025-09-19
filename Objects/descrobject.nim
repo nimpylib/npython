@@ -1,5 +1,6 @@
-import strformat
 
+
+import std/strformat
 import pyobject
 import noneobject
 import exceptions
@@ -7,6 +8,8 @@ import stringobject
 import methodobject
 import ../Include/descrobject as incDescr
 export incDescr
+
+import ./typeobject/apis/subtype
 
 import ../Utils/utils
 
@@ -46,8 +49,8 @@ proc newPyMethodDescr*(t: PyTypeObject,
 
 template descr_check*(self, other){.dirty.} =
   ## XXX: CPython's `descr_setcheck` just does the same as `descr_check`
-  bind fmt, formatValue, newTypeError, newPyStr
-  if other.pyType != self.dType:
+  bind fmt, formatValue, newTypeError, newPyStr, PyObject_TypeCheck
+  if not PyObject_TypeCheck(other, self.dType):
     let oname = other.typeName
     let msg = fmt"descriptor {self.name} for {self.dType.name} objects " &
       fmt"doesn't apply to {oname} object"
@@ -67,6 +70,7 @@ implMethodDescrMagic get:
     return newPyNimFunc(cast[TernaryMethod](self.meth), self.name, owner)
   of NFunc.BltinMethod:
     return newPyNimFunc(cast[BltinMethod](self.meth), self.name, owner)
+
 
 # get set descriptor
 # Nim level property decorator
