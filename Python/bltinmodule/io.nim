@@ -13,8 +13,53 @@ import ../../Objects/[
   pyobject_apis/strings,
 ]
 import ../../Utils/[
-  compat,
+  compat, fileio, utils,
 ]
+import ../sysmodule/[
+  audit,
+]
+
+proc input*(prompt: PyObject=nil): PyObject{.bltin_clinicGen.} =
+  #TODO:sys.stdin
+  #TODO:sys.stdout
+  #TODO:sys.stderr
+  #[
+  template chkOrLost(id) =
+    let obj = PySys_GetNonNoneAttr pyId id  # PySys_GetNonNoneAttr EXT is responsible to set "lost sys.xxx" msg
+    retIfExc obj
+  chkOrLost stdin
+  chkOrLost stdout
+  chkOrLost stderr
+  ]#
+
+  retIfExc audit("builtins.input", if prompt.isNil: pyNone else: prompt)
+
+  var promptstr: string
+  block readline:
+    #template goto_readline_errors = break readline
+    if not prompt.isNil:
+      let stringpo = PyObject_StrNonNil prompt
+      retIfExc stringpo
+      #goto_readline_errors
+      promptstr = PyStrObject(stringpo).asUTF8  #TODO:sys.stdout,PyUnicode_AsEncodedString
+      if '\0' in promptstr:
+        return newValueError newPyAscii"input: prompt string cannot contain null characters"
+    else:
+      promptstr = ""
+    let s = try:
+      when defined(nodejs):
+        when declared(nodeReadLineSync): nodeReadLineSync promptstr
+        else: return newNotImplementedError newPyAscii"#TODO:input sync readline not impl in nodejs backend"; ""
+      else: readLine(stdin, stdout, promptstr) # readLine handles the case if stdin is not tty
+    except EOFError:
+      return newEOFError()
+    except IOError as e:
+      return newIOError e
+    except InterruptError:
+      return newKeyboardInterrupt()
+    result = newPyStr s
+    return
+  # _readline_errors
 
 
 const NewLine = "\n"
@@ -74,4 +119,5 @@ proc builtinPrint*(args: openArray[PyObject], kwargs: PyObject): PyObject {. pyC
   pyNone
 
 template register_io* =
+  registerBltinFunction("input", builtin_input)
   registerBltinFunction("print", builtinPrint)
