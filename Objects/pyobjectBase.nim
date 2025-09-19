@@ -349,5 +349,7 @@ proc isClass*(obj: PyObject): bool {. cdecl .} =
   obj.pyType.kind == PyTypeToken.Type
 
 proc ofPyTypeObject*(obj: PyObject): bool {. cdecl .} = obj.isClass
-proc isType*(a, b: PyTypeObject): bool {. cdecl .} = system.`==`(a, b)
+proc Py_IS*(a, b: PyObject): bool {. cdecl .} = system.`==`(a, b)
+proc isType*(a, b: PyTypeObject): bool {. cdecl .} = Py_IS(a, b)
+proc Py_IS_TYPE*(a: PyObject, b: PyTypeObject): bool {. cdecl .} = a.pyType.isType b
 
