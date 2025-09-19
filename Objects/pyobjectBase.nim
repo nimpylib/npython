@@ -88,7 +88,10 @@ type
       # note: these 3 are all bitwise operations, nothing to do with keywords `and` or `or`
       iAnd,
       iXor,
-      iOr: BinaryMethod
+      iOr,
+      iLshift,
+      iRshift
+        :BinaryMethod
 
     Not: UnaryMethod
     negative: UnaryMethod
@@ -99,10 +102,13 @@ type
     int: UnaryMethod
     float: UnaryMethod
 
-    # note: these 3 are all bitwise operations, nothing to do with keywords `and` or `or`
+    # note: these 4 are all bitwise operations, nothing to do with keywords `and`, `or`, `not`
     And: BinaryMethod
     Xor: BinaryMethod
     Or: BinaryMethod
+    invert: UnaryMethod
+    lshift: BinaryMethod
+    rshift: BinaryMethod
 
     lt: BinaryMethod
     le: BinaryMethod
