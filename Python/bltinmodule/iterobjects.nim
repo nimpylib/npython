@@ -4,6 +4,7 @@ import ../../Objects/[
   pyobject,
   tupleobjectImpl,
   exceptions,
+  boolobjectImpl,
   noneobject,
   stringobject,
 ]
@@ -162,7 +163,61 @@ proc next*(self): PyObject =
 implMapMagic iternext: self.next()
 implMapMagic iter: self
 
+# filter object **********
+declarePyType Filter():
+  fun: PyObject
+  it: PyObject
+
+type filterobject = PyFilterObject
+
+template newPyFilterImpl(tp_alloc_may_exc: static bool; tfunc: PyObject, tseq: PyObject; typ=pyFilterObjectType) =
+  #  Get iterator.
+  let it = PyObject_GetIter(tseq)
+  retIfExc it
+  # create filterobject structure
+  let res = typ.tp_alloc(typ, 0)
+  when tp_alloc_may_exc:
+    retIfExc res
+  let lz = filterobject res
+  lz.it = it
+  lz.fun = tfunc
+  result = lz
+  
+proc newPyFilter*(fun, sequ: PyObject, typ: PyTypeObject): PyObject =
+  newPyFilterImpl(true, fun, sequ, typ)
+proc newPyFilter*(fun, sequ: PyObject): PyObject =
+  newPyFilterImpl(false,fun, sequ, pyFilterObjectType)
+
+implFilterMagic New(tp: PyObject, fun, sequ):
+  newPyFilter(fun, sequ, PyTypeObject tp)
+
+using self: filterobject
+proc next*(self): PyObject =
+  let checktrue = self.fun.isPyNone or self.fun.Py_IS pyBoolObjectType
+
+  let it = self.it
+  let iternext = it.getMagic(iternext)
+  var item: PyObject
+  var ok: bool
+  while true:
+    item = iternext(it)
+    retIfExc item
+    retIfExc(
+      if checktrue:
+        PyObject_IsTrue(item, ok)
+      else:
+        let good = self.fun.call(item)
+        retIfExc good
+        PyObject_IsTrue(good, ok)
+    )
+    if ok:
+      return item
+
+implFilterMagic iternext: self.next()
+implFilterMagic iter: self
+
 template register_iter_objects* =
   regobj zip
   regobj map
+  regobj filter
 
