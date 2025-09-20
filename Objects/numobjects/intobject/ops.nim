@@ -4,7 +4,7 @@ import hashes
 import macros
 import strutils
 import math
-
+import std/typetraits
 
 import ../numobjects_comm
 export intobject_decl except Digit, TwoDigits, SDigit, digitBits, truncate,
@@ -795,43 +795,45 @@ proc hash*(self: PyIntObject): Hash {. inline, cdecl .} =
     result = result xor hash(digit)
 
 
-proc toSomeSignedIntUnsafe[T: SomeSignedInt](pyInt: PyIntObject): T = 
+proc toSomeSignedIntUnsafe*[T: SomeSignedInt](pyInt: PyIntObject): T =
+  ## XXX: the caller should take care of overflow
+  ##  It raises `OverflowDefect` on non-danger build
   for i in countdown(pyInt.digits.high, 0):
     result = result shl digitBits
     result += T(pyInt.digits[i])
   if pyInt.sign == Negative:
     result *= -1
 
-template genToIntUnsafe(T){.dirty.} =
-  proc `to T Unsafe`*(pyInt: PyIntObject): T =
-    ## XXX: the caller should take care of overflow
-    ##  It raises `OverflowDefect` on non-danger build
-    toSomeSignedIntUnsafe[T](pyInt)
+template PY_ABS_INT_MIN(T): untyped = cast[T.toUnsigned](T.low) ## \
+## we cannot use `0u - cast[BiggestUInt](BiggestInt.low)` unless with rangeChecks:off
 
-genToIntUnsafe int
-genToIntUnsafe int64
-genToIntUnsafe BiggestInt
-
-const PY_ABS_LONG_MIN = cast[uint](int.low) ## \
-## we cannot use `0u - cast[uint](int.low)` unless with rangeChecks:off
-
-func absToUInt*(pyInt: PyIntObject, x: var uint): bool{.cdecl.} =
+type PossibleBiggestDigit = uint32
+static: assert digitBits <= 8 * sizeof PossibleBiggestDigit
+func absToUInt*[U: uint32|uint64|BiggestUInt](pyInt: PyIntObject, x: var U): bool{.cdecl.} =
   ## EXT. unstable.
   ##
   ## ignore signbit.
   ## returns false on overflow
 
   #TODO:opt-long apply python/cpython@d754f75f42f040267d818ab804ada340f55e5925
-  x = uint 0
-  var prev{.noInit.}: uint
+  x = U 0
+  var prev{.noInit.}: U
   for i in countdown(pyInt.digits.high, 0):
     prev = x
-    x = (x shl digitBits) or uint(pyInt.digits[i])
+    x = (x shl digitBits) or U(pyInt.digits[i])
     if x shr digitBits != prev:
       return
   return true
 
-proc toInt*(pyInt: PyIntObject, overflow: var IntSign): int =
+func absToUInt*[U: uint|uint8|uint16](pyInt: PyIntObject, x: var U): bool{.cdecl.} =
+  var t: PossibleBiggestDigit
+  if not absToUInt(pyInt, t): return
+  if t > PossibleBiggestDigit U.high: return
+  x = cast[U](t)
+  true
+
+# can be used as `PyLong_AsInt64`, `PyLong_AsInt32`, etc
+proc toSomeSignedInt*[I: SomeSignedInt](pyInt: PyIntObject, overflow: var IntSign): I =
   ## if overflow, `overflow` will be `IntSign.Negative` or `IntSign.Positive
   ##   (depending the sign of the argument)
   ##   and result be `-1`
@@ -842,24 +844,30 @@ proc toInt*(pyInt: PyIntObject, overflow: var IntSign): int =
   result = -1
   let sign = pyInt.sign
 
-  var x{.noInit.}: uint
+  var x{.noInit.}: BiggestUInt
   if not pyInt.absToUInt(x):
     overflow = sign
     return
   #[ Haven't lost any bits, but casting to long requires extra
     care (see comment above).]#
-  if x <= uint int.high:
-    result = cast[int](x) * ord(sign)
-  elif sign == Negative and x == PY_ABS_LONG_MIN:
-    result = int.low
+  if x <= BiggestUInt I.high:
+    result = cast[I](x) * cast[I](sign)
+  elif sign == Negative and x == PY_ABS_INT_MIN(I):
+    result = I.low
   else:
     overflow = sign
 
-proc toUInt*(pyInt: PyIntObject, overflow: var IntSign): uint =
-  ## like `toInt`<#toInt,PyIntObject,IntSign>`_ but for `uint`
+proc toInt*(pyInt: PyIntObject, overflow: var IntSign): int =
+  toSomeSignedInt[int] pyInt, overflow
+
+proc toSomeUnsignedInt*[U: SomeUnsignedInt](pyInt: PyIntObject, overflow: var IntSign): U =
+  ## like `toSomeSignedInt`<#toInt,PyIntObject,IntSign>`_ but for `uint`
   overflow = if pyInt.negative: Negative
   elif pyInt.absToUInt(result): Zero
   else: Positive
+proc toUInt*(pyInt: PyIntObject, overflow: var IntSign): uint =
+  ## like `toInt`<#toInt,PyIntObject,IntSign>`_ but for `uint`
+  toSomeUnsignedInt[uint](pyInt, overflow)
 
 proc toInt*(pyInt: PyIntObject, res: var int): bool =
   ## returns false on overflow (`x not_in int.low..int.high`)
@@ -872,19 +880,23 @@ proc toUInt*(pyInt: PyIntObject, res: var uint): bool =
   if pyInt.negative: false
   else: pyInt.absToUInt(res)
 
+proc PyInt_OverflowCType*(ctypeName: string): PyOverflowErrorObject =
+  ## EXT.
+  ## used to construct OverflowError of `PyLong_As<ctypeName>`
+  ## So no need to call `PyLong_AsXxx` but `toSomeXxInt`
+  return newOverflowError(
+      newPyAscii "Python int too large to convert to C " & ctypeName)
 
 proc PyLong_AsSsize_t*(vv: PyIntObject, res: var int): PyOverflowErrorObject =
   ## returns nil if not overflow
   if not toInt(vv, res):
-    return newOverflowError(
-      newPyAscii"Python int too large to convert to C ssize_t")
+    return PyInt_OverflowCType"ssize_t"
 
 proc PyLong_AsSize_t*(pyInt: PyIntObject, res: var uint): PyOverflowErrorObject =
   if pyInt.negative:
     newOverflowError(newPyAscii"can't convert negative value to unsigned int")
   elif pyInt.absToUInt res: nil
-  else: newOverflowError(
-    newPyAscii"Python int too large to convert to C size_t")
+  else: PyInt_OverflowCType"size_t"
 
 proc asLongAndOverflow*(vv: PyIntObject, ovlf: var bool): int{.inline.} =
   ## PyLong_AsLongAndOverflow

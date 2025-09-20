@@ -154,16 +154,22 @@ proc PyMember_SetOne*(obj_addr: PyObject, l: PyMemberDef, v: PyObject): PyBaseEr
   template warnTrunc(T) =
       WARN("Truncation of value to " & $T)
   template AsInt(T: typedesc[SomeSignedInt]) =
-    var res: int
-    let exc = v.PyNumber_AsSsize_t res
-    if not exc.isNil:
-      return exc
-    if res.BiggestInt not_in T.low.BiggestInt .. T.high.BiggestInt:
+    let mayIntObj = PyNumber_Index(v)
+    retIfExc mayIntObj
+    var overflow: IntSign
+    var res = PyIntObject(mayIntObj).toSomeSignedInt[:T](overflow)
+    case overflow
+    of Positive:
+      res = high T
       warnTrunc T
-    storeAt[T] a, cast[T](res)
+    of Negative:
+      res = low T
+      warnTrunc T
+    of Zero: discard
+    storeAt[T] a, res
 
   template AsInt(T: typedesc[SomeUnsignedInt]) =
-    var res: uint
+    var res: uint64
     let intObj = v.asIntObj
     if intObj.negative:
       WARN("Writing negative value into unsigned field")
