@@ -342,7 +342,14 @@ genMapMethod toOpCode:
     Div: BinaryTrueDivide,
     Mod: BinaryModulo,
     Pow: BinaryPower,
-    FloorDiv: BinaryFloorDivide
+    FloorDiv: BinaryFloorDivide,
+    
+    BitAnd: BinaryAnd,
+    BitOr:  BinaryOr,
+    BitXor: BinaryXor,
+    Lshift: BinaryLshift,
+    Rshift: BinaryRshift,
+
   }
 
 method toInplaceOpCode(op: AsdlOperator): OpCode {.base, raises: [].} =
@@ -356,7 +363,13 @@ genMapMethod toInplaceOpCode:
     Div: InplaceTrueDivide,
     Mod: InplaceModulo,
     Pow: InplacePower,
-    FloorDiv: InplaceFloorDivide
+    FloorDiv: InplaceFloorDivide,
+
+    BitAnd: InplaceAnd,
+    BitOr:  InplaceOr,
+    BitXor: InplaceXor,
+    Lshift: InplaceLshift,
+    Rshift: InplaceRshift,
   }
 
 

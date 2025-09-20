@@ -543,13 +543,11 @@ ast augassign, [AsdlOperator]:
   #of Token.Atequal: newAstAt()
   of Token.Slashequal:newAstDiv()
   of Token.Percentequal: newAstMod()
-  #[
-  of Token.Amperequal: newAstAmper()
-  of Token.Vbarequal: newAstVbar()
-  of Token.Circumflexequal: newAstCircumflex()
-  of Token.Leftshiftequal: newAstLeftshift()
-  of Token.Rightshiftequal: newAstRightshift()
-  ]#
+  of Token.Amperequal: newAstBitAnd()
+  of Token.Vbarequal: newAstBitOr()
+  of Token.Circumflexequal: newAstBitXor()
+  of Token.Leftshiftequal: newAstLshift()
+  of Token.Rightshiftequal: newAstRshift()
   of Token.DoubleSlashequal: newAstFloorDiv()
   of Token.DoubleStarequal: newAstPow()
   else:
@@ -967,6 +965,11 @@ template astForBinOp(childAstFunc: untyped) =
     of Token.Slash:newAstDiv()
     of Token.Percent: newAstMod()
     of Token.DoubleSlash: newAstFloorDiv()
+    of Token.Amper: newAstBitAnd()
+    of Token.Vbar: newAstBitOr()
+    of Token.Circumflex: newAstBitXor()
+    of Token.Leftshift: newAstLshift()
+    of Token.Rightshift: newAstRshift()
     else:
       let msg = fmt"Complex binary operation not implemented: " & $token
       raiseSyntaxError(msg)
@@ -1017,7 +1020,8 @@ ast factor, [AsdlExpr]:
     of Token.Minus:
       result = newUnaryOp(newAstUSub(), factor)
     else:
-      raiseSyntaxError("Unary ~ not implemented", child1)
+      assert child1.tokenNode.token == Token.Tilde
+      result = newUnaryOp(newAstInvert(), factor)
     setNo(result, parseNode.children[0])
   else:
     unreachable
