@@ -10,6 +10,7 @@ import ../../Objects/[
   exceptions,
   noneobject,
   stringobject,
+  boolobjectImpl,
   pyobject_apis/compare,
 ]
 import ../../Objects/listobject/sort
@@ -103,6 +104,32 @@ proc min_max(args: openArray[PyObject], keyfunc, defaultval: PyObject, op: PyCom
                       "() iterable argument is empty"
   return maxitem
 
+template gen_any_all(any_all; bOnAbort, bOnFinal){.dirty.} =
+  proc any_all*(iterable: PyObject): PyObject{.bltin_clinicGen.} =
+    let it = PyObject_GetIter(iterable)
+    retIfExc it
+    let iternext = it.getMagic(iternext)
+    var
+      item: PyObject
+      b: bool
+      errOccurred = false
+    while true:
+      item = iternext(it)
+      errOccurred = item.isThrownException
+      if errOccurred: break
+      retIfExc PyObject_IsTrue(item, b)
+      if b == bOnAbort:
+        return `py bOnAbort Obj`
+
+    if errOccurred:
+      if not item.isStopIter:
+        return item
+    return `py bOnFinal Obj`
+
+gen_any_all any, true, false
+gen_any_all all, false, true
+
+
 template gen_min_max(f, op){.dirty.} =
   proc `builtin f`*(args: varargs[PyObject], kwargs: PyObject): PyObject{.pyCFuncPragma.} =
     const name = astToStr(f)
@@ -120,3 +147,5 @@ template register_iterops* =
   regfunc sorted
   regfunc min
   regfunc max
+  regfunc any
+  regfunc all
