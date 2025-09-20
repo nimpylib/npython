@@ -11,7 +11,7 @@ export intobject_decl except Digit, TwoDigits, SDigit, digitBits, truncate,
  IntSign
 import ./[
   bit_length, bit_length_util, shift, signbit,
-  fromStrUtils,
+  fromStrUtils, utils,
 ]
 export bit_length, signbit
 import ../../stringobject/strformat
@@ -25,31 +25,11 @@ const maxValue = TwoDigits(high(Digit)) + 1
 template demote(x: TwoDigits): Digit =
   Digit(x shr digitBits)
 
-proc newPyIntOfLen(l: int): PyIntObject =
-  ## `long_alloc`
-  ## 
-  ## result sign is `Positive` if l != 0; `Zero` otherwise
-  result = newPyIntSimple()
-  result.digits.setLen(l)
-  if l != 0:
-    result.sign = Positive
-
 export pyIntZero, pyIntOne, pyIntTen
 let pyIntTwo = newPyInt(2)
 
+using self: PyIntObject
 
-proc copy(intObj: PyIntObject): PyIntObject =
-  ## XXX: copy only digits (sign uninit!)
-  let newInt = newPyIntSimple()
-  newInt.digits = intObj.digits
-  newInt
-
-proc normalize(a: PyIntObject) =
-  for i in 0..<a.digits.len:
-    if a.digits[^1] == 0:
-      discard a.digits.pop()
-    else:
-      break
 
 # assuming all positive, return a - b
 proc doCompare(a, b: PyIntObject): IntSign {. cdecl .} =
@@ -270,8 +250,12 @@ proc `-`*(a, b: PyIntObject): PyIntObject =
 
 proc `-`*(a: PyIntObject): PyIntObject =
   result = a.copy()
-  result.sign = IntSign(-int(a.sign))
+  result.sign = a.sign
+  result.flipSign
 
+proc abs*(self): PyIntObject =
+  if self.negative: -self
+  else: self
 
 proc `*`*(a, b: PyIntObject): PyIntObject =
   case a.sign
@@ -527,7 +511,7 @@ proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool{.pyCFuncPragma.} =
 
   #[ Set the sign.]#
   if (a.sign == Negative) and not prem.zero():
-    prem.negate()
+    prem.setSignNegative()
 
 proc tryDivrem(a, b: PyIntObject, pdiv, prem: var PyIntObject): bool =
   ## `long_divrem`
@@ -561,9 +545,9 @@ proc tryDivrem(a, b: PyIntObject, pdiv, prem: var PyIntObject): bool =
        the remainder prem has the sign of a,
        so a = b*z + r.]#
   if (a.sign == Negative) != (b.sign == Negative):
-    pdiv.negate()
+    pdiv.setSignNegative()
   if (a.sign == Negative) and not prem.zero():
-    prem.negate()
+    prem.setSignNegative()
 
 
 proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool{.pyCFuncPragma.} =

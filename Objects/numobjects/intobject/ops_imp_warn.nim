@@ -1,6 +1,6 @@
 
-import ./ops
-export ops
+import ./[ops, ops_bitwise]
+export ops, ops_bitwise
 import ../numobjects_comm_with_warn
 export PyNumber_Index, privatePyNumber_Index
 import ./[

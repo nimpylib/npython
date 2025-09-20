@@ -45,12 +45,26 @@ implIntMagic floorDiv:
    return newTypeError(newPyString fmt"floor divide not supported by int and {other.pyType.name}")
 
 implIntMagic Mod:
-  intBinaryTemplate(`%`, pow, "%")
+  intBinaryTemplate(`%`, Mod, "%")
 
 implIntMagic pow:
   intBinaryTemplate(pow, pow, "**")
 
+proc binop_type_error(v, w: PyObject, op_name: string): PyTypeErrorObject =
+  newTypeError newPyStr fmt"unsupported operand type(s) for {op_name:.100s}: '{v.typeName:.100s}' and '{w.typeName:.100s}'"
+template binary_op1(op; magicop; opname) =
+  #TODO:bop  for other types
+  if not other.ofPyIntObject:
+    return binop_type_error(self, other, opname)
+  result = op(self, PyIntObject(other))
 
+implIntMagic abs: abs self
+implIntMagic And: binary_op1(`and`, And, "&")
+implIntMagic Or: binary_op1(`or`, Or, "|")
+implIntMagic Xor: binary_op1(`xor`, Xor, "^")
+implIntMagic lshift: binary_op1(`shl`, lshift, "<<")
+implIntMagic rshift: binary_op1(`shr`, rshift, ">>")
+implIntMagic invert: not self
 implIntMagic positive: self
 implIntMagic negative: -self
 
