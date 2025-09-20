@@ -76,7 +76,8 @@ proc divmod*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
 implFloatMagic pow, [castOther]:
   newPyFloat(self.v.pow(casted.v))
 
-
+proc abs*(self: PyFloatObject): PyFloatObject = newPyFloat(abs(self.v))
+implFloatMagic abs: abs self
 implFloatMagic positive: self
 
 implFloatMagic negative: newPyFloat(-self.v)
