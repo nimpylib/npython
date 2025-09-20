@@ -15,7 +15,7 @@ import ./getargs
 
 import ../Utils/trans_imp
 impExp bltinmodule,
-  compile_eval_exec, iterobjects, io, sums, iterops
+  compile_eval_exec, iterobjects, io, sums, iterops, unarys
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
   let nameStr = newPyAscii(name)
@@ -31,6 +31,7 @@ proc registerBltinObject(name: string, obj: PyObject) =
 register_io
 register_iterops
 register_compile_eval_exec
+register_unarys
 registerBltinFunction "sum", builtin_sum
 
 # make it public so that neval.nim can use it
