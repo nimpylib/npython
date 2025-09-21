@@ -502,12 +502,17 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
   )
   # add pragmas, the last to add is the first to execute
   
+  # builtin function has no `self` to cast
+  var selfCast = params != bltinFuncParams
   # custom pragms
   for p in pragmas:
+    if p.eqIdent"noSelfCast":
+      # no castSelf pragma
+      selfCast = false
+      continue
     procNode.addPragma(p)
 
-  # builtin function has no `self` to cast
-  if params != bltinFuncParams:
+  if selfCast:
     procNode.addPragma(
       nnkExprColonExpr.newTree(
         ident("castSelf"),

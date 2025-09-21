@@ -8,7 +8,9 @@ import builtindict
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
                    setobject, notimplementedobject, boolobjectImpl,
-                   exceptionsImpl, methodobject]
+                   exceptionsImpl, methodobject,
+                   ]
+import ../Objects/abstract/[dunder, number,]
 import ../Utils/utils
 import ./[
   neval_frame,
@@ -84,18 +86,33 @@ template doInplace(opName: untyped) =
   else:
     sSetTop res
 
-template doBinary(opName: untyped) =
+template doBinaryAttrImpl(opName): PyObject =
   let op2 = sPop()
   let op1 = sTop()
-  let res = op1.callMagic(opName, op2, handleExcp=true)
+  op1.callMagic(opName, op2, handleExcp=true)
+
+template doBinaryAttr(opName) =
+  let res = doBinaryAttrImpl(opName)
   sSetTop res
 
-# the same as doBinary, but need to rotate!
+template doBinaryImpl(opName): PyObject =
+  let op2 = sPop()
+  let op1 = sTop()
+  let res =
+    when declared(`PyNumber opName`): `PyNumber opName`(op1, op2)
+    else: `PyObject opName`(op1, op2)
+  if res.isThrownException:
+    handleException(res)
+  res
+
 template doBinaryContain: PyObject = 
+  ## the same as doBinary, but the order of op1, op2 is reversed!
   let op1 = sPop()
   let op2 = sTop()
-  let res = op1.callMagic(contains, op2, handleExcp=true)
-  res
+  op1.callMagic(contains, op2, handleExcp=true)
+template doBinary(opName: untyped) =
+  let res = doBinaryImpl(opName)
+  sSetTop res
 
 template getBoolFast(obj: PyObject): bool = 
   ## called "fast" only due to historical reason
@@ -283,7 +300,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               let idx = sPop()
               let obj = sPop()
               let value = sPop()
-              discard obj.callMagic(setitem, idx, value, handleExcp=true)
+              let res = PyObject_SetItem(obj, idx, value)
+              if res.isThrownException:
+                handleException res
             of OpCode.DeleteSubscr:
               let idx = sPop()
               let obj = sPop()
@@ -505,17 +524,17 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               let cmpOp = CmpOp(opArg)
               case cmpOp
               of CmpOp.Lt:
-                doBinary(lt)
+                doBinaryAttr(lt)
               of CmpOp.Le:
-                doBinary(le)
+                doBinaryAttr(le)
               of CmpOp.Eq:
-                doBinary(eq)
+                doBinaryAttr(eq)
               of CmpOp.Ne:
-                doBinary(ne)
+                doBinaryAttr(ne)
               of CmpOp.Gt:
-                doBinary(gt)
+                doBinaryAttr(gt)
               of CmpOp.Ge:
-                doBinary(ge)
+                doBinaryAttr(ge)
               of CmpOp.In:
                 sPush doBinaryContain
               of CmpOp.NotIn:

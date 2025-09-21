@@ -5,14 +5,14 @@ import ./[
   intobject_decl, floatobject_decl,
 ]
 import ../[
-  pyobject, exceptions, stringobject, boolobject,
+  pyobject, exceptions, stringobject, boolobject, notimplementedobject,
 ]
 
 import ../abstract/helpers
 export null_error
 
 export intobject_decl, floatobject_decl,
-  pyobject, exceptions, boolobject, stringobject
+  pyobject, exceptions, boolobject, stringobject, notimplementedobject
 
 let pyIntZero* = newPyInt(0)
 let pyIntOne* = newPyInt(1)
