@@ -9,7 +9,7 @@ import ../../Objects/[
   dictobject,
 ]
 
-proc PyArg_VaParseTupleAndKeywords*(funcname: string, args: NimNode#[openArray[PyObject]]#, keywords: NimNode#[PyDictObject]#,
+proc PyArg_VaParseTupleAndKeywords*(funcname: NimNode#[string]#, args: NimNode#[openArray[PyObject]]#, keywords: NimNode#[PyDictObject]#,
     kwOnlyList: openArray[string]; vargs: NimNode#[varargs[typed]]#): NimNode =
   let kwOnlyIdx = vargs.len-kwOnlyList.len
   result = newStmtList()
@@ -22,7 +22,7 @@ proc PyArg_VaParseTupleAndKeywords*(funcname: string, args: NimNode#[openArray[P
     kwlist.add v.getPyNameOfParamAsStr
   result.add PyArg_VaUnpackKeywords(funcname, keywords, kwList, kvargs)
 
-proc PyArg_VaParseTupleAndKeywordsAs*(funcname: string, args: NimNode#[openArray[PyObject]]#, keywords: NimNode#[PyDictObject]#,
+proc PyArg_VaParseTupleAndKeywordsAs*(funcname: NimNode#[string]#, args: NimNode#[openArray[PyObject]]#, keywords: NimNode#[PyDictObject]#,
     kwOnlyList: openArray[string]; vargs: NimNode#[varargs[untyped]]#): NimNode =
   runnableExamples:
     runnableExamples:
@@ -52,13 +52,13 @@ proc PyArg_VaParseTupleAndKeywordsAs*(funcname: string, args: NimNode#[openArray
       vars.add varname
   result.add PyArg_VaParseTupleAndKeywords(funcname, args, keywords, kwOnlyList, vars)
 
-macro PyArg_ParseTupleAndKeywords*(funcname: static[string], args: openArray[PyObject], keywords: PyDictObject,
+macro PyArg_ParseTupleAndKeywords*(funcname: string, args: openArray[PyObject], keywords: PyDictObject,
     kwOnlyList: static openArray[string]; vargs: varargs[typed]): PyBaseErrorObject =
   ## vargs can be, e.g.:
   ## `v: int` or `v = 1`,
   ## also pragma like `convertVia`_ is supported
   PyArg_VaParseTupleAndKeywords(funcname, args, keywords, kwOnlyList, vargs)
 
-macro PyArg_ParseTupleAndKeywordsAs*(funcname: static[string], args: openArray[PyObject], keywords: PyDictObject,
+macro PyArg_ParseTupleAndKeywordsAs*(funcname: string, args: openArray[PyObject], keywords: PyDictObject,
     kwOnlyList: static openArray[string]; vargs: varargs[untyped]): PyBaseErrorObject =
   PyArg_VaParseTupleAndKeywordsAs(funcname, args, keywords, kwOnlyList, vargs)

@@ -41,7 +41,7 @@ template lukImpl(exc; kwargs: PyDictObject, v, k; parseBlk){.dirty.} =
         break parseBlk
 
 
-template chkUnexpectedKey(exc, kwargs, fname){.dirty.} =
+template chkUnexpectedKey(exc, kwargs; fname){.dirty.} =
   bind keys, unexpKwMsgPart, `$`, quoteC
   bind newPyStr, newTypeError
   for k in keys(kwargs):
@@ -54,7 +54,7 @@ template withBlk(result; body){.dirty.} =
   let parseBlk = genSym(nskLabel, "blk_of_PyArg_UnpackKeywords")
   result.add getAst(breakIfKwDictNil(kwargs, parseBlk))
   body
-  result.add getAst(chkUnexpectedKey(exc, kwargs, fnameNode))
+  result.add newCall(bindSym"chkUnexpectedKey", exc, kwargs, fnameNode)
   result = newBlockStmt(parseBlk, result)
 
 template asgn(v, k){.dirty.} =
@@ -72,16 +72,16 @@ template implWithVars(){.dirty.} =
 
 template resStmt{.dirty.} =  
   result = newStmtList()
-  let fnameNode = genSym(nskConst, "currentPyFuncName")
-  result.add newConstStmt(
-    fnameNode, newLit fname,
+  let fnameNode = genSym(nskLet, "currentPyFuncName")
+  result.add newLetStmt(
+    fnameNode, fname,
   )
 
-macro PyArg_UnpackKeywords*(exc: PyBaseErrorObject; fname: static[string]; kwargs: PyDictObject; keywords: static openArray[string], vars: varargs[typed]) =
+macro PyArg_UnpackKeywords*(exc: PyBaseErrorObject; fname: string; kwargs: PyDictObject; keywords: static openArray[string], vars: varargs[typed]) =
   resStmt
   implWithKeywords
 
-macro PyArg_UnpackKeywordsTo*(exc: PyBaseErrorObject; fname: static[string]; kwargs: PyDictObject; vars: varargs[typed]) =
+macro PyArg_UnpackKeywordsTo*(exc: PyBaseErrorObject; fname: string; kwargs: PyDictObject; vars: varargs[typed]) =
   resStmt
   implWithVars
 
@@ -98,16 +98,16 @@ template wrapExcAsRet(call){.dirty.} =
 
 template genPyArg_VaUnpackKeywords(Vars){.dirty.} =
   # NIM-BUG: `xx|openArray` cannot accept seq pass-in (openArray cannot be in generic)
-  proc PyArg_VaUnpackKeywords*(fname: string; kwargs: NimNode#[PyDictObject]#;
+  proc PyArg_VaUnpackKeywords*(fname: NimNode#[string]#; kwargs: NimNode#[PyDictObject]#;
       keywords: openArray[string], vars: Vars#[varargs[typed]]#): NimNode#[PyBaseErrorObject]# =
     resStmt; wrapExcAsRet implWithKeywords
 genPyArg_VaUnpackKeywords NimNode
 genPyArg_VaUnpackKeywords openArray[NimNode]
 
-macro PyArg_UnpackKeywords*(fname: static[string]; kwargs: PyDictObject; keywords: static openArray[string], vars: varargs[typed]): PyBaseErrorObject =
+macro PyArg_UnpackKeywords*(fname: string; kwargs: PyDictObject; keywords: static openArray[string], vars: varargs[typed]): PyBaseErrorObject =
   PyArg_VaUnpackKeywords(fname, kwargs, keywords, vars)
 
-macro PyArg_UnpackKeywordsTo*(fname: static[string]; kwargs: PyDictObject; vars: varargs[typed]): PyBaseErrorObject =
+macro PyArg_UnpackKeywordsTo*(fname: string; kwargs: PyDictObject; vars: varargs[typed]): PyBaseErrorObject =
   ## like `PyArg_UnpackKeywords`_ but using `vars`'s symbol names as keywords' names
   resStmt; wrapExcAsRet implWithVars
 
@@ -118,13 +118,13 @@ proc predeclVars(result: var NimNode; vars: NimNode) =
     res.add newIdentDefs(v, typ)
   result = newStmtList(res, result)
 
-macro PyArg_UnpackKeywordsAs*(fname: static[string]; kwargs: PyDictObject; keywords: static openArray[string], vars: varargs[untyped]): PyBaseErrorObject =
+macro PyArg_UnpackKeywordsAs*(fname: string; kwargs: PyDictObject; keywords: static openArray[string], vars: varargs[untyped]): PyBaseErrorObject =
   ## like `PyArg_UnpackKeywords`_ but it's this macro's responsibility to declare variable in `vars`
   resStmt
   wrapExcAsRet implWithKeywords
   result.predeclVars vars
 
-macro PyArg_UnpackKeywordsToAs*(fname: static[string]; kwargs: PyDictObject; vars: varargs[untyped]): PyBaseErrorObject =
+macro PyArg_UnpackKeywordsToAs*(fname: string; kwargs: PyDictObject; vars: varargs[untyped]): PyBaseErrorObject =
   resStmt
   wrapExcAsRet implWithVars
   result.predeclVars vars

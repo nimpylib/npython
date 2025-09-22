@@ -49,14 +49,14 @@ template PyArg_DoTupleImpl(asgn){.dirty.} =
     result.add quote do:
       if `nargs` > `i`: `body`
 
-proc PyArg_VaUnpackTuple(name: string; args: NimNode#[openArray[PyObject]]#; min, max: Natural;
+proc PyArg_VaUnpackTuple(name: NimNode; args: NimNode#[openArray[PyObject]]#; min, max: Natural;
   vargs: NimNode#[varargs[PyObject]]#,
 ): NimNode =
   template asgn(v, args, i): NimNode =
     v = args[i]
   PyArg_DoTupleImpl asgn
 
-proc PyArg_VaParseTuple*(name: string; args: NimNode#[openArray[PyObject]]#; min, max: Natural;
+proc PyArg_VaParseTuple*(name: NimNode; args: NimNode#[openArray[PyObject]]#; min, max: Natural;
   vargs: NimNode#[varargs[PyObject]]#,
 ): NimNode =
   #TODO: current this expr is void, using `retIfExc` to `return` exception, change to become an expr
@@ -65,7 +65,7 @@ proc PyArg_VaParseTuple*(name: string; args: NimNode#[openArray[PyObject]]#; min
     retIfExc tovalAux(args[i], v)
   PyArg_DoTupleImpl asgn
 
-macro unpack_stack(name: static[string]; args; min, max: static[int], vargs#[: varargs[PyObject]]#) =
+macro unpack_stack(name: string; args; min, max: static[int], vargs#[: varargs[PyObject]]#) =
   # like CPython's unpack_stack but only for optional args
   PyArg_VaUnpackTuple(name, args, min, max, vargs)
 

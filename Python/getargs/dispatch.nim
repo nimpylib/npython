@@ -47,7 +47,7 @@ proc clinicGenAux*(hasSelf: bool, genedPureNameStr: string, def: NimNode, export
   let
     nparam_args = ident"args"
     nparam_kwargs = ident"kwargs"
-  let parserCall = PyArg_VaParseTupleAndKeywordsAs(genedPureNameStr, nparam_args, nparam_kwargs, kwOnlyList, vargs)
+  let parserCall = PyArg_VaParseTupleAndKeywordsAs(newStrLitNode genedPureNameStr, nparam_args, nparam_kwargs, kwOnlyList, vargs)
   let nparams = nnkFormalParams.newTree resType
   let PyObjT = bindSym"PyObject"
   if hasSelf:
