@@ -176,15 +176,25 @@ proc initTypeDict(tp: PyTypeObject) =
 
   tp.dict = d
 
-proc typeReady*(tp: PyTypeObject) = 
-  tp.pyType = pyTypeObjectType
+
+proc typeReadyImpl(tp: PyTypeObject) = 
   tp.addGeneric
   if tp.dict.isNil:
     tp.initTypeDict
 
-pyTypeObjectType.typeReady()
+proc typeReady*(tp: PyTypeObject) = 
+  # type_ready_set_type
+  if tp.pyType.isNil:
+    tp.pyType = pyTypeObjectType
+  tp.typeReadyImpl
+
+pyTypeObjectType.pyType = pyTypeObjectType
+pyTypeObjectType.typeReadyImpl()
 pyTypeObjectType.tp_dealloc = type_dealloc
 
+proc PyStaticType_InitBuiltin*(typ: PyTypeObject): PyBaseErrorObject =
+  #TODO:interp
+  typ.typeReady()
 
 implTypeMagic call:
   # quoting CPython: "ugly exception". 
