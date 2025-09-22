@@ -15,7 +15,7 @@ type UnicodeVariant* = ref object
   of true: 
     asciiStr*: string
   of false:
-    unicodeStr*: seq[Rune]
+    unicodeStr*: seq[Rune]  ## maxchar cannot below high(char)
 
 template doBothKindOk*(self: UnicodeVariant, op): untyped =
   case self.ascii:
@@ -33,10 +33,30 @@ proc newAsciiUnicodeVariant*(s: seq[char]): UnicodeVariant =
 
 proc newUnicodeUnicodeVariant*(s: seq[Rune]): UnicodeVariant =
   UnicodeVariant(ascii: false, unicodeStr: s)
-proc newUnicodeUnicodeVariant*(s: string): UnicodeVariant =
-  newUnicodeUnicodeVariant s.toRunes
+
+const hasCStringOA = compiles(block:
+  var s: cstring
+  s.toOpenArray(0, 0)
+)
+template toFullOpenArrayChar(s): untyped =
+  when hasCStringOA: s.toOpenArray(0, s.high)
+  else: $s  #JS
+
+proc newUnicodeUnicodeVariant*(s: cstring): UnicodeVariant = newUnicodeUnicodeVariant(
+  s.toFullOpenArrayChar.toRunes
+)
+proc newUnicodeUnicodeVariant*(s: string): UnicodeVariant = newUnicodeUnicodeVariant s.toRunes
 proc newUnicodeUnicodeVariantOfCap*(cap: int): UnicodeVariant =
   newUnicodeUnicodeVariant(newSeqOfCap[Rune](cap))
+
+proc newUnicodeOrAsciiUnicodeVariant*(s: string|cstring): UnicodeVariant =
+  var ascii = true
+  for r in s.toFullOpenArrayChar.runes:
+    if Rune(high char) <% r:
+      ascii = false
+      break
+  if ascii: newAsciiUnicodeVariant(s)
+  else: newUnicodeUnicodeVariant(s)
 
 proc newAsciiUnicodeVariantOfCap*(cap: int): UnicodeVariant =
   newAsciiUnicodeVariant(newStringOfCap(cap))
@@ -48,9 +68,11 @@ proc newUnicodeVariant*(s: string|cstring, ensureAscii = false): UnicodeVariant 
   if ensureAscii:
     UnicodeVariant(ascii: true, asciiStr: $s)
   else:
-    UnicodeVariant(ascii: false, unicodeStr: ($s).toRunes)
-proc newUnicodeVariant*(len: int, ensureAscii = false): UnicodeVariant =
-  if ensureAscii:
+    #UnicodeVariant(ascii: false, unicodeStr: ($s).toRunes)
+    newUnicodeOrAsciiUnicodeVariant(s)
+
+proc newUnicodeVariant*(len: int, isAscii = false): UnicodeVariant =
+  if isAscii:
     UnicodeVariant(ascii: true, asciiStr: (when declared(newStringUninit): newStringUninit else: newString)(len))
   else:
     UnicodeVariant(ascii: false, unicodeStr: (when declared(newSeqUninit): newSeqUninit else: newSeq)[Rune](len))
@@ -290,3 +312,62 @@ proc isAscii*(self: PyStrObject): bool {.inline.} =
   self.str.ascii
 
 const MAX_UNICODE* = 0x10ffff
+
+proc checkConsistency*(self: PyStrObject, check_content: static[bool] = false): bool =
+  ## `_PyUnicode_CheckConsistency`
+  template CHECK(b) =
+    #PyObject_ASSERT_FAILED_MSG
+    if not b: assert false, astToStr(b)
+  when check_content:
+    var maxchar = Rune 0
+    for c in self:
+      if c > maxchar: maxchar = c
+    case self.itemSize
+    of 1: CHECK maxchar in 0..255
+    of 4: CHECK maxchar in 255..MAX_UNICODE
+    else: unreachable
+  true
+
+proc copy_characters(dest: PyStrObject, dest_start: int, frm: PyStrObject, frm_start: int,
+    how_many: int, check_maxchar: static[bool]): bool =
+  ## returns if failed due to maxchar check
+  assert dest.len - dest_start >= how_many
+  assert frm.len - frm_start >= how_many
+  let
+    to_kind = dest.itemSize
+    from_kind = frm.itemSize
+  if from_kind == to_kind:
+    when declared(copyMem):
+      let itemSize = dest.itemSize
+      template copyImpl(dest, dest_start, frm, frm_start, how_many) =
+        copyMem(dest[dest_start].addr, frm[frm_start].addr, itemSize * how_many)
+      template gen(fld){.dirty.} =
+        template `copy fld` =
+          copyImpl(dest.str.fld, dest_start, frm.str.fld, frm_start, how_many)
+      gen asciiStr
+      gen unicodeStr
+      if to_kind == 1: copyasciiStr
+      else: copyunicodeStr
+      return
+  assert to_kind >= from_kind
+
+  var it: Rune
+  template loopAsgn(destData, doIt){.dirty.} =
+    for i in 0..<how_many:
+      it = frm[frm_start + i]
+      destData[dest_start + i] = doIt
+  if dest.isAscii:
+    loopAsgn dest.str.asciiStr:
+      if it >% Rune(255):
+        when check_maxchar: return true
+        else: cast[char](it)
+      else:
+        cast[char](it)
+  else:
+    loopAsgn dest.str.unicodeStr, it
+
+
+proc fastCopyCharacters*(dest: PyStrObject, dest_start: int, frm: PyStrObject, frm_start: int = 0,
+    how_many: int = frm.len - frm_start) =
+  ## `_PyUnicode_FastCopyCharacters`
+  discard copy_characters(dest, dest_start, frm, frm_start, how_many, false)
