@@ -16,9 +16,11 @@ methodMacroTmpl(Dict)
 
 
 
+proc updateImpl*(self: PyDictObject, E: PyDictObject){.raises: [].} =
+  DictError!!self.update(E)
 proc updateImpl*(self: PyDictObject, E: PyObject): PyObject{.raises: [].} =
   if E.ofPyDictObject:
-    DictError!!self.update(PyDictObject E)
+    self.updateImpl(PyDictObject E)
     return pyNone
   let
     keysFunc = E.callMagic(getattr, newPyAscii"keys")  # getattr(E, "keys")

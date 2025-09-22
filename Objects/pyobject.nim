@@ -583,6 +583,10 @@ proc reprLockImpl(s, code: NimNode): NimNode =
     )
   code
 
+macro reprLockWithMsgExpr*(s: untyped#[string]#, code: untyped): untyped =
+  ## used instead of `reprLockWithMsg`_ to
+  ##  allow `s` contains some yet unsolved symbol, like `self`
+  reprLockImpl(s, code)
 macro reprLockWithMsg*(s: string, code: untyped): untyped =
   reprLockImpl(s, code)
 
