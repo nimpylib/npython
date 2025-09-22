@@ -7,8 +7,18 @@ import ../../Objects/[
   stringobject,
   dictobject,
 ]
+import ../../Include/cpython/pyerrors
 import ./[tovalsBase, tovalUtils, paramsMeta]
 export tovalsBase, paramsMeta
+
+proc PyArg_ValidateKeywordArguments*(kwargs: PyDictObject): PyTypeErrorObject =
+  if not kwargs.hasOnlyStringKeys:
+    return newTypeError newPyAscii"keywords must be strings"
+
+proc PyArg_ValidateKeywordArguments*(kwargs: PyObject): PyBaseErrorObject =
+  if not kwargs.ofPyDictObject:
+    return PyErr_BadInternalCall()
+  PyArg_ValidateKeywordArguments PyDictObject kwargs
 
 proc PyArg_UnpackKeywords*(kwargs: PyDictObject; keywords: openArray[string]): seq[PyObject] =
   for k in keywords:

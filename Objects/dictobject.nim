@@ -43,6 +43,15 @@ iterator pyItems(dict: PyDictObject): PyTupleObject =
 implDictMethod items(), [mutable: read]:
   genPyNimIteratorIter self.pyItems
 
+proc hasOnlyStringKeys*(dict: PyDictObject): bool =
+  ## `_PyDict_HasOnlyStringKeys`
+  #assert(PyDict_Check(dict));
+  # Shortcut
+  # if (((PyDictObject *)dict)->ma_keys->dk_kind != DICT_KEYS_GENERAL) return 1;
+  for key in dict.keys():
+    if not key.ofPyStrObject:
+      return
+  return true
 
 implDictMagic contains, [mutable: read]:
   var res: bool
