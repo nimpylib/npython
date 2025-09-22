@@ -6,12 +6,16 @@ import ../[stringobject,
   sliceobject, boolobject, exceptions,
 ]
 import ../numobjects/intobject/[decl, ops, idxHelpers]
-import ../../Utils/[sequtils, sequtils2, ]
+import ../../Utils/[sequtils, sequtils2, trans_imp]
 from ../abstract/args import clampedIndexOptArgAt
 import ../bltcommon; export bltcommon
+impExp meth,
+  join
 
 # redeclare this for these are "private" macros
 methodMacroTmpl(Str)
+
+implStrMethod join(sequ): self.join sequ
 
 
 implStrMagic eq:
