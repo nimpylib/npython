@@ -1,46 +1,34 @@
-import typetraits
+
 import strformat
 
 import tables
 
 import pyobject
-import methodobject
-import descrobject
 import dictproxyobject
 import ./pyobject_apis
 import ./[
-  stringobjectImpl, exceptions, boolobject, dictobject,
-  tupleobjectImpl, funcobject,
+  stringobjectImpl, exceptions, dictobject,
+  tupleobjectImpl,
 ]
 import ./numobjects/intobject
 import ./hash
 import ./pyobject_apis/attrsGeneric
 export getTypeDict
 import ./typeobject/[
+  decl,
   utils, object_new_init,
+  type_ready,
+]
+export decl, type_ready
+
+import ../Include/internal/[
+  defines_gil,
 ]
 
-import ../Utils/[
-  utils,
-]
-
-pyObjectType.magicMethods.New = object_new_wrap
-pyObjectType.magicMethods.init = object_init_wrap
 
 # PyTypeObject is manually declared in pyobjectBase.nim
 # here we need to do some initialization
 methodMacroTmpl(Type)
-
-
-let pyTypeObjectType* = newPyType[PyTypeObject]("type")
-# NOTE:
-#[
-type.__base__ is object
-type(type) is type
-object.__base__ is None
-]# 
-pyTypeObjectType.kind = PyTypeToken.Type
-
 
 genProperty Type, "__base__", base, self.base
 
@@ -53,59 +41,6 @@ implTypeMagic str:
 genProperty Type, "__dict__", dict, newPyDictProxy(self.dict):
   newTypeError(newPyStr fmt"can't set attributes of built-in/extension type {self.name}")
 
-# some generic behaviors that every type should obey
-proc defaultLe(o1, o2: PyObject): PyObject {. pyCFuncPragma .} =
-  let lt = o1.callMagic(lt, o2)
-  let eq = o1.callMagic(eq, o2)
-  lt.callMagic(Or, eq)
-
-proc defaultNe(o1, o2: PyObject): PyObject {. pyCFuncPragma .} =
-  let eq = o1.callMagic(eq, o2)
-  eq.callMagic(Not)
-
-proc defaultGe(o1, o2: PyObject): PyObject {. pyCFuncPragma .} = 
-  let gt = o1.callMagic(gt, o2)
-  let eq = o1.callMagic(eq, o2)
-  gt.callMagic(Or, eq)
-
-proc hashDefault(self: PyObject): PyObject {. pyCFuncPragma .} = 
-  let res = cast[BiggestInt](rawHash(self))  # CPython does so
-  newPyInt(res)
-
-proc defaultEq(o1, o2: PyObject): PyObject {. pyCFuncPragma .} = 
-  if rawEq(o1, o2): pyTrueObj
-  else: pyFalseObj
-
-#TODO: _Py_type_getattro_impl,_Py_type_getattro, then update ./pyobject_apis/attrs
-proc addGeneric(t: PyTypeObject) = 
-  template nilMagic(magicName): bool = 
-    t.magicMethods.magicName.isNil
-
-  template trySetSlot(magicName, defaultMethod) = 
-    if nilMagic(magicName):
-      t.magicMethods.magicName = defaultMethod
-
-  if (not nilMagic(lt)) and (not nilMagic(eq)):
-    trySetSlot(le, defaultLe)
-  if (not nilMagic(eq)):
-    trySetSlot(ne, defaultNe)
-  if (not nilMagic(ge)) and (not nilMagic(eq)):
-    trySetSlot(ge, defaultGe)
-  trySetSlot(eq, defaultEq)
-  trySetSlot(getattr, PyObject_GenericGetAttr)
-  trySetSlot(setattr, PyObject_GenericSetAttr)
-  trySetSlot(delattr, PyObject_GenericDelAttr)
-  trySetSlot(repr, reprDefault)
-  trySetSlot(hash, hashDefault)
-  trySetSlot(str, t.magicMethods.repr)
-
-
-proc type_add_members(tp: PyTypeObject, dict: PyDictObject) =
-  for memb in tp.members:
-    let descr = newPyMemberDescr(tp, memb)
-    assert not descr.isNil
-    let failed = dict.setDefaultRef(descr.name, descr) == GetItemRes.Error
-    assert not failed
 
 using self: var PyObjectObj
 proc PyObject_CallFinalizer[P](self; tp_finalize_isNil: bool) =
@@ -143,58 +78,33 @@ proc type_dealloc(self){.pyDestructorPragma.} = discard
 proc object_dealloc(self){.pyDestructorPragma.} = discard
 pyObjectType.tp_dealloc = object_dealloc
 
-# for internal objects
-proc initTypeDict(tp: PyTypeObject) = 
-  assert tp.dict.isNil
-  let d = newPyDict()
-  # magic methods. field loop syntax is pretty weird
-  # no continue, no enumerate
-  var i = -1
-  for meth in tp.magicMethods.fields:
-    inc i
-    if not meth.isNil:
-      let namePyStr = magicNameStrs[i]
-      if meth is BltinFunc:
-        d[namePyStr] = newPyStaticMethod(newPyNimFunc(meth, namePyStr))
-      else:
-        d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
-
-  type_add_members(tp, d)
-
-  # getset descriptors.
-  for key, value in tp.getsetDescr.pairs:
-    let getter = value[0]
-    let setter = value[1]
-    let descr = newPyGetSetDescr(getter, setter)
-    let namePyStr = newPyStr(key)
-    d[namePyStr] = descr
-   
-  # bltin methods
-  for name, meth in tp.bltinMethods.pairs:
-    let namePyStr = newPyAscii(name)
-    d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
-
-  tp.dict = d
-
-
-proc typeReadyImpl(tp: PyTypeObject) = 
-  tp.addGeneric
-  if tp.dict.isNil:
-    tp.initTypeDict
-
-proc typeReady*(tp: PyTypeObject) = 
-  # type_ready_set_type
-  if tp.pyType.isNil:
-    tp.pyType = pyTypeObjectType
-  tp.typeReadyImpl
 
 pyTypeObjectType.pyType = pyTypeObjectType
-pyTypeObjectType.typeReadyImpl()
+pyTypeObjectType.typeReadyImpl(true)
 pyTypeObjectType.tp_dealloc = type_dealloc
+
+
+pyObjectType.magicMethods.New = object_new_wrap
+pyObjectType.magicMethods.init = object_init_wrap
+
+# BEGIN_TYPE_LOCK & END_TYPE_LOCK
+when SingleThread:
+  template withTYPE_LOCK(body) = body
+else:
+  import std/locks
+  var typeLock: Lock
+  template withTYPE_LOCK(body) =
+    withLock typeLock: body
+
+proc init_static_type(self: PyTypeObject, isbuiltin: bool, initial: bool) =
+  withTYPE_LOCK:
+    typeReadyImpl(self, initial)
 
 proc PyStaticType_InitBuiltin*(typ: PyTypeObject): PyBaseErrorObject =
   #TODO:interp
-  typ.typeReady()
+  #TODO:Py_IsMainInterpreter
+  const Py_IsMainInterpreter = true
+  init_static_type(typ, true, Py_IsMainInterpreter)
 
 implTypeMagic call:
   # quoting CPython: "ugly exception". 
