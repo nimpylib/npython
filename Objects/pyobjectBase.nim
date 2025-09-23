@@ -74,7 +74,10 @@ type
     # use uppercase to avoid conflict with nim keywords
     # backquoting is a less clear solution
     Mod: BinaryMethod
+    divmod: BinaryMethod
     pow: BinaryMethod
+
+    matmul: BinaryMethod
     
     iadd,
       isub,
@@ -90,7 +93,8 @@ type
       iXor,
       iOr,
       iLshift,
-      iRshift
+      iRshift,
+      iMatmul
         :BinaryMethod
 
     Not: UnaryMethod
@@ -153,6 +157,11 @@ type
     iternext: UnaryMethod
 
     reversed: UnaryMethod
+
+    buffer: BinaryMethod
+    release_buffer: BinaryMethod
+
+    await, aiter, anext: UnaryMethod
 
 
   PyObjectObj* = object
