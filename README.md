@@ -90,5 +90,4 @@ for foreignal call to control Nim's MM.
 In short those difficulties that once held us back have disappeared.
 
 
-### License
-Not sure. I think it should follow CPython license, but other Python implementations like RustPython use licenses like MIT.
+
