@@ -1,6 +1,6 @@
 ## bytesobject and bytesarrayobject
 import std/strformat
-import std/hashes
+import ./hash
 import ./pyobject
 from ./abstract/iter import PyObject_GetIter
 import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
@@ -14,7 +14,7 @@ declarePyType Bytes(tpToken):
 declarePyType ByteArray(reprLock, mutable):
   items: seq[char]
 
-proc hash*(self: PyBytesObject): Hash = self.hashCollection
+proc hash*(self: PyBytesObject): Hash = Py_HashBuffer(self.items)
 
 type PyBytesWriter* = object
   #overallocate*: bool

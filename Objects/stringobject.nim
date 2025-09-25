@@ -1,5 +1,5 @@
 
-import std/hashes
+import ./hash_def
 import std/unicode
 export Rune, unicode.`==`, toRunes
 from std/strutils import join
@@ -160,16 +160,22 @@ proc joinAsRunes*(r: openArray[UnicodeVariant], sep: string): seq[Rune] =
     result.add sep.toRunes
     result.add r[i].toRunes
 
+template itemSize*(self: UnicodeVariant): int =
+  ## returns 1 or 4 currently
+  if self.ascii: 1 else: 4
+
 proc hashImpl(self: UnicodeVariant): Hash {. inline, cdecl .} = 
-  result = Hash 0
-  template forLoop(ls) =
-    for i in ls:
-      result = result !& hash(cast[uint32](i))
+  template forLoop(ls): untyped =
+    when Py_SupHashBuffer:
+      Py_HashBuffer(ls[0].addr, ls.len * self.itemSize)
+    else:
+      for i in ls:
+        result = result !& cast[int](i)
+      result = !$result
   if self.ascii:
     forLoop self.asciiStr
   else:
     forLoop self.unicodeStr
-  result = !$result
 
 proc hash*(self: UnicodeVariant): Hash {. inline, cdecl .} = 
   #self.str.doBothKindOk hash
@@ -224,6 +230,10 @@ proc cmpAscii*(self: PyStrObject; s: string): int =
 proc eqAscii*(self: PyStrObject; s: string): bool =
   ## `_PyUnicode_EqualToASCIIString`
   self.cmpAscii(s) == 0
+
+template itemSize*(self: PyStrObject): int =
+  ## `PyUnicode_KIND`
+  self.str.itemSize
 
 proc hash*(self: PyStrObject): Hash {. inline, cdecl .} =
   result = hash(self.str) # don't write as self.str.hash as that returns attr
@@ -294,10 +304,6 @@ template data*(self: PyStrObject): UnicodeVariant =
 template kind*(self: PyStrObject): bool =
   ## restype is unstable.
   self.str.ascii
-template itemSize*(self: PyStrObject): int =
-  ## returns 1 or 4 currently
-  ## `PyUnicode_KIND`
-  if self.str.ascii: 1 else: 4
 proc PyUnicode_READ*(kind: bool, data: UnicodeVariant, index: int): Rune{.inline.} =
   case kind
   of true: data.asciiStr[index].Rune

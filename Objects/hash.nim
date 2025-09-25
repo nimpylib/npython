@@ -1,4 +1,5 @@
-import std/hashes
+import ./hash_def
+export hash_def
 import ./pyobject 
 import ./[
   exceptions, stringobject, boolobjectImpl,
@@ -10,9 +11,16 @@ proc unhashable*(obj: PyObject): PyTypeErrorObject = newTypeError newPyAscii(
   "unhashable type '" & obj.pyType.name & '\''
 )
 
+proc Py_HashPointerRaw(x: uint): Hash =
+  # Bottom 3 or 4 bits are likely to be 0; rotate x by 4 to the right
+  # to avoid excessive hash collisions for dicts and sets.
+  Hash: (x shr 4) or (x shl (8 * sizeof(uint) - 4))
+
 proc rawHash*(obj: PyObject): Hash =
   ## for type.__hash__
-  hash(obj.id)
+  #hash(obj.id)
+  let x = cast[uint](obj.id) 
+  Py_HashPointerRaw x
 
 var curHashExc{.threadvar.}: PyBaseErrorObject
 proc popCurHashExc(): PyBaseErrorObject =
