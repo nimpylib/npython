@@ -7,6 +7,7 @@ import ../Objects/[
   ]
 import ../Utils/[utils, compat, trans_imp]
 import ../Include/cpython/pyerrors
+import ../Include/internal/pycore_int
 import ./[
   neval_helpers,
   sysmodule_instance,
@@ -30,21 +31,48 @@ when not defined(js):
 
   system.setControlCHook(controlCHandler)
 
+template handle_PyStatus_ERR(m) = Py_FatalError m
+
 template chk(e: PyBaseErrorObject, msg: string) =
   let ret = e
   if not ret.orPrintTb:
-    Py_FatalError msg
+    handle_PyStatus_ERR msg
 
-proc pyInit*(args: seq[string]) =
 
+{.push inline.}
+proc pycore_interp_init =
   # pycore_init_types
   for t in bltinTypes:
     t.typeReady
+  Py_Int_Float_InitTypes handle_PyStatus_ERR
 
   chk PySys_Create(sys): "can't initialize sys module"
 
   chk pycore_init_builtins(): "can't initialize builtins module"
 
+using config: PyConfig
+proc pyinit_config(config) =
+  pycore_interp_init()
+
+
+proc interpreter_update_config() =
+  PyInterpreterState_GET_long_state().max_str_digits = PY_INT_DEFAULT_MAX_STR_DIGITS # config->int_max_str_digits
+
+proc init_interp_main() =
+  interpreter_update_config()
+proc pyinit_main() =
+  init_interp_main()
+{.pop.}
+
+proc Py_InitializeFromConfig*(config) =
+  pyinit_config(config)
+
+  pyinit_main()
+
+
+proc pyInit*(args: seq[string]) =
+
+  Py_InitializeFromConfig(pyConfig)
   #_PyPathConfig_UpdateGlobal
   # COPY2(program_full_path, executable)
 

@@ -10,6 +10,7 @@ import ../../Objects/[
   dictobject,
   moduleobjectImpl,
 ]
+export Py_Int_Float_InitTypes
 
 import ../../Include/internal/pycore_initconfig
 
