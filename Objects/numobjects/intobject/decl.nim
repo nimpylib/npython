@@ -14,7 +14,10 @@ when defined(js):
     TwoDigits = uint32
     SDigit = int32
 
-  const digitBits = 16
+  const
+    digitBits = 16
+    PyLong_DECIMAL_SHIFT = 5
+    PyLong_DECIMAL_BASE = TwoDigits 100_000
     
   template truncate(x: TwoDigits): Digit =
     const mask = 0x0000FFFF
@@ -26,7 +29,10 @@ else:
     TwoDigits = uint64
     SDigit = int64
 
-  const digitBits = 32
+  const
+    digitBits = 32
+    PyLong_DECIMAL_SHIFT = 10
+    PyLong_DECIMAL_BASE = TwoDigits 10_000_000_000
 
   template truncate(x: TwoDigits): Digit =
     Digit(x)
@@ -41,8 +47,8 @@ const
 
 # only export for ./intobject
 export Digit, TwoDigits, SDigit, digitBits, truncate,
- IntSign, PyLong_SHIFT
-
+ IntSign, PyLong_SHIFT, PyLong_DECIMAL_SHIFT, PyLong_DECIMAL_BASE
+const digitPyLong_DECIMAL_BASE* = Digit PyLong_DECIMAL_BASE
 
 declarePyType Int(tpToken):
   #v: BigInt

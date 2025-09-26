@@ -16,7 +16,8 @@ import ./[
 export bit_length, signbit
 import ../../stringobject/strformat
 import ../../../Modules/unicodedata/[decimal, space]
-
+import ../../../Include/internal/pycore_int
+export PY_INT_MAX_STR_DIGITS_THRESHOLD, PY_INT_DEFAULT_MAX_STR_DIGITS
 
 type STwoDigit = SDigit
 
@@ -605,23 +606,38 @@ proc newPyInt(i: int): PyIntObject =
 ]#
 const PyLongBaseSet* = {0, 2..36}
 
+template check_max_str_digits_with_msg(fail_cond; errMsg){.dirty.} =
+  bind PyInterpreterState_GET_long_state
+  let max_str_digits = PyInterpreterState_GET_long_state().max_str_digits
+  if max_str_digits > 0 and fail_cond:
+    return newValueError newPyAscii errMsg
 
-template fromStrAux[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: var int; base: uint8#[PyLongBase]#; cToDigit) {.dirty.} =
+template fromStrAux[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: var int; base: uint8#[PyLongBase]#; checkThreshold: static[bool]; cToDigit) {.dirty.} =
   bind inplaceMul, inplaceAdd, normalize
+  bind check_max_str_digits_with_msg, PY_INT_MAX_STR_DIGITS_THRESHOLD, MAX_STR_DIGITS_errMsg_to_int
   result = newPyIntSimple()
   # assume s not empty
   result.digits.add 0
+  var pre = '\0'
   while i < s.len:
+    when checkThreshold:
+      if i > PY_INT_MAX_STR_DIGITS_THRESHOLD:
+        check_max_str_digits_with_msg i > max_str_digits, MAX_STR_DIGITS_errMsg_to_int(max_str_digits, i)
     let c = s[i]
-    if c != C'_':
+    if c == C'_':
+      # Double underscore not allowed.
+      if pre == C'_':
+        break
+    else:
       inplaceMul(result, base)
       inplaceAdd(result, cToDigit)
+    pre = c
     i.inc
 
   normalize(result)
 
 template isspace(c: char): bool = c.isSpaceAscii
-template fromStrImpl[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: var int; base: var uint8#[PyLongBase]#; err; cToDigit) {.dirty.} =
+template fromStrImpl[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: var int; base: var uint8#[PyLongBase]#; checkThreshold: static[bool]; errInvStr; cToDigit) {.dirty.} =
   bind fromStrAux, isspace
   var sign: IntSign = Positive
   let L = s.len
@@ -680,7 +696,7 @@ template fromStrImpl[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: 
     if cur == C'_':
       incIdx
 
-  fromStrAux(result, s, i, base, cToDigit)
+  fromStrAux(result, s, i, base, checkThreshold, cToDigit)
 
   # Allow only trailing whitespace after `end`
   while true:
@@ -695,7 +711,7 @@ template fromStrImpl[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: 
       doesn't make too much sense]#
     base = 0
     if not zero:
-      err
+      errInvStr
     #[there might still be other problems, therefore base
     remains zero here for the same reason]#
   if zero:
@@ -706,9 +722,10 @@ template fromStrImpl[C: char|Rune](result: var PyIntObject; s: openArray[C]; i: 
 
 proc fromStr*[C: char|Rune](s: openArray[C]; res: var PyIntObject): int =
   ## with `base = 0` (a.k.a. support prefix like 0b)
+  ## and ignore `sys.flags.int_max_str_digits`
   template err = return
   var base = 0u8
-  res.fromStrImpl(s, result, base, err):
+  res.fromStrImpl(s, result, base, false, err):
     when C is char:
       if c not_in Digits: err
       Digit(c) - Digit('0')
@@ -719,6 +736,7 @@ proc fromStr*[C: char|Rune](s: openArray[C]; res: var PyIntObject): int =
       do: err
       d
 proc fromStr*[C: char|Rune](s: openArray[C]): PyIntObject{.raises: [ValueError].} =
+  ## This ignores `sys.flags.int_max_str_digits`
   if s.fromStr(result) != s.len:
     raise newException(ValueError, "could not convert string to int")
 
@@ -742,7 +760,7 @@ proc fromStrWithValidBase[C: char](res: var PyIntObject; s: openArray[C]; nParse
     retIfExc PyObject strObj
     retInvIntCall strObj, base
   var base = cast[uint8](base)
-  res.fromStrImpl(s, nParsed, base, err):
+  res.fromStrImpl(s, nParsed, base, true, err):
     Digit c.digitOr(base, err)
 
 proc fromStr*[C: char](res: var PyIntObject; s: openArray[C]; nParsed: var int): PyBaseErrorObject =
@@ -758,9 +776,10 @@ proc PyLong_FromString*[C: char](s: openArray[C]; nParsed: var int; base: int = 
   result = res.fromStr(s, nParsed, base)
   if result.isNil: result = res
 
-method `$`*(i: PyIntObject): string{.raises: [].} =
+proc fill(result: var string, i: PyIntObject) =
   if i.zero:
-    return "0"
+    result = "0"
+    return
   var ii = i.copy()
   var r: Digit
   while true:
@@ -772,6 +791,30 @@ method `$`*(i: PyIntObject): string{.raises: [].} =
   if i.negative:
     result.add '-'
   result.reverse
+
+proc length_hint(a: PyIntObject): int = a.digitCount * PyLong_DECIMAL_SHIFT
+method `$`*(i: PyIntObject): string{.raises: [].} =
+  ## this ignores `sys.flags.int_max_str_digits`,
+  ##  and may raises `OverflowDefect` if `i` contains too many digits
+  result = newStringOfCap(i.length_hint)
+  result.fill i
+
+proc toStringCheckThreshold*(a: PyIntObject, v: var string): PyBaseErrorObject{.raises: [].} =
+  ## this respects `sys.flags.int_max_str_digits`
+  template check_max_str_digits(fail_cond){.dirty.} =
+    check_max_str_digits_with_msg fail_cond, MAX_STR_DIGITS_errMsg_to_str(max_str_digits)
+  let size_a = a.digitCount
+  if size_a >= 10 * PY_INT_MAX_STR_DIGITS_THRESHOLD div (3 * PyLong_SHIFT) + 2:
+    check_max_str_digits(
+       max_str_digits div (3 * PyLong_SHIFT) <= ((size_a - 11) div 10)
+    )
+  let negative = a.negative
+  #let size_hint = size_a.length_hint
+  #let scratch = newPyIntOfLen size_hint
+  v = $a
+  let strlen = v.len
+  if strlen > PY_INT_MAX_STR_DIGITS_THRESHOLD:
+    check_max_str_digits strlen - int(negative) > max_str_digits
 
 proc hash*(self: PyIntObject): Hash {. inline, cdecl .} = 
   result = hash(self.sign)

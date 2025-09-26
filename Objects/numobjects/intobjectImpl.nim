@@ -84,12 +84,10 @@ implIntMagic eq:
     let msg = fmt"== not supported by int and {other.pyType.name}"
     result = newTypeError(newPyStr msg)
 
-implIntMagic str:
-  newPyAscii($self)
-
-
 implIntMagic repr:
-  newPyAscii($self)
+  var s: string
+  retIfExc self.toStringCheckThreshold s
+  newPyAscii(s)
 
 
 implIntMagic hash:
