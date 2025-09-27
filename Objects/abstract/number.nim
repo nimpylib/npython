@@ -10,6 +10,15 @@ import ../../Include/cpython/pyerrors
 export PyNumber_Index, PyNumber_AsSsize_t, PyNumber_AsClampedSsize_t
 import ./op_helpers
 
+proc PyNumber_ToBase*(n: PyObject, base: uint8): PyObject =
+  if base not_in {2u8, 8, 10, 16}:
+    return newSystemError newPyAscii"PyNumber_ToBase: base must be 2, 8, 10 or 16"
+  let index = privatePyNumber_Index(n)
+  retIfExc index
+  var s: string
+  retIfExc PyIntObject(index).format(base, s)
+  newPyAscii s
+
 proc PyLong_AsLongAndOverflow*(vv: PyObject, overflow: var IntSign, res: var int): PyBaseErrorObject =
   if vv.isNil: return PyErr_BadInternalCall()
   res = PyIntObject(

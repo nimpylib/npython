@@ -35,6 +35,9 @@ proc ord*(c: PyObject): PyObject{.bltin_clinicGen.} =
     return newTypeError newPyStr fmt"ord() expected a string of length 1, but {c.typeName:.200s} found"
   return newTypeError newPyStr fmt"ord() expected a character, but string of length {size} found"
 
+proc bin*(n: PyObject): PyObject{.bltin_clinicGen.} = PyNumber_ToBase n, 2
+proc oct*(n: PyObject): PyObject{.bltin_clinicGen.} = PyNumber_ToBase n, 8
+proc hex*(n: PyObject): PyObject{.bltin_clinicGen.} = PyNumber_ToBase n, 16
 
 proc chr*(c: PyObject): PyObject{.bltin_clinicGen.} =
   var overflow: IntSign
@@ -53,6 +56,9 @@ template register_unarys* =
   bind regfunc
   regfunc abs
   regfunc ord
+  regfunc bin
+  regfunc oct
+  regfunc hex
   regfunc chr
   regfunc callable
 

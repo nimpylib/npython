@@ -16,6 +16,7 @@ import ./[
 export bit_length, signbit
 import ../../stringobject/strformat
 import ../../../Modules/unicodedata/[decimal, space]
+from ../../../Utils/utils import unreachable
 import ../../../Include/internal/pycore_int
 export PY_INT_MAX_STR_DIGITS_THRESHOLD, PY_INT_DEFAULT_MAX_STR_DIGITS
 
@@ -776,6 +777,67 @@ proc PyLong_FromString*[C: char](s: openArray[C]; nParsed: var int; base: int = 
   result = res.fromStr(s, nParsed, base)
   if result.isNil: result = res
 
+proc long_format_binary(a: PyIntObject, base: uint8, alternate: bool, v: var string): PyBaseErrorObject =
+  assert base in {2u8, 8, 16}
+
+  let
+    size_a = a.digitCount
+    high_a = size_a - 1
+  let bits = case base
+  of 16: 4
+  of 8: 3
+  of 2: 1
+  else: unreachable
+  let negative = a.negative
+  var sz: int
+  if size_a == 0:
+    v = "0"
+    return
+  else:
+    # Ensure overflow doesn't occur during computation of sz.
+    if size_a > int.high - 3 div PyLong_SHIFT:
+      return newOverflowError newPyAscii"int too large to format"
+    {.push overflowChecks: off.}
+    let size_a_in_bits = (high_a) * PyLong_SHIFT + bit_length(a.digits[high_a])
+    # Allow 1 character for a '-' sign.
+    sz = negative.int + (size_a_in_bits + (bits - 1)) div bits
+    {.pop.}
+  if alternate: sz += 2
+  v = (when declared(newStringUninit): newStringUninit else: newString)(sz)
+
+  template WRITE_DIGITS(p) =
+    # JRH: special case for power-of-2 bases
+    var accum = TwoDigits 0
+    var accumbits = 0  # # of bits in accum
+    for i in 0..<size_a:
+      accum = accum or ((TwoDigits a.digits[i]) shl accumbits)
+      accumbits += PyLong_SHIFT
+      assert accumbits >= bits
+      while true:
+        var cdigit = cast[uint8](accum and (base - 1))
+        cdigit += (if cdigit < 10: uint8'0' else: 87#[uint8('a')-10]#)
+        *--cast[char](cdigit)
+        accumbits -= bits
+        accum = accum shr bits
+        if not (
+          if i < high_a: accumbits >= bits
+          else: accum > 0): break
+    if alternate:
+      case bits
+      of 4: *--'x'
+      of 3: *--'o'
+      else: *--'b' # base == 2
+      *--'0'
+    if negative: *--'-'
+
+  var p = sz
+  template `*--`(c) =
+    p.dec
+    v[p] = c
+
+  WRITE_DIGITS p
+  assert p == 0
+
 proc fill(result: var string, i: PyIntObject) =
   if i.zero:
     result = "0"
@@ -815,6 +877,12 @@ proc toStringCheckThreshold*(a: PyIntObject, v: var string): PyBaseErrorObject{.
   let strlen = v.len
   if strlen > PY_INT_MAX_STR_DIGITS_THRESHOLD:
     check_max_str_digits strlen - int(negative) > max_str_digits
+
+proc format*(i: PyIntObject, base: uint8, s: var string): PyBaseErrorObject =
+  # `_PyLong_Format`
+  # `s` is a `out` param
+  if base == 10: toStringCheckThreshold(i, s)
+  else: long_format_binary(i, base, true, s)
 
 proc hash*(self: PyIntObject): Hash {. inline, cdecl .} = 
   result = hash(self.sign)
