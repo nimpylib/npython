@@ -287,9 +287,11 @@ proc initTypeDict(tp: PyTypeObject) =
     d[namePyStr] = descr
    
   # bltin methods
-  for name, meth in tp.bltinMethods.pairs:
+  for name, (meth, classmethod) in tp.bltinMethods.pairs:
     let namePyStr = newPyAscii(name)
-    d[namePyStr] = newPyMethodDescr(tp, meth, namePyStr)
+    d[namePyStr] = 
+      if classmethod: newPyClassMethodDescr(tp, meth, namePyStr)
+      else: newPyMethodDescr(tp, meth, namePyStr)
 
   tp.dict = d
 

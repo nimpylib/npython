@@ -114,10 +114,13 @@ macro tpGetter*(tp, methodName: untyped): untyped =
 macro tpSetter*(tp, methodName: untyped): untyped = 
   ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectSetter")
 
-proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) = 
+proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethodDef) =
   if t.bltinMethods.hasKey(name):
     unreachable(fmt"Method {name} is registered twice for type {t.name}")
   t.bltinMethods[name] = fun
+
+proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethod) =
+  registerBltinMethod(t, name, (fun, false))
 
 template genProperty*(T; pyname: string; nname; getter, setter){.dirty.} =
   bind `[]=`, tpGetter, tpSetter
@@ -503,12 +506,18 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
   # add pragmas, the last to add is the first to execute
   
   # builtin function has no `self` to cast
-  var selfCast = params != bltinFuncParams
+  var
+    selfCast = params != bltinFuncParams
+    classmethod = false
   # custom pragms
   for p in pragmas:
     if p.eqIdent"noSelfCast":
       # no castSelf pragma
       selfCast = false
+      continue
+    if p.eqIdent"classmethod":
+      selfCast = false
+      classmethod = true
       continue
     procNode.addPragma(p)
 
@@ -544,7 +553,8 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
           newIdentNode("registerBltinMethod")
         ),
         newLit($methodName),
-        name
+        quote do:
+          (`name`, `classmethod`)
       )
   of MethodKind.Magic:
     result.add newAssignment(

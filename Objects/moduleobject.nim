@@ -43,7 +43,7 @@ proc init_dict(modu: PyModuleObject, md_dict: PyDictObject, name: PyStrObject) =
   md_dict[pyDUId spec] = pyNone
 
   # `_add_methods_to_object`
-  for name, meth in modu.pyType.bltinMethods:
+  for name, (meth, _) in modu.pyType.bltinMethods:
     let namePyStr = newPyAscii(name)
     md_dict[namePyStr] = newPyNimFunc(meth, namePyStr, modu)
 

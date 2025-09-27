@@ -195,6 +195,7 @@ type
     # the values are set in typeobject.nim when the type is ready
     dict*: PyObject
 
+  BltinMethodDef* = tuple[meth: BltinMethod, classmethod: bool]  ## unstable
   PyTypeObject* = ref object of PyObjectWithDict
     #mro: PyObject ## PyTupleObject
     name*: string
@@ -204,7 +205,7 @@ type
     kind*: PyTypeToken
     members*: RtArray[PyMemberDef]
     magicMethods*: MagicMethods
-    bltinMethods*: Table[string, BltinMethod]
+    bltinMethods*: Table[string, BltinMethodDef]
     getsetDescr*: Table[string, (UnaryMethod, BinaryMethod)]
     tp_dealloc*: destructor
     tp_alloc*: proc (self: PyTypeObject, nitems: int): PyObject{.pyCFuncPragma.}  ## XXX: currently must not return exception
@@ -331,7 +332,8 @@ proc newPyTypePrivate[T: PyObject](name: string): PyTypeObject =
   when defined(js):
     result.giveId
   result.name = name
-  result.bltinMethods = initTable[string, BltinMethod]()
+  # Starting from Nim v0.20, tables are initialized by default and it is not necessary to call this function explicitly.
+  #result.bltinMethods = initTable[string, BltinMethod]()
   result.getsetDescr = initTable[string, (UnaryMethod, BinaryMethod)]()
   bltinTypes.add(result)
   result.tp_basicsize = sizeof T
