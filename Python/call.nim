@@ -1,6 +1,6 @@
 
 
-import ../Objects/[pyobject, methodobject, funcobjectImpl,
+import ../Objects/[pyobject, methodobject, funcobject,
   stringobject, exceptions,
   pyobject_apis,
   dictobject,
@@ -12,7 +12,9 @@ proc fastCall*(callable: PyObject, args: openArray[PyObject]; kwnames: PyDictObj
   if callable.ofPyNimFuncObject:
     return tpMagic(NimFunc, call)(callable, @args, kwnames)
   elif callable.ofPyFunctionObject:
-    return tpMagic(Function, call)(callable, @args, kwnames)
+    # XXX:rec-dep:
+    #return tpMagic(PyFunction, call)(callable, @args, kwnames)
+    return callable.getMagic(call)(callable, @args, kwnames)
   else:
     let fun = getFun(callable, call)
     return fun(callable, @args, kwnames)
