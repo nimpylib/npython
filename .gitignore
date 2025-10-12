@@ -5,6 +5,11 @@ trash/
 # nimpretty backup file
 *.backup
 
+# vim session
+/.session
+
+nimcache/
+
 ./Objects/test.nim
 
 __pycache__/
