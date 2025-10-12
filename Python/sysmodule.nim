@@ -28,6 +28,7 @@ implSysModuleMethod audit(eventObj: PyStrObject, *args):
 implSysModuleMethod excepthook(exctype: PyTypeObject, value: PyBaseErrorObject, traceback):
   excepthook(exctype, value, traceback)
   pyNone
+implSysModuleMethod displayhook(x): displayhook(x)
 
 implSysModuleMethod get_int_max_str_digits(): newPyInt PySys_GetIntMaxStrDigits()
 implSysModuleMethod set_int_max_str_digits(*a, **kw):

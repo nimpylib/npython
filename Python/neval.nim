@@ -8,13 +8,14 @@ import builtindict
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
                    setobject, notimplementedobject, boolobjectImpl,
-                   exceptionsImpl, methodobject,
+                   exceptionsImpl,
                    ]
 import ../Objects/abstract/[dunder, number,]
 import ../Utils/utils
 import ./[
   neval_frame,
   pyimport,
+  intrinsics,
 ]
 export pyimport, neval_frame
 
@@ -385,17 +386,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.PrintExpr:
               let top = sPop()
-              if top.id != pyNone.id:
-                # all object should have a repr method properly initialized in typeobject.nim
-                let reprObj = top.pyType.magicMethods.repr(top)
-                if reprObj.isThrownException:
-                  handleException(reprObj)
-
-                # todo: optimization - build a cache
-                let printFunction = PyNimFuncObject(KeyError!bltinDict[newPyAscii"print"])
-                let retObj = tpMagic(NimFunc, call)(printFunction, @[reprObj])
-                if retObj.isThrownException:
-                  handleException(retObj)
+              var unused: PyObject
+              let retObj: PyBaseErrorObject = print_expr(top, unused)
+              if not retObj.isNil:
+                handleException(retObj)
 
             of OpCode.LoadBuildClass:
               sPush KeyError!bltinDict[newPyAscii"__build_class__"]
