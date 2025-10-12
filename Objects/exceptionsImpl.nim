@@ -86,7 +86,8 @@ proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionOb
   excpObj.traceBacks.add (PyObject fileName, PyObject nil, e.lineNo, e.colNo)
   excpObj
 
-proc setString*(e: PyBaseExceptionObject, m: PyStrObject) = e.args[0] = m
+proc setString*(e: PyBaseExceptionObject, m: PyStrObject) =
+  withSetItem e.args, acc: acc[0] = m
 proc setString*(e: PyBaseExceptionObject, m: string) =
   ## `_PyErr_SetString`
   e.setString newPyStr m

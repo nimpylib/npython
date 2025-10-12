@@ -169,7 +169,17 @@ proc hashCollection*[T: PyObject](self: T): Hash =
   self.privateHash = result
   self.setHash = true
 
-proc hash*(self: PyTupleObject): Hash = self.hashCollection 
+proc hash*(self: PyTupleObject): Hash = self.hashCollection
+proc clearhash(self: PyTupleObject){.inline.} =
+  ## used after `[]=` to self.items
+  self.setHash = false
+template withSetitem*(self: PyTupleObject; acc; body) =
+  ## unstable.
+  ## take place of `PyTuple_SetItem`
+  bind clearhash
+  template acc: untyped = self.items
+  body
+  clearhash self
 
 implTupleMagic hash:
   handleHashExc:

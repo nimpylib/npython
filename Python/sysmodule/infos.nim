@@ -35,11 +35,12 @@ template genInfo(pureNameId; qualname: string, docStr; fields; n; doIt){.dirty.}
     retIfExc maye
     let it{.inject.} = PyStructSequenceObject maye
 
-    var pos = 0
-    template SetFlag(flag) =
-      it[pos] = flag
-      pos.inc
-    doIt
+    it.withSetItem acc:
+      var pos = 0
+      template SetFlag(flag) =
+        acc[pos] = flag
+        pos.inc
+      doIt
     it
 
 template genInfo(pureNameId; qualname: string, docStr; fields; doIt){.dirty.} =

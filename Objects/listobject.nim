@@ -66,10 +66,14 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
 
   `impl S Magic` iadd, [mutable: write]: self.extend other
 
+  
+  proc `[]=`*(self: `Py S Object`; i: int, v: Ele){.inline.} = self.items[i] = v
+  proc `[]=`*(self: `Py S Object`; i: HSlice, v: seq[Ele]){.inline.} = self.items[i] = v
+
   `impl S Magic` setitem, [mutable: write]:
     if arg1.ofPyIntObject:
       let idx = getIndex(PyIntObject(arg1), self.len)
-      self.items[idx] = arg2.mapper
+      self[idx] = arg2.mapper
       return pyNone
     if ofPySliceObject(arg1):
       let slice = PySliceObject(arg1)
@@ -82,7 +86,7 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
         var ls: seq[Ele]
         pyForIn it, iterableToLoop:
           ls.add it.mapper
-        self.items[nslice] = ls
+        self[nslice] = ls
       else:
         let (iterable, nextMethod) = getIterableWithCheck(iterableToLoop)
         if iterable.isThrownException:
@@ -93,7 +97,7 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
             break
           if it.isThrownException:
             return it
-          self.items[i] = it.mapper
+          self[i] = it.mapper
       return pyNone
     return newIndexTypeError(newPyAscii"list", arg1)
 

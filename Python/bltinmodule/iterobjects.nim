@@ -103,8 +103,9 @@ proc next*(self): PyObject =
   if tuplesize == 0:
     return newStopIterError()
 
-  loopIter(self.ittuple, "zip"):
-    res[i] = item
+  res.withSetitem acc:
+    loopIter(self.ittuple, "zip"):
+      acc[i] = item
   return res
 
 
