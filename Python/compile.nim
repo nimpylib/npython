@@ -486,6 +486,9 @@ compileMethod AugAssign:
   let opCode = astNode.op.toInplaceOpCode
   c.addOp(newInstr(opCode, astNode.lineNo.value))
 
+compileMethod Global: discard #c.addOp newInstr(CompileOpGlobal, astNode.lineNo.value)# discard#c.compileSeq astNode.names
+compileMethod Nonlocal: discard#c.compileSeq astNode.names
+
 compileMethod Delete:
   for i in astNode.targets:
     c.compile(i)

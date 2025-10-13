@@ -32,6 +32,8 @@ type
     declaredVars: HashSet[PyStrObject]
     usedVars: HashSet[PyStrObject]
 
+    globals: HashSet[PyStrObject] ## names in global stmt
+    nonlocals: HashSet[PyStrObject] ## names in nonlocal stmt
     # for scope lookup
     scopes: Table[PyStrObject, Scope]
 
@@ -200,6 +202,10 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 
     while toVisitPerSte.len != 0:
       let astNode = toVisitPerSte.pop
+      template doSeqIt(itor; itExpr){.dirty.} =
+          for it in itor: itExpr
+      template doSeqItFromNames(T; itExpr){.dirty.} =
+        doSeqIt `Ast T`(astNode).names, itExpr
       if astNode of AsdlStmt:
         case AsdlStmt(astNode).kind
 
@@ -275,13 +281,17 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           visitSeq(tryNode.finalbody)
 
         of AsdlStmtTk.Import:
-          for n in AstImport(astNode).names:
-            ste.addDeclaration(AstAlias(n).asname)
-
+          doSeqItFromNames Import:
+            ste.addDeclaration(AstAlias(it).asname)
         of AsdlStmtTk.ImportFrom:
-          for n in AstImportFrom(astNode).names:
-            ste.addDeclaration(AstAlias(n).asname)
-
+          doSeqItFromNames ImportFrom:
+            ste.addDeclaration(AstAlias(it).asname)
+        of AsdlStmtTk.Global:
+          doSeqItFromNames Global:
+            ste.globals.incl it.value
+        of AsdlStmtTk.Nonlocal:
+          doSeqItFromNames Nonlocal:
+            ste.nonlocals.incl it.value
         of AsdlStmtTk.Expr:
           visit AstExpr(astNode).value
 
@@ -403,22 +413,25 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 proc determineScope(ste: SymTableEntry, name: PyStrObject) = 
   if ste.scopes.hasKey(name):
     return
-  if ste.isRootSte:
-    ste.scopes[name] = Scope.Global
+  template lookup(ste; setsco) =
+    if ste.isRootSte or name in ste.globals:
+      setsco Scope.Global
+    if name in ste.nonlocals:
+      setsco Scope.Cell
+    if ste.declared(name):
+      setsco Scope.Local
+  template update_and_ret(sco) =
+    ste.scopes[name] = sco
     return
-  if ste.declared(name):
-    ste.scopes[name] = Scope.Local
-    return
+  lookup ste, update_and_ret
   var traceback = @[ste, ste.parent]
   var scope: Scope
   while true:
     let curSte = traceback[^1]
-    if curSte.isRootSte:
-      scope = Scope.Global
+    template set_and_break(sco) =
+      scope = sco
       break
-    if curSte.declared(name):
-      scope = Scope.Cell
-      break
+    lookup curSte, set_and_break
     traceback.add curSte.parent
   traceback[^1].scopes[name] = scope
   case scope
@@ -426,6 +439,8 @@ proc determineScope(ste: SymTableEntry, name: PyStrObject) =
     scope = Scope.Free
   of Scope.Global:
     discard
+  of Scope.Local:
+    unreachable "closure is not impl yet"  #TODO:closure
   else:
     unreachable
   for curSte in traceback[0..^2]:

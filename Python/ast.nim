@@ -694,13 +694,24 @@ ast import_name, [AsdlStmt]:
     node.names.add c
   node
   
-  
-proc astGlobalStmt(parseNode: ParseNode): AsdlStmt = 
-  raiseSyntaxError("global stmt not implemented")
-  
-proc astNonlocalStmt(parseNode: ParseNode): AsdlStmt = 
-  raiseSyntaxError("nonlocal stmt not implemented")
-  
+
+template genGlobalOrNonlocal(pre){.dirty.} =
+  ast `pre stmt`, [AsdlStmt]:
+    let node = `newAst pre`()
+    assert parseNode.children[0].tokenNode.token == Token.pre
+    setNo(node, parseNode.children[0])
+    for i in countup(1, parseNode.children.high, 2):
+      let name = parseNode.children[i].tokenNode.content
+      node.names.add newIdentifier name
+    node
+
+genGlobalOrNonlocal global
+ast nonlocal_stmt, [AsdlStmt]:
+  let node = newAstNonlocal()
+  setNo(node, parseNode.children[0])
+  raiseSyntaxError("nonlocal not impl", node)
+  #TODO:closure
+
 # assert_stmt  'assert' test [',' test]
 ast assert_stmt, [AstAssert]:
   result = newAstAssert()
