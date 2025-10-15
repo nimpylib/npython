@@ -28,7 +28,16 @@ Check out `./tests` to see more examples.
 
 ### How to use
 
-#### prepare
+#### Easiest installation
+
+```shell
+nimble install npython
+```
+
+#### Manually Install (e.g. JS backend)
+Or you may wanna build for js backend or something else:
+
+##### prepare
 
 ```
 git clone https://github.com/nimpylib/npython.git
@@ -40,14 +49,14 @@ NPython support C backend and multiply JS backends:
 > after build passing `-h` flag to npython and you will
 see help message
 
-#### For a binary executable (C backend)
+##### For a binary executable (C backend)
 
 ```
 nimble build
 bin/npython
 ```
 
-#### For JS backend
+##### For JS backend
 
 - NodeJS: `nimble buildJs -d:nodejs`
 - Deno: `nimble buildJs -d:deno`
@@ -56,6 +65,7 @@ bin/npython
 
 
 ### Todo
+* integrate with [nimpylib](https://github.com/nimpylib/nimpylib)
 * more features on user defined class
 * builtin compat dict
 * yield stmt
