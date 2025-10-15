@@ -35,3 +35,8 @@ template PySequence_FAST_ITEMS*(s: PyObject): openArray[PyObject] =
 template PySequence_Fast_GET_SIZE*(s: PyObject): int =
   bind getCommonPySequence_Fast
   getCommonPySequence_Fast s, len
+
+proc PySequence_Fast_GET_ITEM*(s: PyListObject; i: int): PyObject = s[i]
+proc PySequence_Fast_GET_ITEM*(s: PyObject; i: int): PyObject =
+  if s.ofPyListObject: PyListObject(s)[i]
+  else: PyTupleObject(s)[i]
