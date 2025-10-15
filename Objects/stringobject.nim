@@ -3,9 +3,10 @@ import ./hash_def
 import std/unicode
 export Rune, unicode.`==`, toRunes
 from std/strutils import join
-import macros
+import std/macros
 
-import pyobject
+import ./pyobject
+import ../Utils/castChar
 
 type UnicodeVariant* = ref object
   ## UCS1 or UCS4 variant
@@ -366,7 +367,7 @@ proc copy_characters(dest: PyStrObject, dest_start: int, frm: PyStrObject, frm_s
     loopAsgn dest.str.asciiStr:
       if it >% Rune(255):
         when check_maxchar: return true
-        else: cast[char](it)
+        else: castChar(it)
       else:
         cast[char](it)
   else:
