@@ -1,12 +1,13 @@
 
 import std/strformat
-import ../Utils/[sequtils, addr0]
+import ../Utils/[sequtils, destroyPatch, addr0]
 import ./byteobjects
 import ./pyobject
 import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
   iterobject, hash, abstract,
 ]
 import ./tupleobjectImpl
+import ./stringlib/join
 from ./listobject import genMutableSequenceMethods
 
 export byteobjects
@@ -113,6 +114,27 @@ genMutableSequenceMethods PyNumber_AsCharOrRet, newPyInt, ByteArray, char:
   when compileOption"boundChecks":
     if self.len == high int:
       return newOverflowError newPyAscii"cannot add more objects to bytearray"
+
+#TODO:buffer
+# workaround:
+type Py_buffer = object
+  buf: CharsView
+  len: int
+  obj: PyObject
+defdestroy Py_buffer: discard
+#proc PyBuffer_Release(b: Py_buffer) = discard
+
+proc init_Py_buffer(buf: CharsView, len: int, obj: PyObject, ): Py_buffer = Py_buffer(buf: buf, len: len, obj: obj)
+
+proc to_py_buffer(b: PyBytesObject|PyByteArrayObject): CharsView = b.charsView
+
+template genJoin(B; mut: bool){.dirty.} =
+  proc join*(b: `Py B Object`, iterable: PyObject): PyObject{.pyCFuncPragma.} =
+    bytes_join B, b, iterable, mutable=mut
+  `impl B Method` join(iterable): self.join iterable
+
+genJoin bytes, false
+genJoin bytearray, true
 
 template impl(x, fromSize, fromObject) =
   if x.ofPyStrObject:

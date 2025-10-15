@@ -5,6 +5,7 @@ import ./pyobject
 from ./abstract/iter import PyObject_GetIter
 import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
 import ./numobjects/intobject/[decl, ops_imp_warn]
+import ../Utils/addr0
 #XXX: Nim's string ops has bugs for NUL('\0') char, e.g. len('1\02') gives 2
 declarePyType Bytes(tpToken):
   items: seq[char]
@@ -54,15 +55,30 @@ proc contains*(s: PyByteLike, c: char): bool = c in s.items
 proc `[]`*(s: PyByteLike, i: int): char = s.items[i]
 proc getInt*(s: PyByteLike, i: int): PyIntObject = newPyInt s[i]
 
-template impl(B, InitT, newTOfCap){.dirty.} =
+when defined(js):
+  type CharsView* = seq[char]
+else:
+  type CharsView* = cstring  ## impl is unstable. It's UB if setitem to PyBytes's CharsView
+  ## and in JS backend, currently it's just a copy, not a real view
+  proc getCharPtr*(s: PyByteLike; i: int): ptr char = addr s.items[i]  ## unstable.
+  ##  not available on JS
 
+template impl(B, InitT, newTOfCap){.dirty.} =
   proc asString*(s: `Py B Object`): string = $s.items
+  proc charsView*(s: `Py B Object`): CharsView =
+    when defined(js): s.items
+    else:
+      return cast[cstring](s.items.addr0)
   method `$`*(s: `Py B Object`): string = s.asString
-  proc `newPy B`*(s: InitT = default InitT): `Py B Object` =
+  proc `newPy B`*(s: InitT): `Py B Object` =
     result = `newPy B Simple`()
     result.items = s
   proc `newPy B`*(size: int): `Py B Object` =
     `newPy B` newTOfCap size
+
+  let `empty B` = `newPy B` @[]
+  proc `newPy B`*(): `Py B Object` = `empty B`
+
   proc `&`*(s1, s2: `Py B Object`): `Py B Object` =
     `newPy B`(s1.items & s2.items)
 
