@@ -6,7 +6,7 @@ from std/strutils import join
 import std/macros
 
 import ./pyobject
-import ../Utils/castChar
+import ../Utils/[castChar, addr0,]
 
 type UnicodeVariant* = ref object
   ## UCS1 or UCS4 variant
@@ -82,7 +82,7 @@ proc newUnicodeVariant*(s: openArray[char], ensureAscii = false): UnicodeVariant
   let L = s.len
   var str = (when declared(newStringUninit): newStringUninit else: newString)(L)
   when declared(copyMem):
-    copyMem(str[0].addr, s[0].addr, L)
+    copyMem(str.addr0, s.addr0, L)
   else:
     for i, c in s: str[i] = c
   newUnicodeVariant(str, ensureAscii)
@@ -168,7 +168,7 @@ template itemSize*(self: UnicodeVariant): int =
 proc hashImpl(self: UnicodeVariant): Hash {. inline, cdecl .} = 
   template forLoop(ls): untyped =
     when Py_SupHashBuffer:
-      Py_HashBuffer(ls[0].addr, ls.len * self.itemSize)
+      Py_HashBuffer(ls.addr0, ls.len * self.itemSize)
     else:
       for i in ls:
         result = result !& cast[int](i)

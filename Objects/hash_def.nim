@@ -2,6 +2,8 @@
 import std/hashes
 export Hash, `!&`, `!$`
 
+import ../Utils/addr0
+
 const
   MULTIPLIER* = Hash 1_000_003 # 0xf4243
   ## PyHash_MULTIPLIER Prime multiplier used in string and various other hashes.
@@ -36,6 +38,6 @@ proc PyHash_GetFuncDef*: PyHash_FuncDef{.inline.} = PyHash_Func
 proc PyHash_SetFuncDef*(x: PyHash_FuncDef) = PyHash_Func = x
 
 proc Py_HashBuffer*(p: pointer, n: int): Hash{.raises: [].} = PyHash_Func.hash(p, n)
-proc Py_HashBuffer*[T](p: openArray[T]): Hash = Py_HashBuffer(p[0].addr, p.len * sizeof T)
+proc Py_HashBuffer*[T](p: openArray[T]): Hash = Py_HashBuffer(p.addr0, p.len * sizeof T)
 
 const Py_SupHashBuffer* = not defined(js)

@@ -1,6 +1,6 @@
 
 import std/strformat
-import ../Utils/sequtils
+import ../Utils/[sequtils, addr0]
 import ./byteobjects
 import ./pyobject
 import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
@@ -14,8 +14,8 @@ export byteobjects
 proc `&`(s: string, se: seq[char]): string =
   result.setLen s.len + se.len
   result.add s
-  when defined(copyMem):
-    copyMem result[s.len].addr, se[0].addr, se.len
+  when declared(copyMem):
+    copyMem result[s.len].addr, se.addr0, se.len
   else:
     for i in se: result.add i
 template `&`(se: seq[char], s: string): seq[char] = se & @s

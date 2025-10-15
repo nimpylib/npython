@@ -1,4 +1,6 @@
 
+import ../addr0
+export addr0
 template selfAsAccessor(p, self) =
   template p: untyped = self
 template dollarImpl*(self: typed; getAccessor=selfAsAccessor){.dirty.} =
@@ -21,11 +23,12 @@ template atImpl*(self; p){.dirty.} =
   ## impl `@`, requires:
   ## - p.items int
   ## - p.pairs int
+  bind addr0
   let L = self.len
   when compiles(newSeqUninit[T]):
     result = newSeqUninit[T](self.len)
     when declared(copyMem):
-      copyMem(result[0].addr, p[0].addr, L*sizeof(T))
+      copyMem(addr0 result, addr0 p, L*sizeof(T))
     else:
       for i, v in p.pairs L:
         result[i] = v
