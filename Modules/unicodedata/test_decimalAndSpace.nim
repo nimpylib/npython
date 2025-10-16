@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 ## this file is also runnable via Python
-##  and it should be run via python for one time when it's time to test to update,
-## but remember once run via Nim, `./tempfile.nim` is needed
-import tempfile
+##  and it should be run via python for one time when it's time to test to update
 
-not """\"""
+"""\""".`!=`("").assert
 import ./rune_decl
 import ./[decimal, space]
 import ./private/consts
@@ -22,7 +20,7 @@ when true:
     digits: array[10, IntSeq]
     c: Rune
     d: int
-not """"_"""
+discard "" != """"_"""
 
 #[
 from sys import maxunicode
