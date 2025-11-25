@@ -251,12 +251,15 @@ template PyRun_String*(str; mode; globals; locals): PyObject =
   bind PyRun_StringFlags
   PyRun_StringFlags(str, mode, globals, locals)
 
-template errPrint(dict; call){.dirty.} =
+template errPrint(dict; call): bool{.dirty.} =
   let dict = getMainDict()
   let res = call
   if res.isThrownException:
     let exc = PyBaseErrorObject(res)
     PyErr_Print exc
+    false
+  else:
+    true
 
 proc PyRun_SimpleStringFlagsWithName*(str; name: string, flags=initPyCompilerFlags()): bool{.pyCFuncPragma.} =
   ## `_PyRun_SimpleStringFlagsWithName`
