@@ -1,6 +1,8 @@
 {.used.}
 
 import std/strutils
+from std/sugar import capture, `=>`
+from std/jsffi import JsObject, jsTypeof
 import ./[cpython, pythonrun,]
 
 import ../Utils/[compat, fileio,]
@@ -155,18 +157,63 @@ proc pushHistory(prompt: kstring, exp: string) =
   incomplete.scrollIntoView(ScrollIntoViewOptions(
     `block`: "start", inline: "start", behavior: "instant"))
 
+
+proc runLocalPy(ev: Event, _: VNode) =
+  let input = document.createElement("input")
+  input.setAttribute("type", "file")
+  input.setAttribute("multiple", "")
+  input.onchange = proc (e: Event) =
+    let fileInput = #[input]# e.target
+
+    type
+      Promise[T] = ref object of JsObject
+      FileList = ref object of JsObject
+      File = ref object of Blob
+
+    proc len(self: FileList): int {.importjs: "#.length".}
+    proc item(self: FileList, idx: int): File {.importcpp.}
+
+    proc name(_: File): cstring{.importjs: "#.name".}
+    proc text(_: File): Promise[cstring]{.importcpp.}
+
+    proc then[T; P: proc](_: Promise[T]; cb: P){.importcpp.}
+
+    proc files(_: typeof(fileInput)): FileList{.importjs: "#.files".}
+    let inputs = fileInput.files
+    #[proc readAsText(_: FileReader, blob: File){.importcpp.}
+    # readAsArrayBuffer
+    new_FileReader().onload = proc (ev: Event) =
+      let t = ev.target#[reader]#
+      proc result(_: typeof(t)): cstring{.importjs: "#.result".}
+      ...]#
+    for i in 0..<inputs.len:
+      #reader.readAsText(inputs.item(i))
+      let file = inputs.item(i)
+      let filename = $file.name
+      capture filename:
+        file.text().then((cs: cstring)=>(
+          pushHistory(kstring"###>Run File Isolatedly: ", filename);
+          let suc = PyRun_SimpleString($cs)
+          #TODO: if not suc: ...
+          pushHistory(kstring"###>Run File successful: ", $suc)
+          redraw()
+        ))
+  input.click()
+
 const isEditingClass = "isEditing"
+
+proc getInputNode: auto =
+  let nodes = document.getElementsByClassName(isEditingClass)
+  assert nodes.len == 1, $nodes.len
+  let edit = nodes[0]
+  edit
 
 # NOTE: do not use add callback for DOMContentLoaded
 #  as karax's init is called on windows.load event
 #  so to set `clientPostRenderCallback` of setRenderer
 proc postRenderCallback() =
   historyNode = document.getElementById(historyContainerId)
-
-  let nodes = document.getElementsByClassName(isEditingClass)
-  assert nodes.len == 1, $nodes.len
-  let edit = nodes[0]
-  edit.focus()
+  getInputNode().focus()
 
 const fstdin = "<stdin>"
 var pyrunner = newPyExecutor fstdin
@@ -174,6 +221,12 @@ var pyrunner = newPyExecutor fstdin
 var prompt: kstring
 proc createDom(): VNode =
   result = buildHtml(tdiv):
+    tdiv(class="top-menu", style=style(
+        (position, kstring"sticky"),
+        (top, kstring"0"),  # keep always on top
+        (display, kstring"flex"),  # show children horizontally
+      )):
+      button(onclick=runLocalPy): text "Run Local .py File"
     tdiv(class="header"):
       p(class="info"):
         text info
