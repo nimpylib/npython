@@ -15,6 +15,9 @@ type
     Free,
     Global
 
+  SteKind* {. pure .} = enum
+    Module, Function, Class
+
 type
   SymTable* = ref object
     # map ast node address to ste
@@ -25,6 +28,7 @@ type
     # the symbol table entry tree
     parent: SymTableEntry
     children: seq[SymTableEntry]
+    kind*: SteKind
 
     # function arguments, name to index in argument list
     argVars*: Table[PyStrObject, int]
@@ -174,10 +178,13 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
         toVisitPerSte.add(node)
     # these asts mean new scopes
     if astNode of AstModule:
+      ste.kind = SteKind.Module
       addBodies(AstModule)
     elif astNode of AstInteractive:
+      ste.kind = SteKind.Module
       addBodies(AstInteractive)
     elif astNode of AstFunctionDef:
+      ste.kind = SteKind.Function
       addBodies(AstFunctionDef)
       # deal with function args
       let f = AstFunctionDef(astNode)
@@ -187,8 +194,10 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
         ste.addDeclaration(AstArg(arg).arg)
         ste.argVars[AstArg(arg).arg.value] = idx
     elif astNode of AstClassDef:
+      ste.kind = SteKind.Class
       addBodies(AstClassDef)
     elif astNode of AstListComp:
+      ste.kind = SteKind.Function
       let compNode = AstListComp(astNode)
       toVisitPerSte.add compNode.elt
       for gen in compNode.generators:
@@ -413,12 +422,12 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 proc determineScope(ste: SymTableEntry, name: PyStrObject) = 
   if ste.scopes.hasKey(name):
     return
-  template lookup(ste; setsco) =
-    if ste.isRootSte or name in ste.globals:
+  template lookup(entry; setsco) =
+    if entry.isRootSte or name in entry.globals:
       setsco Scope.Global
-    if name in ste.nonlocals:
+    if name in entry.nonlocals:
       setsco Scope.Cell
-    if ste.declared(name):
+    if (entry == ste or entry.kind != SteKind.Class) and entry.declared(name):
       setsco Scope.Local
   template update_and_ret(sco) =
     ste.scopes[name] = sco
@@ -440,7 +449,8 @@ proc determineScope(ste: SymTableEntry, name: PyStrObject) =
   of Scope.Global:
     discard
   of Scope.Local:
-    unreachable "closure is not impl yet"  #TODO:closure
+    traceback[^1].scopes[name] = Scope.Cell
+    scope = Scope.Free
   else:
     unreachable
   for curSte in traceback[0..^2]:
