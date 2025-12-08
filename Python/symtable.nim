@@ -297,10 +297,18 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
             ste.addDeclaration(AstAlias(it).asname)
         of AsdlStmtTk.Global:
           doSeqItFromNames Global:
-            ste.globals.incl it.value
+            let name = it.value
+            if name in ste.nonlocals:
+              raiseSyntaxError("name '" & $name & "' is nonlocal and global", AstGlobal astNode)
+            ste.globals.incl name
         of AsdlStmtTk.Nonlocal:
+          if ste.kind == SteKind.Module:
+             raiseSyntaxError("nonlocal declaration not allowed at module level", AstNonlocal astNode)
           doSeqItFromNames Nonlocal:
-            ste.nonlocals.incl it.value
+            let name = it.value
+            if name in ste.globals:
+              raiseSyntaxError("name '" & $name & "' is nonlocal and global", AstNonlocal astNode)
+            ste.nonlocals.incl name
         of AsdlStmtTk.Expr:
           visit AstExpr(astNode).value
 
@@ -422,13 +430,17 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 proc determineScope(ste: SymTableEntry, name: PyStrObject) = 
   if ste.scopes.hasKey(name):
     return
+  
+  let isNonlocal = name in ste.nonlocals
+
   template lookup(entry; setsco) =
     if entry.isRootSte or name in entry.globals:
       setsco Scope.Global
-    if name in entry.nonlocals:
-      setsco Scope.Cell
     if (entry == ste or entry.kind != SteKind.Class) and entry.declared(name):
-      setsco Scope.Local
+      if name in entry.nonlocals:
+        discard
+      else:
+        setsco Scope.Local
   template update_and_ret(sco) =
     ste.scopes[name] = sco
     return
@@ -437,11 +449,19 @@ proc determineScope(ste: SymTableEntry, name: PyStrObject) =
   var scope: Scope
   while true:
     let curSte = traceback[^1]
+    if curSte.isNil:
+      traceback.setLen(traceback.len - 1)
+      break
     template set_and_break(sco) =
       scope = sco
       break
     lookup curSte, set_and_break
     traceback.add curSte.parent
+  
+  #TODO:nonlocal
+  #if isNonlocal and scope == Scope.Global:
+  #   raiseSyntaxError("no binding for nonlocal '" & $name & "' found", nil)
+
   traceback[^1].scopes[name] = scope
   case scope
   of Scope.Cell:
