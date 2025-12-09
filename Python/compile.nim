@@ -956,11 +956,12 @@ compileMethod Index:
 compileMethod Arguments:
   unreachable()
 
-template compile*(astRoot: AsdlModl, fileNameV: PyStrObject|string, flags=initPyCompilerFlags(), optimize = -1): PyObject = 
+template compile*(tastRoot: AsdlModl, fileNameV: PyStrObject|string, flags=initPyCompilerFlags(), optimize = -1): PyObject = 
   bind newPyStr, fromBltinSyntaxError, assemble, compile
   let fileName = newPyStr fileNameV
   var c: Compiler
   try:
+    let astRoot = tastRoot
     c = newCompiler(astRoot, fileName, flags, optimize)
     c.compile(astRoot)
   except SyntaxError as e:
@@ -968,7 +969,9 @@ template compile*(astRoot: AsdlModl, fileNameV: PyStrObject|string, flags=initPy
   c.tcu.assemble(c.fileName)
 
 proc compile*(input, fileName: PyStrObject|string, flags=initPyCompilerFlags(), optimize = -1): PyObject{.raises: [].} =
-  ast($input, $fileName).compile fileName, flags, optimize
+  compile ast($input, $fileName),
+    fileName, flags, optimize
 
 proc compile*(input: ParseNode, fileName: PyStrObject|string, flags=initPyCompilerFlags(), optimize = -1): PyObject{.raises: [].} =
-  ast(input).compile fileName, flags, optimize
+  compile ast(input),
+    fileName, flags, optimize
