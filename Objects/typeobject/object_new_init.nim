@@ -30,9 +30,9 @@ wrapAsBltinFunc object_new
 
 template check(ascii, s) =
   if excess_args(args, kwds):
-    if typ.magicMethods.New != object_new_wrap:
+    if typ.magicMethods.New == object_new_wrap:
       return newTypeError newPyAscii ascii
-    if typ.magicMethods.init == object_init_wrap:
+    if typ.magicMethods.init != object_init_wrap:
       return newTypeError newPyStr s
 
 proc object_init*(obj: PyObject, args: PyTupleObject, kwds: PyDictObject): PyObject{.pyCFuncPragma.} =
