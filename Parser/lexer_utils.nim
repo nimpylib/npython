@@ -29,9 +29,10 @@ proc parseNumber*(s: string, res: var string, idx: var int, msg: var string): bo
   let start = idx
   let hi = s.high
   template strp: untyped = s.toOpenArray(idx, hi)
-  template ret =
+  template retVal(val) =
     res = s[start..<idx]
-    return
+    return val
+  template ret = retVal(result)
   template curOr(elseDo): untyped =
     if idx <= hi:
       s[idx]
@@ -43,7 +44,7 @@ proc parseNumber*(s: string, res: var string, idx: var int, msg: var string): bo
     idx.inc strp.skipWhile Digits+{'_'}
   if cur == '0':
     idx.inc
-    var c = cur
+    var c = curOr(retVal(true))
     # Hex, octal or binary -- maybe.
     template handleDigit(base: uint8; kind: string) =
       idx.inc
