@@ -38,7 +38,7 @@ proc printTb*(excp: PyExceptionObject) =
     for tb in cur.traceBacks.reversed:
       singleExcpStrs.add tb.fmtTraceBack
     let msg = $PyStrObject(tpMagic(BaseError, str)(cur)).str
-    var head = excp.pyType.name
+    var head = cur.pyType.name
     if msg.len > 0:
       head.add ": "
       head.add msg
