@@ -3,7 +3,7 @@ import strformat
 import neval
 import builtindict
 
-import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject,
+import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobjectImpl,
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
   listobjectImpl, enumobject,
