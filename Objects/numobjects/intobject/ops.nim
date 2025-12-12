@@ -1021,7 +1021,69 @@ proc newPyInt*[C: char](smallInt: C): PyIntObject =
 proc newPyInt*[C: Rune|char](str: openArray[C]): PyIntObject = 
   fromStr(str)
 
+proc newPyInt*(dval: float): PyObject =
+  ## `PyLong_FromDouble`
+  #[
+	  Try to get out cheap if this fits in a long. When a finite value of real
+    floating type is converted to an integer type, the value is truncated
+    toward zero. If the value of the integral part cannot be represented by
+    the integer type, the behavior is undefined. Thus, we must check that
+    value is in range (LONG_MIN - 1, LONG_MAX + 1). If a long has more bits
+    of precision than a double, casting LONG_MIN - 1 to double may yield an
+    approximation, but LONG_MAX + 1 is a power of two and can be represented
+    as double exactly (assuming FLT_RADIX is 2 or 16), so for simplicity
+    check against (-(LONG_MAX + 1), LONG_MAX + 1).
+	]#
+  case dval.classify
+  of fcInf, fcNegInf:
+    return newOverflowError(newPyAscii"cannot convert float infinity to integer")
+  of fcNan:
+    return newValueError(newPyAscii"cannot convert float NaN to integer")
+  else: discard
 
+  const int_max = float int.high.uint + 1
+  if -int_max <= dval and dval <= int_max:
+    return newPyInt(int dval)
+
+  var dval = dval
+  var neg = false
+  if dval < 0.0:
+    neg = true
+    dval = -dval
+
+  var expo: int
+  var frac = frexp(dval, expo)  # dval = frac*2**expo; 0.0 <= frac < 1.0
+  assert expo > 0
+  let expo1s = expo - 1
+
+  let ndig = expo1s div PyLong_SHIFT + 1
+  let res = newPyIntOfLenUninit(ndig)
+
+  when declared(ldexp):
+    # NIMPYLIB:ldexp
+    frac = ldexp(frac, expo1s mod PyLong_SHIFT + 1)
+    for i in countdown(ndig-1, 0):
+      let bits = Digit(frac)
+      res.digits[i] = bits
+      frac -= float(bits)
+      frac = ldexp(frac, PyLong_SHIFT)
+  else:
+    discard frac
+    let fmaxValue = float high Digit
+    #while dval >= 1.0:
+    for i in countup(0, ndig-1):
+      let digit = Digit(dval mod fmaxValue)
+
+      #res.digits.add digit
+      res.digits[i] = digit
+      dval = dval / fmaxValue
+    res.normalize()
+
+  res.sign = if neg:
+    Negative
+  else:
+    Positive
+  res
 
 when isMainModule:
   #let a = fromStr("-1234567623984672384623984712834618623")
