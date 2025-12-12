@@ -9,6 +9,7 @@ import ../../Utils/trans_imp
 impExp floatobject,
   decl, toval, fromx
 
+from ./intobject/ops import newPyInt
 import ./numobjects_comm
 export floatobject_decl
 
@@ -101,6 +102,16 @@ implFloatMagic repr:
 
 implFloatMagic hash:
   newPyInt(hash(self.v))
+
+
+# long_long
+implFloatMagic int: newPyInt self.v
+
+implFloatMagic float:
+  if self.ofExactPyFloatObject:
+    self
+  else:
+    newPyFloat self
 
 proc float_subtype_new(typ: PyTypeObject, x: PyObject): PyObject{.pyCFuncPragma.}
 proc float_new_impl(typ: PyTypeObject, x: PyObject = nil): PyObject{.pyCFuncPragma.} =

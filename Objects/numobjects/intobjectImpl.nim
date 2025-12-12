@@ -90,8 +90,22 @@ implIntMagic repr:
   newPyAscii(s)
 
 
-implIntMagic hash:
-  self
+implIntMagic hash: self
+
+# long_long
+implIntMagic int:
+  if self.ofExactPyIntObject:
+    self
+  else:
+    newPyInt self
+
+implIntMagic float:
+  var ovf: PyOverflowErrorObject
+  let ret = self.toFloat(ovf)
+  if ovf.isNil:
+    newPyFloat ret
+  else:
+    ovf
 
 
 implIntMethod bit_length(): self.bit_length()
