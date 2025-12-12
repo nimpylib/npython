@@ -240,6 +240,8 @@ proc addGeneric(t: PyTypeObject) =
     trySetSlot(le, leDefault)
   if (not nilMagic(eq)):
     trySetSlot(ne, neDefault)
+  else:
+    trySetSlot(ne, neDefault)
   if (not nilMagic(ge)) and (not nilMagic(eq)):
     trySetSlot(ge, geDefault)
   trySetSlot(eq, eqDefault)
@@ -305,8 +307,8 @@ proc typeReadyImpl*(tp: PyTypeObject, initial: bool) =
   if initial:
     type_ready_inherit tp
 
-proc typeReady(tp: PyTypeObject, initial: bool){.pyCFuncPragma.} = 
-  # type_ready_set_type
+proc typeReady*(tp: PyTypeObject, initial: bool){.pyCFuncPragma.} = 
+  # unstable. type_ready_set_type
   if tp.pyType.isNil:
     tp.pyType = pyTypeObjectType
   tp.typeReadyImpl initial
