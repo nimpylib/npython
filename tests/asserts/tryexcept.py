@@ -69,5 +69,5 @@ def nested():
 try:
     nested()
 except NameError as e:
-    assert str(e) == "NameError: name 'c' is not defined"
+    assert str(e) == "name 'c' is not defined"
 
