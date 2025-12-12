@@ -7,20 +7,27 @@ import ../[
   notimplementedobject,
 ]
 import ../typeobject/apis/subtype
-import ../../Include/internal/pycore_object
+#import ../../Include/internal/pycore_object
 
 proc binop_type_error(v, w: PyObject, op_name: string): PyTypeErrorObject =
   newTypeError newPyStr fmt"unsupported operand type(s) for {op_name:.100s}: '{v.typeName:.100s}' and '{w.typeName:.100s}'"
 
 template BINARY_OP(v, w; magicop; opname) =
   bind BinaryMethod, isNotImplemented, pyNotImplemented
-  bind PyType_IsSubtype, Py_CheckSlotResult
+  bind PyType_IsSubtype
+  # XXX: do not use ```
+  # Py_CheckSlotResult(v, opname, result)```
+  # which FatalError when raising exception
+
   let slotv = v.getMagic(magicop)
   var slotw: BinaryMethod
   if not Py_IS_TYPE(w, v.pyType):
     slotw = w.getMagic(magicop)
     if slotw == slotv:
       slotw = nil
+  template check(a1, op, res) =
+    retIfExc res
+
   if not slotv.isNil:
     if not slotw.isNil and
        PyType_IsSubtype(w.pyType, v.pyType):
@@ -29,12 +36,12 @@ template BINARY_OP(v, w; magicop; opname) =
         return
       slotw = nil
     result = slotv(v, w)
-    assert Py_CheckSlotResult(v, opname, result)
+    check(v, opname, result)
     if not result.isNotImplemented:
       return
   if not slotw.isNil:
     result = slotw(v, w)
-    assert Py_CheckSlotResult(v, opname, result)
+    check(v, opname, result)
     if not result.isNotImplemented:
       return
   
