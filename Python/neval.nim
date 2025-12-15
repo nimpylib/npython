@@ -123,10 +123,6 @@ template getBoolFast(obj: PyObject): bool =
     handleException(exc)
   b
 
-# if declared as a local variable, js target will fail. See gh-10651
-when defined(js):
-  var valStack: seq[PyObject]
-  var blockStack: seq[TryBlock]
 
 template evalBuildMapTo(d) =
   let d = newPyDict()
@@ -156,11 +152,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     # for exceptions happened when evaluating the frame no colNo is set
     excp.traceBacks.add (PyObject f.code.fileName, PyObject f.code.codeName, lineNo, -1)
    
+  # valStack, blockStack were once declared as global variable in JS,
+  #   as js target would fail in the past. ref nim-lang/Nim#10651
+
   # in future, should get rid of the abstraction of seq and use a dynamically
   # created buffer directly. This can reduce time cost of the core neval function
   # by 25%
-  when not defined(js):
-    var valStack: seq[PyObject]
+  var valStack: seq[PyObject]
 
   # retain these templates for future optimization
   template sTop: PyObject = 
@@ -211,8 +209,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
   # in CPython this is a finite (20, CO_MAXBLOCKS) sized array as a member of 
   # frameobject. Safety is ensured by the compiler
-  when not defined(js):
-    var blockStack: seq[TryBlock]
+  var blockStack: seq[TryBlock]
 
   template hasTryBlock: bool = 
     0 < blockStack.len
