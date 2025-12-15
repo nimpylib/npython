@@ -120,7 +120,7 @@ template genSequenceMagicsBesidesBaseCollect(nameStr,
         return retObj
       if isPyTrueObj(retObj):
         inc count
-    newPyInt(count)
+    return newPyInt(count)
 
 template genSequenceMagics*(nameStr,
     implNameMagic, implNameMethod;

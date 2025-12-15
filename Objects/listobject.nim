@@ -187,7 +187,7 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
     else:
       intIdx = idx.toIntOrRetOF
     self.items.insert(item.mapper, intIdx)
-    pyNone
+    return pyNone
 
 
   `impl S Method` pop(), [mutable: write]:
@@ -205,7 +205,7 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
     assert retObj.ofPyIntObject
     let idx = PyIntObject(retObj).toIntOrRetOF
     self.items.delete(idx)
-    pyNone
+    return pyNone
 
 
 template asIs(x): untyped = x
