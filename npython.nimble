@@ -36,24 +36,36 @@ template taskWithArgs(name, taskDesc, body){.dirty.} =
     var args = getArgs taskName
     body
 
-let binPathWithoutExt = binDir & '/' & namedBin[srcName]
-taskWithArgs test, "test all, assuming after build":
+import std/os
+let binPathWithoutExt = absolutePath(binDir / namedBin[srcName])
+
+proc test(pre, pyExe, pyExeToCheckExists: string, args: openArray[string]) =
   let subTest =
     if args.len == 0: "asserts"
     else: args[0]
-  let pyExe = binPathWithoutExt.toExe
-  if not fileExists pyExe:
-    raise newException(OSError, "please firstly run `nimble build`")
-  for i in listFiles "tests/" & subTest:
-    echo "testing " & i
-    exec pyExe & ' ' & i
+  if not fileExists pyExeToCheckExists:
+    raise newException(OSError, "please firstly run `nimble " & pre & "`")
+  withDir "tests/" & subTest:
+    for i in listFiles ".":
+      echo "testing " & i
+      exec pyExe & ' ' & i
 
-import std/os
+taskWithArgs test, "test, assuming after build":
+  let pyExe = binPathWithoutExt.toExe
+  test "build", pyExe, pyExe, args
+
+taskWithArgs testNodeJs, "test nodejs backend, assuming after build":
+  let
+    pyExeFile = binPathWithoutExt & ".js"
+    pyExe = "node " & pyExeFile
+  test "buildJs", pyExe, pyExeFile, args
+
 taskWithArgs buildJs, "build JS. supported backends: " &
     "-d:nodejs|-d:deno|-d:jsAlert":
   selfExec "js -o:" & binPathWithoutExt & ".js " &
     args.quoteShellCommand & ' '& srcDir & '/' & srcName
 
+taskRequires "buildKarax", "karax"
 taskWithArgs buildKarax, "build html page with karax":
   selfExec "r --hints:off -d:release Tools/mykarun -d:karax " & " --appName=" & namedBin[srcName] & ' ' &
     args.quoteShellCommand & ' '& srcDir & '/' & srcName
