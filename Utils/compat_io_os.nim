@@ -20,7 +20,8 @@ when Js:
   # without {'encoding': ...} option, Buffer returned
   proc readFileSync(p: cstring): JsObject{.importjs: fsDeno"readFileSync".}
   proc writeFileSync(p, data: cstring){.importjs: fsDeno"writeFileSync".}
-  proc existsSync(fp: cstring): bool{.importjs: fsDeno"existsSync".}
+  # there is existsSync in deno's @std/fs, but that must be added as a JSR dependency
+  proc existsSync(fp: cstring): bool{.importjs: fs"existsSync".}
   #XXX: not suitable but cannot found another handy api
 
   
