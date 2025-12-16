@@ -20,22 +20,26 @@ include karax/prelude
 import karax/kdom
 import karax/vstyles
 
-let
-  suitHeight = (StyleAttr.height, kstring"wrap-content") # XXX: still too height
+#let suitHeight = (StyleAttr.height, kstring"auto") # XXX: still too height
+let TopBottom = kstring"0.08rem"
+proc hstyle(pairs: varargs[(StyleAttr, kstring)]): VStyle =
+  result = style(
+    (marginTop, TopBottom),
+    (marginBottom, TopBottom),
+  )
+  for (a, v) in pairs:
+    result.setAttr a, v
 
 template oneReplLineNode(editNodeClasses;
     editable: static[bool]; promptExpr, editExpr): VNode =
   buildHtml:
-    tdiv(class="line", style=style(
+    tdiv(class="line", style=hstyle(
         (display, kstring"flex"),   # make children within one line
-        suitHeight,
     )):
-      pre(class="prompt" , style=style(
-          suitHeight,
-      )):
+      pre(class="prompt" , style=hstyle()):
         promptExpr
 
-      pre(class=editNodeClasses, contenteditable=editable, style=style(
+      pre(class=editNodeClasses, contenteditable=editable, style=hstyle(
         (flex, kstring"1"),  # without this, it becomes uneditable
         (border, kstring"none"),
         (outline, kstring"none"),
@@ -43,7 +47,6 @@ template oneReplLineNode(editNodeClasses;
         #(lineBreak, kstring"anywhere"),  # break anywhere, for CJK, not sup by karax
         #(wordWrap, kstring"anywhere"),   # alias of overflow-wrap,  not sup by karax
         (whiteSpace, kstring"pre-wrap"),  # Preserve spaces and allow wrapping
-        suitHeight,
       )):
         editExpr
 
