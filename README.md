@@ -1,8 +1,13 @@
 # NPython
 
+[![CI (C/JS Test)](https://github.com/nimpylib/npython/actions/workflows/ci.yml/badge.svg)](https://github.com/nimpylib/NPython/actions/workflows/ci.yml)
+[![CD (play build)][play-badge]](https://github.com/nimpylib/npython/actions/workflows/playground.yml)
+
+[play-badge]: https://github.com/nimpylib/npython/actions/workflows/playground.yml/badge.svg
+
 (Subset of) Python programming language implemented in Nim, from the compiler to the VM.
 
-[Online interactive demo by compiling Nim to Javascript][play-npython].
+[Online demo `playground`][play-npython] by compiling Nim to Javascript
 
 [play-npython]: https://play.nimpylib.org/
 
@@ -18,7 +23,7 @@ Capable of:
 * basic function (closure) defination and call. Decorators.
 * builtin print, dir, len, range, tuple, list, dict, exceptions and bunch of other simple helper functions
 * list comprehension (no set or dict yet).
-* basic import such as `import foo`. No alias, no `from`, etc
+* import such as `import foo`.
 * raise exceptions, basic `try ... except XXXError ... `, with detailed traceback message. Assert statement.
 * primitive `class` defination. No inheritance, no metatype, etc
 * interactive mode and file mode
@@ -32,6 +37,13 @@ Check out `./tests` to see more examples.
 
 ```shell
 nimble install npython
+```
+
+Then you can use as if using `python`, e.g.
+
+```shell
+npython --version
+npython -c "print('hello, NPython')"
 ```
 
 #### Manually Install (e.g. JS backend)
