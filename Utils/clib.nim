@@ -16,4 +16,4 @@ else:
   proc abort*(){.noReturn, importc, header: "<stdlib.h>".}
 
 when defined(windows):
-  proc DebugBreak*(){.imporc, header: "<debugapi.h>".}
+  proc DebugBreak*(){.importc, header: "<debugapi.h>".}
