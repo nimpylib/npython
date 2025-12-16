@@ -3,7 +3,7 @@
 when defined(nimPreviewSlimSys):
   import std/syncio
 
-import ../Utils/[compat, utils]
+import ../Utils/[compat]
 when not declared(stdout):
   import ../Utils/[compat_io_os, jsdispatch,]
   type
@@ -61,6 +61,7 @@ when not declared(stdout):
   proc open*(p: string, mode=FileMode.fmRead): File = newFile(p)
 
 else:
+  import ../Utils/utils
   when defined(nimPreviewSlimSys):
     import std/syncio
   import std/rdstdin
@@ -106,6 +107,6 @@ else:
     proc c_isatty(fildes: cint): cint {.
       importc: "isatty", header: "<unistd.h>".}
 
-    proc isatty*(fildes: cint): bool = 0 != c_isatty fildes
+  proc isatty*(fildes: cint): bool = 0 != c_isatty fildes
 
   export File, stdin, stdout, stderr, open
