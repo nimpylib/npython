@@ -1,8 +1,4 @@
 
-import std/[
-  math,
-]
-
 import ../numobjects_comm
 import ../../../Utils/utils
 export intobject_decl except Digit, TwoDigits, SDigit, digitBits, truncate,
