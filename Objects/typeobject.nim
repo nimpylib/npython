@@ -93,6 +93,7 @@ when SingleThread:
 else:
   import std/locks
   var typeLock: Lock
+  typeLock.initLock()
   template withTYPE_LOCK(body) =
     withLock typeLock: body
 
