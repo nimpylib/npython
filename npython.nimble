@@ -1,5 +1,9 @@
-import "Python/versionInfo" as libver
-version       = libver.Version
+from "Python/versionInfo" import Version
+import std/macros; macro asgnVer = quote do: version = `Version`
+asgnVer()  # declarative parser of nimble requires version to be literals
+#version       = libver.Version
+# since nimble@v0.16.4
+
 author        = "Weitang Li, litlighilit"
 description   = "(Subset of) Python programming language implemented in Nim"
 license       = "CPython license"
@@ -10,6 +14,9 @@ let srcName = "python"
 namedBin[srcName] = "npython"
 
 requires  "nim >= 1.6.14"  # 2.* (at least till 2.3.1) is okey, too.
+when declared(feature):  # nimble v0.18+
+  feature "playground":
+    requires "karax"
 
 # copied from nimpylib.nimble
 #   at 43378424222610f8ce4a10593bd719691fbb634b
