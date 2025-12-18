@@ -4,9 +4,9 @@ asgnVer()  # declarative parser of nimble requires version to be literals
 #version       = libver.Version
 # since nimble@v0.16.4
 
-author        = "Weitang Li, litlighilit"
-description   = "(Subset of) Python programming language implemented in Nim"
-license       = "CPython license"
+author        = "Weitang Li (liwt),  lit (litlighilit)"
+description   = "Python interpreter implemented in Nim, supporting JS backends"
+license       = "MIT"
 srcDir        = "Python"
 binDir        = "bin"
 
