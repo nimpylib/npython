@@ -6,6 +6,7 @@ from std/sugar import collect
 import ../[
   pyobject,
 ]
+export pyobject
 declarePyType Tuple(reprLock, tpToken):
   items: seq[PyObject]
   setHash: bool

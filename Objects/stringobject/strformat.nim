@@ -2,9 +2,7 @@
 import std/strformat
 export strformat
 include ./common_h
-when defined(nimdoc):
-  # for runnableExample
-  export stringobject
+export stringobject
 import ../typeobject/getters
 import ../pyobject_apis/strings
 import ../../Utils/utils
@@ -85,7 +83,7 @@ template `&`*(fun; str: string{lit}): PyObject =
   ## XXX: we use `&` to cheat LSP to work (for syntax highlight)
   runnableExamples:
     let a = newPyAscii"e"
-    echo newPyStr&"abc {a}"
+    discard newPyStr&"abc {a}"
   bind exc, fmt, FormatPyObjectError
   var s: string
   try:

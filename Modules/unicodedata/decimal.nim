@@ -32,7 +32,7 @@ template decimalItOr*(r: Rune; doIt; fallback){.dirty.} =
   ## ```
   runnableExamples:
     import std/unicode
-    decimalItOr(r):
+    decimalItOr(Rune 49):
       echo it, ": a decimal"
     do:
       echo "not a decimal"
@@ -56,8 +56,8 @@ proc allDecimals*(i: range[0..9]): seq[Rune] =
   runnableExamples:
     import std/unicode
     let threes = allDecimals(3)
-    asssert threes[0] == Rune'3'
-    asssert threes[67] == "🯳".toRunes[0]
+    assert threes[0] == Rune'3'
+    assert threes[67] == "🯳".toRunes[0]
   result = (when declared(newSeqUninit): newSeqUninit else: newSeq)[Rune](allZeros.len)
   for idx, r in enumerate(allDecimal(i)):
     result[idx] = r
