@@ -28,7 +28,7 @@ template gen(TspecS; ct: bool, invalid_format){.dirty.} =
       raise new FormatPyObjectError
     template notImpl(s) = raisePyExcAsNim newNotImplementedError newPyAscii s
     when ct:
-      const nspecS = specS[0..<specS.high]
+      const nspecS = when specS == "": "" else: specS[0..<specS.high]
     else:
       var nspecS = specS
       nspecS[^1] = 's'
