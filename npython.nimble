@@ -7,10 +7,11 @@ asgnVer()  # declarative parser of nimble requires version to be literals
 author        = "Weitang Li (liwt),  lit (litlighilit)"
 description   = "Python interpreter implemented in Nim, supporting JS backends"
 license       = "MIT"
-srcDir        = "Python"
+srcDir        = "."
+skipDirs = @["tests"]
 binDir        = "bin"
 
-let srcName = "python"
+let srcName = "Python/python"
 namedBin[srcName] = "npython"
 
 requires  "nim >= 1.6.14"  # 2.* (at least till 2.3.1) is okey, too.
