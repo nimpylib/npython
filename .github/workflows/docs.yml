@@ -1,0 +1,22 @@
+name: docs
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - v*.*
+  workflow_dispatch:
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: nimpylib/doc-deploy@v0.1.2
+      with:
+        homepage: https://npython.nimpylib.org
+        src-dir: Python
+        proj-name: python
+
