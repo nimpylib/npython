@@ -18,6 +18,17 @@ when declared(feature):  # nimble v0.18+
   feature "playground":
     requires "karax"
 
+var pylibPre = "https://github.com/nimpylib"
+let envVal = getEnv("NIMPYLIB_PKGS_BARE_PREFIX")
+if envVal != "": pylibPre = ""
+elif pylibPre[^1] != '/':
+  pylibPre.add '/'
+template pylib(x, ver) =
+  requires if pylibPre == "": x & ver
+           else: pylibPre & x
+
+pylib "pyrepr", " ^= 0.1.1"
+
 # copied from nimpylib.nimble
 #   at 43378424222610f8ce4a10593bd719691fbb634b
 func getArgs(taskName: string): seq[string] =

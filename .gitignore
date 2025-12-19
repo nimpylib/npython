@@ -18,3 +18,5 @@ __pycache__/
 /app.js
 /npython.html
 /npython.js
+nimble.develop
+nimble.paths
