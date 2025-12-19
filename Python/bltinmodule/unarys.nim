@@ -11,6 +11,7 @@ import ../../Objects/[
   numobjects/intobject,
   abstract/number,
   pyobject_apis/typeCheck,
+  pyobject_apis/strings,
 ]
 import ./utils
 
@@ -51,9 +52,11 @@ proc chr*(c: PyObject): PyObject{.bltin_clinicGen.} =
   PyUnicode_FromOrdinal v
 
 proc callable*(obj: PyObject): PyObject{.bltin_clinicGen.} = newPyBool obj.ofPyCallable
+proc ascii*(us: PyObject): PyObject{.bltin_clinicGen.} = PyObject_ASCII us
 
 template register_unarys* =
   bind regfunc
+  regfunc ascii
   regfunc abs
   regfunc ord
   regfunc bin

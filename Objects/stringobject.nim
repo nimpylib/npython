@@ -5,6 +5,8 @@ export Rune, unicode.`==`, toRunes
 from std/strutils import join
 import std/macros
 
+import pkg/pyrepr
+
 import ./pyobject
 import ../Utils/[castChar, addr0,]
 
@@ -243,7 +245,7 @@ method `$`*(strObj: PyStrObject): string{.raises: [].} =
   $strObj.str
 
 proc repr*(strObj: PyStrObject): string =
-  '\'' & $strObj.str & '\''   # TODO
+  pyrepr $strObj.str
 
 proc newPyString*(str: UnicodeVariant): PyStrObject{.inline.} =
   result = newPyStrSimple()

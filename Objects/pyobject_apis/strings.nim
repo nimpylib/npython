@@ -1,5 +1,6 @@
 
 import std/strformat
+import pkg/pyrepr
 import ../[pyobject,
   stringobject, exceptions,
 ]
@@ -28,3 +29,15 @@ proc PyObject_StrNonNil*(obj: PyObject): PyObject =
   result.errorIfNotString "__str__"
 
 proc PyObject_Str*(obj: PyObject): PyObject = obj.nullOr PyObject_StrNonNil
+
+proc PyObject_ASCIINonNil*(us: PyObject): PyObject =
+  let repr = PyObject_ReprNonNil us
+  retIfExc repr
+  # repr is guaranteed to be a PyUnicode object by PyObject_Repr
+  let str = PyStrObject repr
+  if str.isAscii:
+    return str
+  let s = pyasciiImpl $str
+  newPyAscii s
+
+proc PyObject_ASCII*(obj: PyObject): PyObject = obj.nullOr PyObject_ASCIINonNil

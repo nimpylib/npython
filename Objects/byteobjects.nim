@@ -1,5 +1,6 @@
 ## bytesobject and bytesarrayobject
 import std/strformat
+import pkg/pyrepr
 import ./hash
 import ./pyobject
 from ./abstract/iter import PyObject_GetIter
@@ -97,11 +98,11 @@ proc finish*(self: sink PyBytesWriter, res: PyObject) =
 proc newPyBytes*(s: openArray[char]): PyBytesObject = newPyBytes @s
 
 proc repr*(b: PyBytesObject): string =
-  'b' & '\'' & $b.items & '\'' # TODO
+  pyreprb $b.items
 
 proc repr*(b: PyByteArrayObject): string =
   "bytearray(" &
-    'b' & '\'' & $b.items & '\'' #[TODO]# &
+    pyreprb $b.items &
   ')'
 proc `[]=`*(s: PyByteArrayObject, i: int, c: char) = s.items[i] = c
 proc add*(s: PyByteArrayObject, c: char) = s.items.add c
