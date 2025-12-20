@@ -25,8 +25,8 @@ jobs:
       uses: actions/cache@v4
       with:
           path: ~/.nimble
-          key: ${{ runner.os }}-nimble
-    - uses: jiro4989/setup-nim-action@v1
+          key: ${{ runner.os }}-nimble-v2
+    - uses: jiro4989/setup-nim-action@v2
       with:
         nim-version: ${{ env.nim-version }}
     - name: install karax
@@ -51,10 +51,12 @@ jobs:
             cname="${prefix}${cname}"
         fi
         echo -n $cname > ${{ env.deploy-dir }}/CNAME
-        # We must re-build CNAME as we use 'peaceiris/actions-gh-pages@v4',
-        # where the old dir (including CNAME) will be purged.
+        # We must re-build CNAME as we use 'peaceiris/actions-gh-pages@v4', (or use 'cname' option),
+        # where the old dir (including CNAME) will be purged, iff without 'keep_files' option.
     - name: Deploy documents
       uses: peaceiris/actions-gh-pages@v4
       with:
+        deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+        external_repository: nimpylib/npython-play-demo
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ${{ env.deploy-dir }}
