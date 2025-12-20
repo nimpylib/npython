@@ -2,12 +2,20 @@
 
 [![CI (C/JS Test)](https://github.com/nimpylib/npython/actions/workflows/ci.yml/badge.svg)](https://github.com/nimpylib/NPython/actions/workflows/ci.yml)
 [![CD (play build)][play-badge]](https://github.com/nimpylib/npython/actions/workflows/playground.yml)
+[![docs](https://github.com/nimpylib/npython/actions/workflows/docs.yml/badge.svg)][docs]
 
+[docs]: https://npython.nimpylib.org
 [play-badge]: https://github.com/nimpylib/npython/actions/workflows/playground.yml/badge.svg
 
-(Subset of) Python programming language implemented in Nim, from the compiler to the VM.
+Python programming VM implemented in Nim.
 
-[Online demo `playground`][play-npython] by compiling Nim to Javascript
+<!--a tick to minic tow columns-->
+
+|||
+|-|-|
+|[Online `playground` demo][play-npython] ↓ | [Read API Docs][docs]|
+|(by compiling Nim to Javascript) | [Wiki about History](https://github.com/nimpylib/npython/wiki/History)|
+
 
 [play-npython]: https://play.nimpylib.org/
 
