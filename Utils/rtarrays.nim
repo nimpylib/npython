@@ -2,10 +2,11 @@
 const Js = defined(js)
 
 when Js:
-  import ./rtarrays/jsArrays
+  {.define: esModule.}
+  import pkg/jscompat/utils/jsarrays
   type RtArray*[T] = JsArray[T]
-  export jsArrays except JsArray, newJsArray, add
-  proc initRtArray*[T](x: int): RtArray[T] = newJsArray[T](x)
+  export jsarrays except JsArray, newJsArray, add
+  proc initRtArray*[T](x: Natural): RtArray[T] = newJsArray[T](x)
   proc initRtArray*[T](x: openArray[T]): RtArray[T] = newJsArray[T](x)
 
 else:

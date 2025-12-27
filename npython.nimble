@@ -29,6 +29,7 @@ template pylib(x, ver) =
            else: pylibPre & x
 
 pylib "pyrepr", " ^= 0.1.1"
+pylib "jscompat", " ^= 0.1.1"
 
 # copied from nimpylib.nimble
 #   at 43378424222610f8ce4a10593bd719691fbb634b
