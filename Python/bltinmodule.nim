@@ -183,8 +183,12 @@ macro registerErrors: untyped =
     registerBltinObject(name, tp)
   template reg(excpName, typeName: string){.dirty.} =
     result.add getAst(registerTmpl(excpName, ident(typeName)))
-  for i in 0..int(ExceptionToken.high):
-    let tok = ExceptionToken(i)
+  
+  for tok in BaseExceptionToken:
+    let tokenStr = tok.getTokenName
+    let excpName = tok.getBltinName
+    reg excpName, "py" & tokenStr & "ObjectType"
+  for tok in ExceptionToken:
     let tokenStr = tok.getTokenName
     let excpName = tok.getBltinName
     reg excpName, "py" & tokenStr & "ErrorObjectType"

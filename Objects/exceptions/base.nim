@@ -10,7 +10,7 @@ import std/enumutils
 import ../[pyobject, stringobject, noneobject]
 include ./common_h
 import ./[basetok, utils]
-export ExceptionToken
+export ExceptionToken, BaseExceptionToken
 
 
 proc getTokenName*(excp: ExceptionToken|BaseExceptionToken): string = excp.symbolName
