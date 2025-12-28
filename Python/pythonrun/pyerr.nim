@@ -23,6 +23,7 @@ proc handle_system_exit(exc) =
     Py_Exit(exitcode)
 
 proc PyErr_PrintEx*(exc; set_sys_last_vars: bool=false){.pyCFuncPragma.} =
+  handle_system_exit(exc)
   template ss(id, val) =
     discard PySys_SetAttrNonNil(pyId id, val)
   let

@@ -75,6 +75,10 @@ proc clinicGenImplWithPrefix*(prefix: string, def: NimNode): NimNode =
     assert def[0][0].strVal == "*"
   clinicGenAux(false, genedPureNameStr, def, exported)
 
+
+macro clinicGenWithPrefix*(prefix: static[string], def) =
+  clinicGenImplWithPrefix(prefix, def)
+
 macro clinicGen*(name; exported: static[bool], def) =
   ## pragma for proc def.
   ## 
