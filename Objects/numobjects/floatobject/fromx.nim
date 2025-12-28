@@ -19,9 +19,7 @@ proc float_from_string_inner(s: openArray[char], obj: PyObject): PyObject{.raise
     i = 0
     last = s.high
   template retve =
-    let s = newPyStr&"could not convert string to float: {obj:R}"
-    retIfExc s
-    return newValueError PyStrObject s
+    return newValueError PyStrFmt&"could not convert string to float: {obj:R}"
   # strip leading whitespace
   while s[i].isSpaceAscii:
     i.inc

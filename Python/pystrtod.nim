@@ -24,9 +24,7 @@ proc Py_string_to_number_with_underscores*(
   ]##
 
   template goto_error =
-    let s = newPyStr&"could not convert string to {what}: {obj:R}"
-    retIfExc s
-    return newValueError PyStrObject s
+    return newValueError PyStrFmt&"could not convert string to {what}: {obj:R}"
   #assert s[orig_len] == '\0'
   let orig_len = s.len
 

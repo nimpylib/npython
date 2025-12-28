@@ -10,8 +10,6 @@ proc getOptionalStr*(argname: string; sobj: var PyObject; res: var string): PyBa
   if sobj.isPyNone: sobj = nil
   if not sobj.isNil:
     if not sobj.ofPyStrObject:
-      let s = newPyStr&"{argname} must be None or a string, not {sobj.typeName:.200s}"
-      retIfExc s
-      return newTypeError PyStrObject s
+      return newTypeError PyStrFmt&"{argname} must be None or a string, not {sobj.typeName:.200s}"
     (res, _) = sobj.PyStrObject.asUTF8AndSize()
 

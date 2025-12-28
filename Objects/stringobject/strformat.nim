@@ -2,7 +2,7 @@
 import std/strformat
 export strformat
 include ./common_h
-export stringobject
+export stringobject, PyObject
 import ../typeobject/getters
 import ../pyobject_apis/strings
 import ../../Utils/utils
@@ -91,3 +91,19 @@ template `&`*(fun; str: string{lit}): PyObject =
     fun s
   except FormatPyObjectError: exc
 
+template newPyStrF*(str: string{lit}): PyStrObject =
+  ## unstable. only used within function that returns PyObject
+  bind newPyStr, `&`, retIfExc, PyStrObject
+  let res = newPyStr&str
+  retIfExc res
+  PyStrObject res
+
+type PyStrFmt* = distinct bool
+template `&`*(fun: typedesc[PyStrFmt]; str: string{lit}): PyStrObject =
+  runnableExamples:
+    proc f: PyObject =
+      let msg: PyStrObject = PyStrFmt&"hello {86}"
+      return msg
+    discard f()
+  bind newPyStrF
+  newPyStrF str

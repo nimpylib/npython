@@ -51,10 +51,8 @@ proc PyNumber_Long*(o: PyObject; resi: var PyIntObject): PyBaseErrorObject{.pyCF
     let b = PyByteArrayObject o
     retMayE PyLong_FromBytes(b.items)
   #TODO:buffer
-  let s = newPyStr&("int() argument must be a string, a bytes-like object "&
-                      "or a real number, not '{o.typeName:.200s}'")
-  retIfExc s
-  return newTypeError PyStrObject s
+  return newTypeError PyStrFmt&"""int() argument must be a string, a bytes-like object 
+or a real number, not '{o.typeName:.200s}'"""
 
 genNumberVariant Long, int
 

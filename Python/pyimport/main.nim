@@ -44,9 +44,8 @@ proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
       filepath = p
   
   if filepath == "":
-    let msg = newPyStr&"No module named {name:R}"
-    retIfExc msg
-    let exc = newModuleNotFoundError(PyStrObject msg)
+    let msg = PyStrFmt&"No module named {name:R}"
+    let exc = newModuleNotFoundError msg
     exc.name = name
     exc.msg = msg
     return exc
