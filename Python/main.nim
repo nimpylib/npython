@@ -68,8 +68,8 @@ proc run_file_obj(program_name, filename: PyStrObject): int{.mayAsync.} =
     when not defined(js):
       var errno{.importc, header: "<errno.h>".}: cint
       proc strerror(e: cint): cstring{.importc, header: "<errno.h>".}
-      errnoStr = $errno
-      var msg = "[Errno " & $strerror(errno) & "] "
+      errnoStr = "[Errno " & $errno & "] "
+      var msg = $strerror(errno)
     else:
       var msg = getCurrentExceptionMsg()
     template ignore(_) = discard
