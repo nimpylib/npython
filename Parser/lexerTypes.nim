@@ -23,6 +23,8 @@ type
     lineNo: int
     tokenNodes*: seq[TokenNode] # might be consumed by parser
     fileName*: string
+    metContChar*: bool  ## whether is after the line
+    ## whose last token was a line continuation character '\'
 
     tripleStr*: tuple[
       within: bool,
@@ -45,7 +47,7 @@ proc parseModeEnum*(s: string, res: var Mode): bool =
   of "eval": ret Eval
   else: return false
 
-proc cont*(lexer: Lexer): bool{.inline.} = lexer.tripleStr.within
+proc cont*(lexer: Lexer): bool{.inline.} = lexer.metContChar or lexer.tripleStr.within
 
 proc lineNo*(lexer: Lexer): var int{.inline.} = lexer.lineNo
 
