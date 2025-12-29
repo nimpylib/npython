@@ -96,7 +96,7 @@ proc pyInit*(args: seq[string]) =
   if args.len == 0:
     sys.path.add newPyAscii()
   else:
-    let filepath = joinPath(getCurrentDir(), args[0])
+    let filepath = absolutePathCompat args[0]
     pyConfig.run_filename = filepath
     pyConfig.filename = filepath.extractFilename()
     let s = newPyStr filepath.parentDir()

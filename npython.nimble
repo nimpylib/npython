@@ -14,7 +14,7 @@ binDir        = "bin"
 let srcName = "Python/python"
 namedBin[srcName] = "npython"
 
-requires  "nim >= 1.6.14"  # 2.* (at least till 2.3.1) is okey, too.
+requires  "nim > 2.0.8" # 2.0.8 will error: `/pyobjectBase.nim(342, 16) Error: undeclared field: 'pyType=' for type pyobjectBase.PyObject`
 when declared(feature):  # nimble v0.18+
   feature "playground":
     requires "karax"
@@ -29,7 +29,7 @@ template pylib(x, ver) =
            else: pylibPre & x
 
 pylib "pyrepr", " ^= 0.1.1"
-pylib "jscompat", " ^= 0.1.1"
+pylib "jscompat", " ^= 0.1.3"
 
 # copied from nimpylib.nimble
 #   at 43378424222610f8ce4a10593bd719691fbb634b

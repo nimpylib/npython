@@ -3,6 +3,7 @@
 {.define: esModule.}
 import pkg/jscompat/os
 from pkg/jscompat import quitCompat
+export absolutePathCompat
 when defined(js):
   import ./jsdispatch
   import std/jsconsole
