@@ -8,6 +8,7 @@ author        = "Weitang Li (liwt),  lit (litlighilit)"
 description   = "Python interpreter implemented in Nim, supporting JS backends"
 license       = "MIT"
 srcDir        = "."
+installExt   = @["nim", "nims"]
 skipDirs = @["tests"]
 binDir        = "bin"
 
