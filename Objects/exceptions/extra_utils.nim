@@ -8,6 +8,10 @@ import ../exceptionsImpl
 import ../stringobject/strformat
 import ../../Python/call
 
+const JsHasResMissingInCatchBug = defined(js)
+when JsHasResMissingInCatchBug:
+  import ../pyobject_apis/strings
+
 proc PyErr_CreateException*(exception_type: PyTypeObject, value: PyObject): PyBaseExceptionObject =
   ## inner. unstable. `_PyErr_CreateException`
   let res = if value.isNil or value.isPyNone:
@@ -18,8 +22,18 @@ proc PyErr_CreateException*(exception_type: PyTypeObject, value: PyObject): PyBa
     call(exception_type, value)
   result = PyBaseExceptionObject res
   if not result.isNil and not result.ofPyExceptionInstance:
-    return newTypeError PyStrFmt&"""
+    result = newTypeError:
+      when not JsHasResMissingInCatchBug:
+        PyStrFmt&"""
 calling {PyObject(exception_type):R} should have returned an instance of BaseException, not {result.typeName:s}"""
+      else: #NIM-BUG
+        let obj_exc_repr = PyObject_ReprNonNil(exception_type)
+        retIfExc obj_exc_repr
+        let exc_repr = PyStrObject obj_exc_repr
+        let s = "calling " & $exc_repr.str & """
+should have returned an instance of BaseException, not """ &
+          result.typeName
+        newPyStr newPyStr s
 
 #[
 proc setObject*(exc_type: PyTypeObject, value: PyObject) =
