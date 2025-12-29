@@ -423,6 +423,13 @@ proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline.} =
       let tok = getNextToken(lexer, line, idx)
       if tok.isNil:
         continue
+      # adjust implicit continuation nesting for (), [], {}
+      case tok.token
+      of Token.Lpar, Token.Lsqb, Token.Lbrace:
+        lexer.parenLevel.inc
+      of Token.Rpar, Token.Rsqb, Token.Rbrace:
+        if lexer.parenLevel > 0: lexer.parenLevel.dec
+      else: discard
       lexer.add(tok)
   if not lexer.cont:
     lexer.add(Token.NEWLINE, idx)

@@ -25,6 +25,7 @@ type
     fileName*: string
     metContChar*: bool  ## whether is after the line
     ## whose last token was a line continuation character '\'
+    parenLevel*: int # nesting level for (, [ and { to support implicit continuation
 
     tripleStr*: tuple[
       within: bool,
@@ -47,7 +48,7 @@ proc parseModeEnum*(s: string, res: var Mode): bool =
   of "eval": ret Eval
   else: return false
 
-proc cont*(lexer: Lexer): bool{.inline.} = lexer.metContChar or lexer.tripleStr.within
+proc cont*(lexer: Lexer): bool{.inline.} = lexer.metContChar or lexer.tripleStr.within or lexer.parenLevel > 0
 
 proc lineNo*(lexer: Lexer): var int{.inline.} = lexer.lineNo
 
