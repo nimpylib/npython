@@ -1,4 +1,9 @@
 from "Python/versionInfo" import Version
+
+from "Modules/getbuildinfo" import BuildInfoCacheFile, genBuildCacheContent
+before install:
+  writeFile "Modules/" & BuildInfoCacheFile, genBuildCacheContent()
+
 import std/macros; macro asgnVer = quote do: version = `Version`
 asgnVer()  # declarative parser of nimble requires version to be literals
 #version       = libver.Version
@@ -9,6 +14,7 @@ description   = "Python interpreter implemented in Nim, supporting JS backends"
 license       = "MIT"
 srcDir        = "."
 installExt   = @["nim", "nims"]
+installFiles  = @["LICENSE", "Parser/Grammar"]
 skipDirs = @["tests"]
 binDir        = "bin"
 
