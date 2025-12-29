@@ -44,10 +44,13 @@ jobs:
     - name: create deploy-dir if needed
       run: |
         cname=$(echo ${{ github.event.repository.homepage }} | grep -oP 'https?://\K[^/]+')
+        prefix_to_remove="npython."
+        cname="${cname#$prefix_to_remove}"
+
         prefix="play."
         # py: if not cname.startswith(prefix)
         # bash: if [[ "${cname}" != $prefix* ]]
-        if [ ${cname##$prefix} = $cname ]; then  
+        if [ ${cname##$prefix} = $cname ]; then
             cname="${prefix}${cname}"
         fi
         echo -n $cname > ${{ env.deploy-dir }}/CNAME
