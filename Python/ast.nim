@@ -395,16 +395,46 @@ ast parameters, [AstArguments]:
 # Just one tfpdef should be easy enough
 ast typedargslist, [AstArguments]:
   result = newAstArguments()
-  for i in 0..<parseNode.children.len:
-    let child = parseNode.children[i]
-    if i mod 2 == 1:
-      if not (child.tokenNode.token == Token.Comma):
-        raiseSyntaxError("Only support simple function arguments like foo(a,b)", child)
+  var idx = 0
+  var parsingKwOnly = false
+  while idx < parseNode.children.len:
+    let child = parseNode.children[idx]
+    case child.tokenNode.token
+    of Token.tfpdef:
+      if not parsingKwOnly:
+        result.args.add(astTfpdef(child))
+      else:
+        result.kwonlyargs.add(astTfpdef(child))
+      inc idx
+      # optional default: '=' test
+      if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.Equal:
+        if idx + 1 >= parseNode.children.len:
+          raiseSyntaxError("invalid default value", parseNode.children[idx])
+        let defNode = parseNode.children[idx + 1]
+        if not parsingKwOnly:
+          result.defaults.add(astTest(defNode))
+        else:
+          result.kw_defaults.add(astTest(defNode))
+        idx += 2
+    of Token.Star:
+      # start kw-only args or vararg
+      inc idx
+      if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.tfpdef:
+        result.vararg = astTfpdef(parseNode.children[idx])
+        inc idx
+      parsingKwOnly = true
+      if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.Comma:
+        inc idx
+    of Token.DoubleStar:
+      # **kwargs not implemented yet
+      raiseSyntaxError("**kwargs not implemented", child)
+    of Token.Comma:
+      inc idx
     else:
-      if not (child.tokenNode.token == Token.tfpdef):
-        raiseSyntaxError("Only support simple function arguments like foo(a,b)", child)
-      result.args.add(astTfpdef(child))
+      raiseSyntaxError("Unsupported parameter syntax", child)
+    # optional comma already handled
   
+
 # tfpdef  NAME [':' test]
 ast tfpdef, [AstArg]:
   result = newAstArg()

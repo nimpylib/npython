@@ -267,10 +267,14 @@ proc assemble(cu: CompilerUnit, fileName: PyStrObject): PyCodeObject =
       unreachable("arguments can't be free")
     result.argNames[argIdx] = argName
     result.argScopes[argIdx] = (scope, scopeIdx)
+  # propagate vararg and kw-only info from symtable
+  result.varArgName = cu.ste.varArg
+  result.kwOnlyNames = cu.ste.kwOnlyArgs
+  result.kwOnlyDefaults = cu.ste.kwOnlyDefaults
 
 
 proc makeFunction(c: Compiler, cu: CompilerUnit, 
-                  functionName: PyStrObject, lineNo: int) = 
+                  functionName: PyStrObject, lineNo: int, extraFlags: int = 0) = 
   assert (not cu.codeName.isNil)
   # take the compiler unit and make it a function on stack top
   let co = cu.assemble(c.fileName)
@@ -300,9 +304,18 @@ proc makeFunction(c: Compiler, cu: CompilerUnit,
     c.addOp(newArgInstr(OpCode.BuildTuple, co.freeVars.len, lineNo))
     flag = flag or 8
 
+  # incorporate extra flags (e.g., defaults presence)
+  flag = flag or extraFlags
+
+  # if vararg name exists, load it so MakeFunction can attach it to function object
+  if not cu.ste.varArg.isNil:
+    c.tcu.addLoadConst(cu.ste.varArg, lineNo)
+    flag = flag or 16
+    when defined(debug):
+      echo "DEBUG: compile.makeFunction found vararg " & $cu.ste.varArg
   c.tcu.addLoadConst(co, lineNo)
   c.tcu.addLoadConst(functionName, lineNo)
-  # currently flag is 0 or 8
+  # currently flag may be 0 or 8 or include extraFlags
   c.addOp(newArgInstr(OpCode.MakeFunction, flag, lineNo))
 
 macro genMapMethod(methodName, code: untyped): untyped =
@@ -437,11 +450,27 @@ compileMethod FunctionDef:
   for deco in astNode.decorator_list:
     c.compile(deco)
   assert astNode.returns == nil
+  # compile kw-only defaults first, then positional defaults; both evaluated in defining scope before MakeFunction
+  let argsNode = AstArguments(AstFunctionDef(astNode).args)
+  var extraFlags = 0
+  # maybe allows disable complex function def
+  when compiles(argsNode.kw_defaults):
+    if argsNode.kw_defaults.len > 0:
+      for defExpr in argsNode.kw_defaults:
+        c.compile(defExpr)
+      c.addOp(newArgInstr(OpCode.BuildTuple, argsNode.kw_defaults.len, astNode.lineNo.value))
+      extraFlags = extraFlags or 2
+  when compiles(argsNode.defaults):
+    if argsNode.defaults.len > 0:
+      for defExpr in argsNode.defaults:
+        c.compile(defExpr)
+      c.addOp(newArgInstr(OpCode.BuildTuple, argsNode.defaults.len, astNode.lineNo.value))
+      extraFlags = extraFlags or 1
+  # create inner compiler unit so function body compiles into it
   c.units.add(newCompilerUnit(c.st, astNode, astNode.name.value))
   assert (not c.tcu.codeName.isNil)
-  #c.compile(astNode.args) # not useful when we don't have default args
   c.compileSeq(astNode.body)
-  c.makeFunction(c.units.pop, astNode.name.value, astNode.lineNo.value)
+  c.makeFunction(c.units.pop, astNode.name.value, astNode.lineNo.value, extraFlags)
   for deco in astNode.decorator_list:
     c.addOp(newArgInstr(OpCode.CallFunction, 1, deco.lineNo.value))
   c.addStoreOp(astNode.name.value, astNode.lineNo.value)

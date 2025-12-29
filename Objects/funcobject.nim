@@ -9,6 +9,8 @@ declarePyType Function(tpToken):
   code{.dunder_member,readonly.}: PyCodeObject
   globals{.dunder_member,readonly.}: PyDictObject
   closure{.dunder_member,readonly.}: PyTupleObject # could be nil
+  defaults{.dunder_member,readonly.}: PyTupleObject # positional defaults tuple, could be nil
+  kwdefaults{.dunder_member,readonly.}: PyDictObject
 
 # forward declaretion
 declarePyType BoundMethod(tpToken):
@@ -19,14 +21,15 @@ declarePyType BoundMethod(tpToken):
 proc newPyFunc*(name: PyStrObject, 
                 code: PyCodeObject, 
                 globals: PyDictObject,
-                closure: PyObject = nil): PyFunctionObject = 
+                closure: PyTupleObject = nil,
+                defaults: PyTupleObject = nil): PyFunctionObject = 
   result = newPyFunctionSimple()
   result.name = name
   result.code = code
   result.globals = globals
-  if not closure.isNil:
-    assert closure.ofPyTupleObject()
-  result.closure = PyTupleObject(closure)
+  result.closure = closure
+  result.defaults = defaults
+  result.kwdefaults = newPyDict()
 
 
 proc newBoundMethod*(fun: PyFunctionObject, self: PyObject): PyBoundMethodObject = 

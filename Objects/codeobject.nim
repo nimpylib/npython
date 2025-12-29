@@ -26,6 +26,9 @@ declarePyType Code(tpToken):
 
     argNames: seq[PyStrObject]
     argScopes: seq[(Scope, int)]
+    varArgName: PyStrObject  ## name of *args parameter if present
+    kwOnlyNames: seq[PyStrObject]
+    kwOnlyDefaults: seq[PyObject]
 
     # for tracebacks
     codeName{.member"co_name", readonly.}: PyStrObject
@@ -35,7 +38,8 @@ declarePyType Code(tpToken):
     code_adaptive_cached{.private.}: PyBytesObject
     code_len_when_last_cached{.private.}: int
 
-genProperty Code, "co_argcount", argcount, newPyInt self.argNames.len
+proc argCount*(self: PyCodeObject): int{.inline.} = self.argScopes.len
+genProperty Code, "co_argcount", argcount, newPyInt self.argCount
 genProperty Code, "co_firstlineno", firstlineno, newPyInt self.lineNos[0]
 static: assert OpCode.high.BiggestInt <= char.high.BiggestInt
 proc code_adaptiveImpl(self: PyCodeObject): seq[char] =

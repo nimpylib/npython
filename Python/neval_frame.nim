@@ -9,6 +9,7 @@ import ../Objects/[pyobject,
   codeobject, frameobject,
   exceptions,
   stringobject,
+  noneobject,
 ]
 import ../Utils/[
   utils,
@@ -28,14 +29,20 @@ proc newPyFrame*(fun: PyFunctionObject,
                  args: openArray[PyObject], 
                  back: PyFrameObject): PyObject{.raises: [].} =
   let code = fun.code
+  # handle vararg: allow last arg to be vararg tuple when code.varArgName is present
+  var provided = args.len
+  var varargTuple: PyObject = nil
+  if not code.varArgName.isNil and args.len == code.argCount + 1:
+    varargTuple = args[^1]
+    provided = args.len - 1
   # handle wrong number of args
-  if code.argScopes.len < args.len:
-    let msg = fmt"{fun.name.str}() takes {code.argScopes.len} positional arguments but {args.len} were given"
+  if code.argCount < provided:
+    let msg = fmt"{fun.name.str}() takes {code.argCount} positional arguments but {provided} were given"
     return newTypeError(newPyStr msg)
-  elif args.len < code.argScopes.len:
-    let diff = code.argScopes.len - args.len
+  elif provided < code.argCount:
+    let diff = code.argCount - provided
     let msg = fmt"{fun.name.str}() missing {diff} required positional argument: " & 
-              fmt"{code.argNames[^diff..^1]}. {args.len} args are given."
+              fmt"{code.argNames[^diff..^1]}. {provided} args are given."
     return newTypeError(newPyStr(msg))
   let frame = newPyFrame()
   frame.back = back
@@ -48,7 +55,7 @@ proc newPyFrame*(fun: PyFunctionObject,
   for i in 0..<code.cellVars.len:
     frame.cellVars[i] = newPyCell(nil)
   # setup arguments
-  for i in 0..<args.len:
+  for i in 0..<provided:
     let (scope, scopeIdx) = code.argScopes[i]
     case scope
     of Scope.Local:
@@ -59,6 +66,16 @@ proc newPyFrame*(fun: PyFunctionObject,
       frame.cellVars[scopeIdx].refObj = args[i]
     of Scope.Free:
       unreachable("arguments can't be free")
+  # assign vararg tuple to its local if present
+  if not code.varArgName.isNil and not varargTuple.isNil:
+    # find local index for varArgName
+    var varIdx = -1
+    for i, name in code.localVars:
+      if name == code.varArgName:
+        varIdx = i
+        break
+    if varIdx >= 0:
+      frame.fastLocals[varIdx] = varargTuple
   # setup closures. Note some are done when setting up arguments
   if fun.closure.isNil:
     assert code.freeVars.len == 0
@@ -67,4 +84,18 @@ proc newPyFrame*(fun: PyFunctionObject,
     for idx, c in fun.closure.items:
       assert c.ofPyCellObject
       frame.cellVars[code.cellVars.len + idx] = PyCellObject(c)
+  # apply kw-only defaults if any
+  if code.kwOnlyNames.len > 0:
+    for i, name in code.kwOnlyNames:
+      # find local index
+      var localIdx = -1
+      for j, ln in code.localVars:
+        if ln == name:
+          localIdx = j
+          break
+      if localIdx >= 0 and frame.fastLocals[localIdx].isNil:
+        if i < code.kwOnlyDefaults.len:
+          frame.fastLocals[localIdx] = code.kwOnlyDefaults[i]
+        else:
+          frame.fastLocals[localIdx] = pyNone
   frame

@@ -661,23 +661,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 args[^i] = sPop()
               let funcObjNoCast = sPop()
               var retObj: PyObject
-              # runtime function, evaluate recursively
-              if funcObjNoCast.ofPyFunctionObject:
-                let funcObj = PyFunctionObject(funcObjNoCast)
-                # may fail because of wrong number of args, etc.
-                let newF = newPyFrame(funcObj, args, f)
-                if newF.isThrownException:
-                  handleException(newF)
-                retObj = PyFrameObject(newF).evalFrame
+
               # todo: should first dispatch Nim level function (same as CPython). 
               # this is of low priority because profit is unknown
+              let callFunc = funcObjNoCast.pyType.magicMethods.call
+              if callFunc.isNil:
+                let msg = fmt"{funcObjNoCast.pyType.name} is not callable"
+                retObj = newTypeError(newPyStr msg)
               else:
-                let callFunc = funcObjNoCast.pyType.magicMethods.call
-                if callFunc.isNil:
-                  let msg = fmt"{funcObjNoCast.pyType.name} is not callable"
-                  retObj = newTypeError(newPyStr msg)
-                else:
-                  retObj = callFunc(funcObjNoCast, args, nil)
+                retObj = callFunc(funcObjNoCast, args, nil)
               if retObj.isThrownException:
                 handleException(retObj)
               sPush retObj
@@ -718,14 +710,40 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               sPush retObj
 
             of OpCode.MakeFunction:
-              # other kinds not implemented
-              assert opArg == 0 or opArg == 8
+              # support defaults, kw-defaults, vararg and closure flags
+              # opArg bit 0x1 : positional defaults tuple present
+              # opArg bit 0x2 : kw-only defaults dict present
+              # opArg bit 0x8 : closure tuple present
+              # opArg bit 0x10: vararg name constant present
               let name = sPop()
               let code = sPop()
-              var closure: PyObject
+              var varargName: PyObject = nil
+              var defaults: PyObject = nil
+              var kwDefaults: PyObject = nil
+              var closure: PyObject = nil
+              if (opArg and 16) != 0:
+                varargName = sPop()
+              if (opArg and 1) != 0:
+                defaults = sPop()
+              if (opArg and 2) != 0:
+                kwDefaults = sPop()
               if (opArg and 8) != 0:
                 closure = sPop()
-              sPush newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals, closure)
+              let funObj = newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals, PyTupleObject(closure), PyTupleObject(defaults))
+              if not varargName.isNil:
+                funObj.code.varArgName = PyStrObject(varargName)
+              # attach kwDefaults to code object for call-time handling
+              if not kwDefaults.isNil:
+                # kwDefaults is a tuple of values corresponding to code.kwOnlyNames
+                let kwt = PyTupleObject(kwDefaults)
+                PyCodeObject(code).kwOnlyDefaults = kwt.items
+                # build kwdefaults dict on function
+                let kwd = newPyDict()
+                for i, name in PyCodeObject(code).kwOnlyNames:
+                  if i < kwt.items.len:
+                    kwd[name] = kwt.items[i]
+                funObj.kwdefaults = kwd
+              sPush funObj
 
             of OpCode.BuildSlice:
               var lower, upper, step: PyObject

@@ -5,6 +5,8 @@ import macros
 
 import ast
 import asdl
+import ../Objects/noneobject
+import ../Objects/pyobjectBase
 import ../Objects/stringobjectImpl
 import ../Utils/utils
 
@@ -32,6 +34,9 @@ type
 
     # function arguments, name to index in argument list
     argVars*: Table[PyStrObject, int]
+    varArg*: PyStrObject
+    kwOnlyArgs*: seq[PyStrObject]
+    kwOnlyDefaults*: seq[PyObject]
 
     declaredVars: HashSet[PyStrObject]
     usedVars: HashSet[PyStrObject]
@@ -188,11 +193,26 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
       addBodies(AstFunctionDef)
       # deal with function args
       let f = AstFunctionDef(astNode)
-      let args = AstArguments(f.args).args
-      for idx, arg in args:
+      let args = AstArguments(f.args)
+      # positional args
+      for idx, arg in args.args:
         assert arg of AstArg
         ste.addDeclaration(AstArg(arg).arg)
         ste.argVars[AstArg(arg).arg.value] = idx
+      # vararg
+      if not args.vararg.isNil:
+        let v = AstArg(args.vararg)
+        ste.varArg = v.arg.value
+        ste.addDeclaration(v.arg)
+      # keyword-only args
+      for k in args.kwonlyargs:
+        let ka = AstArg(k)
+        ste.kwOnlyArgs.add ka.arg.value
+        ste.addDeclaration(ka.arg)
+      # placeholder for kw-only defaults evaluated during compile
+      ste.kwOnlyDefaults = newSeq[PyObject](args.kw_defaults.len)
+      for i in 0..<args.kw_defaults.len:
+        ste.kwOnlyDefaults[i] = pyNone
     elif astNode of AstClassDef:
       ste.kind = SteKind.Class
       addBodies(AstClassDef)
