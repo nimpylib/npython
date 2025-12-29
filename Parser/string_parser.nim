@@ -1,5 +1,6 @@
 
 
+import pkg/translateEscape
 import ../Python/[
   warnings, versionInfo,
 ]
@@ -8,7 +9,6 @@ import ../Objects/[
 ]
 import ../Utils/[
   utils,
-  translateEscape,
 ]
 import lexerTypes
 
