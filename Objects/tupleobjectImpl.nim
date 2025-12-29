@@ -76,7 +76,7 @@ template genSequenceMagicsBesidesBaseCollect(nameStr,
       assert retObj.ofPyBoolObject
       if not PyBoolObject(retObj).b:
         return pyFalseObj
-    pyTrueObj
+    return pyTrueObj
 
 
   implNameMagic init:
@@ -94,7 +94,7 @@ template genSequenceMagicsBesidesBaseCollect(nameStr,
         if arg.ofPyDictObject: loop tpMethod(Dict, items)(arg)
         else: loop arg
       else: loop arg
-    pyNone
+    return pyNone
 
 
   implNameMagic iter, mutRead: 
