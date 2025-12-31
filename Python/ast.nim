@@ -1363,17 +1363,6 @@ ast dictorsetmaker, [AsdlExpr]:
       s.elts.add(astTest(c))
     result = s
 
-  
-# classdef: 'class' NAME ['(' [arglist] ')'] ':' suite
-ast classdef, [AstClassDef]:
-  if parseNode.children.len != 4:
-    raiseSyntaxError("inherit not implemented", parseNode.children[4])
-  result = newAstClassDef()
-  setNo(result, parseNode.children[0])
-  result.name = newIdentifier(parseNode.children[1].tokenNode.content)
-  result.body = astSuite(parseNode.children[^1])
-
-
 proc getNameNodeFromTest(parseNode: ParseNode): ParseNode =
   result = parseNode
   while result.children.len == 1: result = result.children[0]
@@ -1389,16 +1378,12 @@ proc astKeyword(parseNode: ParseNode): Asdlkeyword =
   res.value = astTest(parseNode.children[2])
   res
 
-proc arg*(self: AsdlKeyword): AsdlIdentifier = self.AstKeyword.arg
-proc value*(self: AsdlKeyword): AsdlExpr = self.AstKeyword.value
-# argument  ( test [comp_for] | test '=' test | '**' test | '*' test  )
-#ast argument, [AsdlExpr]:
-proc addArg(call: AstCall, parseNode: ParseNode){.raises: [SyntaxError].} =
+template addArgTmpl(call: typed, parseNode: ParseNode; argsAttr) =
   #of AsdlexprTk.Keyword: call.keywords.add a
   case parseNode.children.len
   of 1:
     let child = parseNode.children[0]
-    call.args.add astTest(child)
+    call.argsAttr.add astTest(child)
   of 2:
     raiseSyntaxError("*args or **kws not implemented yet", 
       parseNode.children[1])
@@ -1407,13 +1392,37 @@ proc addArg(call: AstCall, parseNode: ParseNode){.raises: [SyntaxError].} =
   else:
     unreachable
 
-# arglist  argument (',' argument)*  [',']
-ast arglist, [AstCall, callNode: AstCall]:
+template addArgsTmpl[T](resSeq: T; parseNode: typed; argsAttr) =
   # currently assume `argument` only has simplest `test`, e.g.
   # print(1,3,4), so we can do this
   for child in parseNode.children: 
     if child.tokenNode.token == Token.argument:
-      callNode.addArg(child)
+      resSeq.addArgTmpl(child, argsAttr)
+
+# classdef: 'class' NAME ['(' [arglist] ')'] ':' suite
+ast classdef, [AstClassDef]:
+  result = newAstClassDef()
+  setNo(result, parseNode.children[0])
+  result.name = newIdentifier(parseNode.children[1].tokenNode.content)
+  let child2 = parseNode.children[2]
+  if child2.tokenNode.token != Token.Colon:
+    let args = parseNode.children[3]
+    assert args.tokenNode.token == Token.argList
+    result.addArgsTmpl args, bases
+    if result.keywords.len != 0:
+      raiseSyntaxError("keywords in class definition not implemented", args)
+  result.body = astSuite(parseNode.children[^1])
+
+
+proc arg*(self: AsdlKeyword): AsdlIdentifier = self.AstKeyword.arg
+proc value*(self: AsdlKeyword): AsdlExpr = self.AstKeyword.value
+# argument  ( test [comp_for] | test '=' test | '**' test | '*' test  )
+#ast argument, [AsdlExpr]:
+
+
+# arglist  argument (',' argument)*  [',']
+ast arglist, [AstCall, callNode: AstCall]:
+  callNode.addArgsTmpl(parseNode, args)
   callNode
 
 

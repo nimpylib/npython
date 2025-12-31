@@ -20,9 +20,18 @@ methodMacroTmpl(Type)
 implTypeMagic New(metaType: PyTypeObject, name: PyStrObject, 
                   bases: PyTupleObject, dict: PyDictObject):
   assert metaType == pyTypeObjectType
-  assert bases.len == 0
+  if bases.len > 1:
+    #TODO:mro
+    return newNotImplementedError newPyAscii"multiple inheritance not supported yet"
   type Cls = PyInstanceObject
-  let tp = newPyType[Cls]($name.str)
+  var base = pyObjectType
+  if bases.len > 0:
+    let baseObj = bases[0]
+    if not baseObj.ofPyTypeObject:
+      base = baseObj.pyType
+    else:
+      base = PyTypeObject(baseObj)
+  let tp = newPyType[Cls]($name.str, base=base)
   tp.pyType = metaType
   tp.kind = PyTypeToken.Type
   tp.tp_dealloc = subtype_dealloc[Cls]

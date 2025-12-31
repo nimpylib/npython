@@ -139,7 +139,7 @@ genBltOfNArg hasattr, 2:
 
 implBltinFunc repr(obj: PyObject): obj.callMagic(repr)
 
-implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build_class__":
+implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject, *bases), "__build_class__":
   # may fail because of wrong number of args, etc.
   let f = newPyFrame(funcObj)
   if f.isThrownException:
@@ -147,7 +147,7 @@ implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject), "__build
   let retObj = f.evalFrame
   if retObj.isThrownException:
     return retObj
-  tpMagic(Type, new)(@[pyTypeObjectType, name, newPyTuple(@[]), f.toPyDict()])
+  tpMagic(Type, new)(@[pyTypeObjectType, name, newPyTuple(bases), f.toPyDict()])
 
 
 registerBltinObject("NotImplemented", pyNotImplemented)

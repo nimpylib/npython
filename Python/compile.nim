@@ -488,8 +488,14 @@ compileMethod ClassDef:
   c.makeFunction(c.units.pop, astNode.name.value, lineNo)
 
   c.addLoadConst(astNode.name.value, astNode.lineNo.value)
-  # 2 args, first for the code, second for the name
-  c.addOp(newArgInstr(OpCode.CallFunction, 2, lineNo)) 
+  #[2+n args: 
+      2: first for the code, second for the name
+      n: for bases
+  ]#
+  let n = astNode.bases.len
+  for base in astNode.bases:
+    c.compile(base)
+  c.addOp(newArgInstr(OpCode.CallFunction, 2+n, lineNo)) 
   for deco in astNode.decorator_list:
     c.addOp(newArgInstr(OpCode.CallFunction, 1, deco.lineNo.value))
   c.addStoreOp(astNode.name.value, lineNo)

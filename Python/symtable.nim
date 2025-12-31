@@ -246,7 +246,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 
         of AsdlStmtTk.ClassDef:
           let classNode = AstClassDef(astNode)
-          assert classNode.bases.len == 0
+          visitSeq classNode.bases
           assert classNode.keywords.len == 0
           assert classNode.decoratorList.len == 0
           ste.addDeclaration(classNode.name)
