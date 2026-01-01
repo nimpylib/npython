@@ -94,6 +94,9 @@ template setNo(astNode: untyped, parseNode: ParseNode) =
 template copyNo(astNode1, astNode2: untyped) = 
   astNode1.lineNo = astNode2.lineNo
   astNode1.colOffset = astNode2.colOffset
+
+type CollectionExprNew[T: Asdlexpr] = proc (ls: seq[AsdlExpr]): T{.nimcall.}
+
 {.push raises: [SyntaxError].}
 proc astDecorated(parseNode: ParseNode): AsdlStmt
 proc astFuncdef(parseNode: ParseNode): AstFunctionDef
@@ -152,7 +155,7 @@ proc astFactor(parseNode: ParseNode): AsdlExpr
 proc astPower(parseNode: ParseNode): AsdlExpr
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr
 proc astAtom(parseNode: ParseNode): AsdlExpr
-proc astTestlistComp(parseNode: ParseNode): seq[AsdlExpr]
+proc astTestlistComp[T: Asdlexpr](parseNode: ParseNode, newor: CollectionExprNew[T]): AsdlExpr
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr
 proc astSubscriptlist(parseNode: ParseNode): AsdlSlice
 proc astSubscript(parseNode: ParseNode): AsdlSlice
@@ -1117,17 +1120,20 @@ ast atom, [AsdlExpr]:
       of Token.yield_expr:
         raiseSyntaxError("Yield expression not implemented", child)
       of Token.testlist_comp:
-        let testListComp = astTestlistComp(child)
+        let testListComp = astTestlistComp(child, newTuple)
+        if testListComp.kind == AsdlExprTk.ListComp:
+          raiseSyntaxError("generator expression not implemented", child)
         # 1-element tuple or things like (1 + 2) * 3
-        if testListComp.len == 1 and not (
+        if testListComp.kind == AsdlExprTk.Tuple and
+          (let tup = AstTuple(testListComp); tup.elts.len == 1) and
+          not (
             child.children.len == 2 and  # 1-element tuple. e.g. (1,)
             child.children[1].tokenNode.token == Token.Comma
         ):
-          if testListComp[0].kind == AsdlExprTk.ListComp:
-            raiseSyntaxError("generator expression not implemented", child)
-          result = testListComp[0]
+          # `(1 + 2)` case was parsed as a 1-element tuple, unwrap it
+          result = tup.elts[0]
         else:
-          result = newTuple(testListComp)
+          result = testListComp
       else:
         unreachable   
     else:
@@ -1138,11 +1144,7 @@ ast atom, [AsdlExpr]:
     of 2:
       result = newList(@[])
     of 3:
-      let contents = astTestlistComp(parseNode.children[1])
-      if contents.len == 1 and contents[0].kind == AsdlExprTk.ListComp:
-        result = contents[0]
-      else:
-        result = newList(contents)
+      result = astTestlistComp(parseNode.children[1], newList)
     else:
       unreachable
 
@@ -1204,9 +1206,17 @@ ast atom, [AsdlExpr]:
 
 # testlist_comp  (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
 # currently only used in atom
-ast testlist_comp, [seq[AsdlExpr]]:
-  # return type: if comprehension, a seq of AstListComp
-  # or a seq with comma separated elements
+#ast testlist_comp, [seq[AsdlExpr]]:
+proc astTestlistComp[T: Asdlexpr](parseNode: ParseNode, newor: CollectionExprNew[T]): AsdlExpr =
+  ##[ return type:
+
+   - if comprehension: AstListComp
+   - otherwise: a collection with separated elements returned by `newor`
+
+   .. note::
+     currently `AstListComp` is the always returned comprehension type,
+      even if `newor` is `newSet` or `newDict`
+  ]##
   let child1 = parseNode.children[0]
   if child1.tokenNode.token == Token.star_expr:
     raiseSyntaxError("Star expression not implemented", child1)
@@ -1218,21 +1228,22 @@ ast testlist_comp, [seq[AsdlExpr]]:
     # no need to care about setting lineNo and colOffset, because `atom` does so
     listComp.elt = test1
     listComp.generators = astCompFor(parseNode.children[1])
-    result.add listComp
-    return
+    return listComp
   # comma separated items
-  result.add test1
+  var elts: seq[AsdlExpr]
+  elts.add test1
   for child in parseNode.children[1..^1]:
     case child.tokenNode.token
     of Token.Comma:
       discard
     of Token.test:
-      result.add astTest(child)
+      elts.add astTest(child)
     of Token.star_expr:
       raiseSyntaxError("Star expression not implemented", child)
     else:
       unreachable
-  
+  result = newor(elts)
+
 # trailer  '(' [arglist] ')' | '[' subscriptlist ']' | '.' NAME
 ast trailer, [AsdlExpr, leftExpr: AsdlExpr]:
   case parseNode.children[0].tokenNode.token
