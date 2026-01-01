@@ -18,6 +18,9 @@ proc neDefault*(o1, o2: PyObject): PyObject {. pyCFuncPragma .} =
   let eq = o1.callMagic(eq, o2)
   eq.callMagic(Not)
 
+proc gtDefault*(o1, o2: PyObject): PyObject {. pyCFuncPragma .} = 
+  o2.callMagic(lt, o1)
+
 proc geDefault*(o1, o2: PyObject): PyObject {. pyCFuncPragma .} = 
   let gt = o1.callMagic(gt, o2)
   let eq = o1.callMagic(eq, o2)

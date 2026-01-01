@@ -244,6 +244,7 @@ proc addGeneric(t: PyTypeObject) =
     trySetSlot(ne, neDefault)
   if (not nilMagic(ge)) and (not nilMagic(eq)):
     trySetSlot(ge, geDefault)
+  trySetSlot(gt, gtDefault)
   trySetSlot(eq, eqDefault)
   trySetSlot(getattr, PyObject_GenericGetAttr)
   trySetSlot(setattr, PyObject_GenericSetAttr)
