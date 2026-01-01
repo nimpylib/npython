@@ -774,11 +774,27 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             of OpCode.StoreDeref:
               cellVars[opArg].refObj = sPop
 
-            of OpCode.ListAppend:
+            of ListAppend:
               let top = sPop()
               let l = sPeek(opArg)
               assert l.ofPyListObject
-              PyListObject(l).items.add top
+              PyListObject(l).add top
+            
+            of SetAdd:
+              let top = sPop()
+              let s = sPeek(opArg)
+              assert s.ofPySetObject
+              handleHashExc handleException:
+                PySetObject(s).items.incl top
+            
+            of MapAdd:
+              let value = sPop()
+              let key = sPop()
+              let d = sPeek(opArg)
+              assert d.ofPyDictObject
+              let retObj = tpMagic(Dict, setitem)(PyDictObject(d), key, value)
+              if retObj.isThrownException:
+                handleException(retObj)
 
             else:
               let msg = fmt"!!! NOT IMPLEMENTED OPCODE {opCode} IN EVAL FRAME !!!"

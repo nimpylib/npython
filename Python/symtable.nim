@@ -216,18 +216,34 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
     elif astNode of AstClassDef:
       ste.kind = SteKind.Class
       addBodies(AstClassDef)
-    elif astNode of AstListComp:
-      ste.kind = SteKind.Function
-      let compNode = AstListComp(astNode)
-      toVisitPerSte.add compNode.elt
-      for gen in compNode.generators:
-        let genNode = AstComprehension(gen)
-        toVisitPerSte.add(genNode.target)
-      # the iterator. Need to add here to let symbol table make room for the localVar
-      ste.addDeclaration(newPyAscii(".0"))
-      ste.argVars[newPyAscii(".0")] = 0
     else:
-      unreachable
+
+      # comprehensions
+      ste.kind = SteKind.Function
+      template prepareCompSte(kind; doWithNode){.dirty.} =
+        let compNode = kind(astNode)
+        doWithNode
+        for gen in compNode.generators:
+          let genNode = AstComprehension(gen)
+          toVisitPerSte.add(genNode.target)
+        # the iterator. Need to add here to let symbol table make room for the localVar
+      template prepareCompSte(kind){.dirty.} =
+        prepareCompSte(kind):
+          toVisitPerSte.add compNode.elt
+
+      if astNode of AstListComp:
+        prepareCompSte(AstListComp)
+      elif astNode of AstSetComp:
+        prepareCompSte(AstSetComp)
+      elif astNode of AstDictComp:
+        prepareCompSte(AstDictComp):
+          toVisitPerSte.add compNode.key
+          toVisitPerSte.add compNode.value
+      else: unreachable
+
+      let zero = newPyAscii".0"
+      ste.addDeclaration(zero)
+      ste.argVars[zero] = 0
 
     while toVisitPerSte.len != 0:
       let astNode = toVisitPerSte.pop
@@ -337,6 +353,18 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
         else:
           unreachable($AsdlStmt(astNode).kind)
       elif astNode of AsdlExpr:
+
+        template prepareCompBody(compNode){.dirty.} =
+          toVisit.add((astNode, ste))
+          for gen in compNode.generators:
+            let genNode = AstComprehension(gen)
+            visit genNode.iter
+            visit genNode.target
+        template prepareComp(kind){.dirty.} =
+          # tricky here. Parts in this level, parts in a new function
+          let compNode = kind(astNode)
+          visit compNode.elt
+          prepareCompBody compNode
         case AsdlExpr(astNode).kind
 
         of AsdlExprTk.BoolOp:
@@ -359,14 +387,15 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           let setNode = AstSet(astNode)
           visitSeq setNode.elts
 
-        of AsdlExprTk.ListComp:
-          # tricky here. Parts in this level, parts in a new function
-          toVisit.add((astNode, ste))
-          let compNode = AstListComp(astNode)
-          for gen in compNode.generators:
-            let genNode = AstComprehension(gen)
-            visit genNode.iter
-            visit genNode.target
+        of AsdlExprTk.ListComp: prepareComp(AstListComp)
+ 
+        of AsdlExprTk.SetComp: prepareComp(AstSetComp)
+
+        of AsdlExprTk.DictComp:
+          let dcomp = AstDictComp(astNode)
+          visit dcomp.key
+          visit dcomp.value
+          prepareCompBody(dcomp)
 
         of AsdlExprTk.Compare:
           let compareNode = AstCompare(astNode)

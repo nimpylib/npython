@@ -1354,23 +1354,38 @@ ast dictorsetmaker, [AsdlExpr]:
   let isDict = children[1].tokenNode.token == Token.Colon
   # no need to care about setting lineNo and colOffset, because `atom` does so
   if isDict:
+    # dict comprehension: "{ key: value for ... }"
+    if children.len >= 4 and children[3].tokenNode.token == Token.comp_for:
+      let dc = newAstDictComp()
+      # children[0] == test (key), children[1] == Colon, children[2] == test (value)
+      dc.key = astTest(children[0])
+      dc.value = astTest(children[2])
+      dc.generators = astCompFor(children[3])
+      return dc
     let d = newAstDict()
     for idx in 0..<(leFix div 4):
       let i = idx * 4
       if children.len < i + 3:
-        raiseSyntaxError("dict definition too complex (no comprehension)")
+        raiseSyntaxError("dict definition too complex")
       let c1 = children[i]
-      if not (c1.tokenNode.token == Token.test):
-        raiseSyntaxError("dict definition too complex (no comprehension)", c1)
+      assert (c1.tokenNode.token == Token.test)
       d.keys.add(astTest(c1))
       if not (children[i+1].tokenNode.token == Token.Colon):
-        raiseSyntaxError("dict definition too complex (no comprehension)")
+        raiseSyntaxError("dict definition too complex")
       let c3 = children[i+2]
-      if not (c3.tokenNode.token == Token.test):
-        raiseSyntaxError("dict definition too complex (no comprehension)", c3)
+      assert (c3.tokenNode.token == Token.test)
       d.values.add(astTest(c3))
     result = d
   else:
+    # comprehension
+    if (parseNode.children.len == 2) and 
+        (parseNode.children[1].tokenNode.token == Token.comp_for):
+      let test1 = astTest(children[0])
+      let sc = newAstSetComp()
+      # no need to care about setting lineNo and colOffset, because `atom` does so
+      sc.elt = test1
+      sc.generators = astCompFor(parseNode.children[1])
+      return sc
     let s = newAstSet()
     for i in 0..<(leFix div 2):
       let c = children[i * 2]

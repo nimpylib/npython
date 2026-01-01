@@ -806,14 +806,16 @@ compileMethod Dict:
     lineNo = c.lastLineNo
   c.compileDictFromIt n, astNode.keys[it], astNode.values[it], 0..<astNode.keys.len, lineNo
 
-
-compileMethod ListComp:
+proc genComp[A: AsdlExpr](c: Compiler, astNode: A,
+    elt: auto, opBuild, opAdd: OpCode, name: string,
+    eltLineNo: AsdlInt
+  ) =
   let lineNo = astNode.lineNo.value
 
   #TODO:prof do not use function for loopVar scoop in listcomp
-  c.units.add(newCompilerUnit(c.st, astNode, newPyAscii"<listcomp>"))
+  c.units.add(newCompilerUnit(c.st, astNode, newPyAscii("<"&name&">")))
   #if non-func-impl: LoadFastAndClear
-  c.addOp(newArgInstr(OpCode.BuildList, 0, lineNo))
+  c.addOp(newArgInstr(opBuild, 0, lineNo))
   c.addLoadOp(newPyAscii(".0"), astNode.lineNo.value) # the implicit iterator argument
 
   var loops = newSeqOfCap[tuple[header, after: BasicBlock]]( astNode.generators.len )
@@ -843,9 +845,9 @@ compileMethod ListComp:
       c.addBlock(ifBody)
 
   # Innermost body
-  let eltLineNo = astNode.elt.lineNo.value
-  c.compile(astNode.elt)
-  c.addOp(newArgInstr(OpCode.ListAppend, loops.len + 1, eltLineNo))
+  let eltLineNo = eltLineNo.value
+  c.compile(elt)
+  c.addOp(newArgInstr(opAdd, loops.len + 1, eltLineNo))
   c.addOp(newJumpInstr(OpCode.JumpAbsolute, loops[^1].header, eltLineNo))
 
   # Add the `after` blocks for each loop
@@ -862,12 +864,29 @@ compileMethod ListComp:
 
   let genNode = AstComprehension(astNode.generators[0])
 
-  c.makeFunction(c.units.pop, newPyAscii("listcomp"), lineNo)
+  c.makeFunction(c.units.pop, newPyAscii(name), lineNo)
   # prepare the first arg of the function
   c.compile(genNode.iter)
   c.addOp(OpCode.GetIter, lineNo)
   c.addOp(newArgInstr(OpCode.CallFunction, 1, lineNo))
 
+proc genComp[A: AsdlExpr](c: Compiler, astNode: A,
+    elt: auto, opBuild, opAdd: OpCode, name: string,
+  ) =
+  genComp(c, astNode, elt, opBuild, opAdd, name, astNode.elt.lineNo)
+
+compileMethod ListComp: genComp(c, astNode, astNode.elt, OpCode.BuildList, OpCode.ListAppend, "listcomp")
+compileMethod SetComp:  genComp(c, astNode, astNode.elt, OpCode.BuildSet,  OpCode.SetAdd, "setcomp")
+
+type KwPair = tuple[key, value: AsdlExpr]
+template compile(c: Compiler; n: KwPair) =
+  c.compile(n.key)
+  c.compile(n.value)
+compileMethod DictComp:
+  let kwPair: KwPair = (astNode.key, astNode.value)
+  genComp(c, astNode, kwPair, OpCode.BuildMap, OpCode.MapAdd, "mapcomp",
+    astNode.key.lineNo
+  )
 
 compileMethod Compare:
   assert astNode.ops.len == 1
