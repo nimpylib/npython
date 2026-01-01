@@ -366,6 +366,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           for gen in compNode.generators:
             let genNode = AstComprehension(gen)
             visit genNode.iter
+            visit genNode.target
 
         of AsdlExprTk.Compare:
           let compareNode = AstCompare(astNode)

@@ -888,10 +888,13 @@ ast test, [AsdlExpr]:
   result = astOrTest(child)
   assert result != nil
   
-  #[]
-ast test_nocond:
-  discard
-  
+ast test_nocond, [AsdlExpr]:
+  let child = parseNode.children[0]
+  assert (child.tokenNode.token == Token.or_test)
+  result = astOrTest(child)
+  assert result != nil
+
+    #[]
 ast lambdef:
   discard
   
@@ -1202,7 +1205,7 @@ ast atom, [AsdlExpr]:
 # testlist_comp  (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
 # currently only used in atom
 ast testlist_comp, [seq[AsdlExpr]]:
-  # return type: if comprehension, a seq with only one element: AstListComp
+  # return type: if comprehension, a seq of AstListComp
   # or a seq with comma separated elements
   let child1 = parseNode.children[0]
   if child1.tokenNode.token == Token.star_expr:
@@ -1426,17 +1429,33 @@ ast arglist, [AstCall, callNode: AstCall]:
   callNode
 
 
-#ast comp_iter:
+#ast comp_if:
 #  discard
+ast comp_iter, [seq[AsdlComprehension], comp: AstComprehension]:
+  assert parseNode.children.len == 1
+  let next = parseNode.children[0]
+  case next.tokenNode.token
+  of Token.comp_for:
+    result = astCompFor(next)
+  of Token.comp_if:
+    # comp_if: 'if' test_nocond [comp_iter]
+    let cond = next.children[1]
+    comp.ifs.add(astTestNocond(cond))
+    if next.children.len > 2:
+      result = astCompIter(next.children[2], comp)
+  else:
+    unreachable
 
 # sync_comp_for: 'for' exprlist 'in' or_test [comp_iter]
 ast sync_comp_for, [seq[AsdlComprehension]]:
-  if parseNode.children.len == 5:
-    raiseSyntaxError("Complex comprehension not implemented", parseNode.children[5])
-  let comp = newAstComprehension()
+  var comp = newAstComprehension()
   comp.target.astExprListInFor(parseNode.children[1])
   comp.iter = astOrTest(parseNode.children[3])
+
   result.add comp
+  if parseNode.children.len > 4:
+    let res = astCompIter(parseNode.children[4], comp)
+    result.add res
   
   
 # comp_for: ['async'] sync_comp_for
@@ -1445,10 +1464,6 @@ ast comp_for, [seq[AsdlComprehension]]:
     raiseSyntaxError("Async comprehension not implemented", parseNode.children[0])
   return astSyncCompFor(parseNode.children[0])
 
-  
-#ast comp_if:
-#  discard
-  
 #[
 ast encoding_decl:
   discard

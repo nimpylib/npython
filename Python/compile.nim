@@ -806,25 +806,61 @@ compileMethod Dict:
     lineNo = c.lastLineNo
   c.compileDictFromIt n, astNode.keys[it], astNode.values[it], 0..<astNode.keys.len, lineNo
 
+
 compileMethod ListComp:
   let lineNo = astNode.lineNo.value
-  assert astNode.generators.len == 1
-  let genNode = AstComprehension(astNode.generators[0])
+
+  #TODO:prof do not use function for loopVar scoop in listcomp
   c.units.add(newCompilerUnit(c.st, astNode, newPyAscii"<listcomp>"))
-  # empty list
-  let body = newBasicBlock()
-  let ending = newBasicBlock()
+  #if non-func-impl: LoadFastAndClear
   c.addOp(newArgInstr(OpCode.BuildList, 0, lineNo))
   c.addLoadOp(newPyAscii(".0"), astNode.lineNo.value) # the implicit iterator argument
-  c.addBlock(body)
-  c.addOp(newJumpInstr(OpCode.ForIter, ending, lineNo))
-  c.compile(genNode.target)
+
+  var loops = newSeqOfCap[tuple[header, after: BasicBlock]]( astNode.generators.len )
+  for i, gen in astNode.generators:
+    var genNode: AstComprehension
+    genNode = AstComprehension(gen)
+    let lineNo = genNode.target.lineNo.value
+    if i > 0:
+      c.compile(genNode.iter)
+      c.addOp(newInstr(OpCode.GetIter, lineNo))
+    # for i == 0, we use the iterator argument `.0`
+
+    let header = newBasicBlock()
+    c.addBlock(header)
+    let after = newBasicBlock()
+    loops.add((header, after))
+
+    c.addOp(newJumpInstr(OpCode.ForIter, after, lineNo))
+    c.compile(genNode.target)
+    #if non-func-impl: StoreFastLoadFast
+
+    for ifCond in genNode.ifs:
+      let ifBody = newBasicBlock()
+      c.compile(ifCond)
+      c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, header, lineNo))
+      # The next instructions are part of the if body
+      c.addBlock(ifBody)
+
+  # Innermost body
+  let eltLineNo = astNode.elt.lineNo.value
   c.compile(astNode.elt)
-  # 1 for the object to append, 2 for the iterator
-  c.addOp(newArgInstr(OpCode.ListAppend, 2, lineNo))
-  c.addOp(newJumpInstr(OpCode.JumpAbsolute, body, lineNo))
-  c.addBlock(ending)
+  c.addOp(newArgInstr(OpCode.ListAppend, loops.len + 1, eltLineNo))
+  c.addOp(newJumpInstr(OpCode.JumpAbsolute, loops[^1].header, eltLineNo))
+
+  # Add the `after` blocks for each loop
+  for i in countdown(loops.len - 1, 0):
+    c.addBlock(loops[i].after)
+    if i > 0:
+      # This pop is for the iterator of the inner loop
+      # XXX: fast vars are not pushed on stack in our implementation
+      #c.addOp(OpCode.PopTop, 0) #if non-func-impl
+      c.addOp(newJumpInstr(OpCode.JumpAbsolute, loops[i-1].header, 0))
+
+  #c.addOp(OpCode.PopTop, 0) # if non-func-impl
   c.addOp(OpCode.ReturnValue, lineNo)
+
+  let genNode = AstComprehension(astNode.generators[0])
 
   c.makeFunction(c.units.pop, newPyAscii("listcomp"), lineNo)
   # prepare the first arg of the function
