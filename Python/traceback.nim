@@ -5,6 +5,7 @@ import algorithm
 import ../Objects/[
   pyobject,
   exceptionsImpl,
+  noneobject,
   stringobject,
 ]
 import ../Objects/numobjects/intobject_decl
@@ -59,3 +60,7 @@ proc newPyTraceback*(t: TraceBack): PyTracebackObject =
   result = newPyTracebackSimple()
   #result.colon = newPyInt t.colNo
   result.tb_lineno = newPyInt t.lineNo
+
+proc traceback*(t: PyExceptionObject): PyObject =
+  #TODO:traceback chain
+  if t.traceBacks.len > 0: newPyTraceback(t.traceBacks[^1]) else: pyNone

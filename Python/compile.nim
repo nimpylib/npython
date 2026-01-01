@@ -615,6 +615,62 @@ compileMethod IfExp:
   c.addBlock(next)
   c.compile(astNode.orelse)
   c.addBlock(ending)
+#[
+   with EXPR as VAR:
+       BLOCK
+   is implemented as:
+        <code for EXPR>
+        SETUP_WITH  E
+        <code to store to VAR> or POP_TOP
+        <code for BLOCK>
+        LOAD_CONST None
+        LOAD_CONST None
+        LOAD_CONST None
+        CALL_FUNCTION 3 (calls EXPR.__exit__)
+        POP_TOP  # remove result of __exit__ from stack
+        JUMP  EXIT
+    E:  WITH_EXCEPT_START (calls EXPR.__exit__)
+        POP_JUMP_IF_TRUE T:
+        RERAISE
+    T:  POP_TOP (remove exception from stack)
+        POP_EXCEPT
+        POP_TOP
+    EXIT:
+]#
+compileMethod With:
+  let lineNo = astNode.lineNo.value
+  let exitBlock = newBasicBlock()
+  let exceptBlock = newBasicBlock()
+  for i in astNode.items:
+    let item = AstWithitem(i)
+    c.compile(item.context_expr)
+    c.addOp(newJumpInstr(OpCode.SetupWith, exceptBlock, lineNo))
+    if item.optional_vars.isNil:
+      c.addOp(OpCode.PopTop, lineNo)
+    else:
+      c.compile(item.optional_vars)
+  c.compileSeq(astNode.body)
+  # call __exit__ with (None, None, None) to indicate normal exit
+  c.addLoadConst(pyNone, lineNo)
+  c.addLoadConst(pyNone, lineNo)
+  c.addLoadConst(pyNone, lineNo)
+  c.addOp(newArgInstr(OpCode.CallFunction, 3, lineNo))
+  c.addOp(OpCode.PopTop, c.lastLineNo)
+  c.addOp(newJumpInstr(OpCode.JumpAbsolute, exitBlock, c.lastLineNo))
+
+  c.addBlock(exceptBlock)
+  c.addOp(OpCode.WithExceptStart, lineNo)
+  let targetBlock = newBasicBlock()
+  c.addOp(newJumpInstr(OpCode.PopJumpIfTrue, targetBlock, c.lastLineNo))
+  c.addOp(newArgInstr(OpCode.ReRaise, 2, -1))
+  #c.addOp(newArgInstr(OpCode.RaiseVarargs, 0, astNode.lineNo.value))
+
+  c.addBlock(targetBlock)
+  c.addOp(OpCode.PopTop, c.lastLineNo)
+  c.addOp(OpCode.PopExcept, c.lastLineNo)
+  c.addOp(OpCode.PopTop, c.lastLineNo)
+
+  c.addBlock(exitBlock)
 
 compileMethod Raise:
   assert astNode.cause.isNil # should be blocked by ast

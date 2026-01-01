@@ -53,6 +53,7 @@ type
     INPLACE_AND,
     INPLACE_XOR,
     INPLACE_OR,
+    WITH_EXCEPT_START,  # 43
     WITH_CLEANUP_START,
     WITH_CLEANUP_FINISH,
     RETURN_VALUE,
@@ -62,7 +63,7 @@ type
     POP_BLOCK,
     END_FINALLY,
     POP_EXCEPT,
-    HAVE_ARGUMENT,
+    HAVE_ARGUMENT,  # ----- following opcodes all have argument
     STORE_NAME,
     DELETE_NAME,
     UNPACK_SEQUENCE,
@@ -93,6 +94,7 @@ type
     LOAD_FAST,
     STORE_FAST,
     DELETE_FAST,
+    LOAD_SPECIAL,
     RAISE_VARARGS,
     CALL_FUNCTION,
     MAKE_FUNCTION,
@@ -103,7 +105,9 @@ type
     DELETE_DEREF,
     CALL_FUNCTION_KW,
     CALL_FUNCTION_EX,
+    SETUP_CLEANUP,  # 263
     SETUP_WITH,
+    RERAISE,  # 105
     EXTENDED_ARG,
     LIST_APPEND,
     SET_ADD,
@@ -147,6 +151,7 @@ const jumpSet* = {
     OpCode.POP_JUMP_IF_TRUE,
     OpCode.For_ITER, # jump if stopiteration is raised
     OpCode.SETUP_FINALLY, # jump if exception is raised
+    OpCode.SETUP_WITH, # jump if exception is raised
     }
 
 

@@ -28,7 +28,7 @@ proc PyErr_PrintEx*(exc; set_sys_last_vars: bool=false){.pyCFuncPragma.} =
     discard PySys_SetAttrNonNil(pyId id, val)
   let
     typ = exc.pyType
-    tb = if exc.traceBacks.len > 0: newPyTraceback exc.traceBacks[^1] else: pyNone
+    tb = exc.traceback
   if set_sys_last_vars:
     ss last_exc, exc
     # Legacy version:

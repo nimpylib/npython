@@ -5,6 +5,9 @@ import std/sets
 import compile
 import opcode
 import builtindict
+import ./[call, traceback]
+import ../Include/internal/pycore_global_strings
+import ../Objects/typeobject/apis/attrs
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
                    setobject, notimplementedobject, boolobjectImpl,
@@ -35,7 +38,9 @@ type
     handler: int
     sPtr: int
     context: PyExceptionObject
-    
+    moreToPush: range[0..2]  ## SETUP_FINALLY/CLEANUP/WITH -> 0,1,2
+    withExitFunc: PyObject  ## only for WITH_EXCEPT_START
+
 {.push raises: [].}
 # forward declarations
 proc evalFrame*(f: PyFrameObject): PyObject
@@ -215,8 +220,8 @@ proc evalFrame*(f: PyFrameObject): PyObject =
     0 < blockStack.len
 
 
-  template addTryBlock(opArg, stackPtr: int, cxt:PyExceptionObject=nil) = 
-    blockStack.add(TryBlock(handler:opArg, sPtr:stackPtr, context:cxt))
+  template addTryBlock(opArg, stackPtr: int, cxt:PyExceptionObject=nil, moreToPushThan1=0, twithExitFunc: PyObject = nil) = 
+    blockStack.add(TryBlock(handler:opArg, sPtr:stackPtr, context:cxt, moreToPush: moreToPushThan1, withExitFunc: twithExitFunc))
 
   template getTopBlock: TryBlock = 
     blockStack[^1]
@@ -264,6 +269,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
       var excpObj: PyObject
       # normal execution loop
       block normalExecution:
+        template handleSetup(n; exitFunc: untyped = nil) =
+          addTryBlock(opArg, valStack.len,
+            if hasTryBlock(): getTopBlock().context
+            else: nil
+            ,
+          n, exitFunc)
+
         # out of memory and keyboard interrupt handler
         try:
           while true:
@@ -404,6 +416,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 # previous `except` clause failed to handle the exception
                 if top.isThrownException:
                   handleException(top)
+
+            of OpCode.PopExcept:
+              # remove the exception object left on stack and pop the try-block
+              excpObj = sPop()
 
             of OpCode.StoreName:
               unreachable("locals() scope not implemented")
@@ -608,12 +624,59 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 do:
                   notDefined name
               sPush obj
+            #TODO:dis SetupFinally, SetupCleanup, SetupWith shall be pesudo opcodes,
+            #  not real opcodes,
+            #  (being replaced during `assemble`)
+            of OpCode.SetupFinally: handleSetup(0)
+            of OpCode.SetupCleanup: handleSetup(1)
+            of OpCode.SetupWith:
+              var exit: PyObject
+              block BeforeWith:
+                let context_manager = sPop()
 
-            of OpCode.SetupFinally:
-              if hasTryBlock():
-                addTryBlock(opArg, valStack.len, getTopBlock().context)
-              else:
-                addTryBlock(opArg, valStack.len, nil)
+                let error_string = proc (): string =
+                  fmt"'{context_manager.typeName:.200}' object does not support the context manager protocol"
+
+                # lookup __enter__ and call it immediately; raise TypeError if missing
+                var enter_meth = PyObject_LookupSpecial(context_manager, pyDUId enter)
+                if enter_meth.isNil:
+                  let exc = newTypeError newPyStr(error_string())
+                  handleException(exc)
+
+                # lookup __exit__; missing __exit__ is an immediate TypeError
+                exit = PyObject_LookupSpecial(context_manager, pyDUId exit)
+                if exit.isNil:
+                  let exc = newTypeError newPyStr(error_string() & " (missed __exit__ method)")
+                  handleException(exc)
+
+                # call the __enter__ method
+                var enter_res = enter_meth.call
+                if enter_res.isThrownException:
+                  handleException(enter_res)
+
+                sPush exit
+                sPush enter_res
+
+              handleSetup(2, exit)
+
+            of OpCode.WithExceptStart:
+              let
+                lastiOfExc = sPop()
+                val = sPop()
+                unused = sPop()  # enter_res (keep)
+                exit = sPop()
+              discard unused
+              assert lastiOfExc.ofPyIntObject
+              let tb = PyExceptionObject(val).traceback
+              let exitRet = exit.fastCall(@[val.pyType, val, tb])
+              if exitRet.isThrownException:
+                handleException(exitRet)
+              # restore stack: push exit, enter_res, then insert exitRet, exc, lasti
+              sPush exit
+              sPush unused
+              sPush lastiOfExc
+              sPush val
+              sPush exitRet
 
             of OpCode.LoadFast:
               let obj = fastLocals[opArg]
@@ -636,6 +699,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 deleteOrRaise f.code.localVars, opArg, name
             #of OpCode.DeleteDeref: deleteOrRaise cellVars, opArg #.refObj = sPop
 
+            of OpCode.Reraise:
+              let exc = sPop()
+              assert opArg in 0..2
+              if opArg != 0:
+                #XXX:CPython allows opArg==2 but does nothing other than doing what's done when opArg==1
+                lastI = sPop().PyIntObject.toSomeSignedIntUnsafe[:int]()
+              handleException(exc)
             of OpCode.RaiseVarargs:
               case opArg
               of 0:
@@ -827,9 +897,16 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             topBlock.status = TryStatus.Except
             setStackLen topBlock.sPtr
             sPush excp # for comparison in `except` clause
+            case topBlock.moreToPush
+            of 0: discard
+            of 1: sPush newPyInt lastI
+            of 2:
+              sPeek(3  # one for excp, one for unused
+                ) = topBlock.withExitFunc # resume exit func
+              sPush newPyInt lastI
             jumpTo(topBlock.handler)
-            when defined(debug):
-              echo fmt"handling exception, jump to {topBlock.handler}"
+            when defined(debug_instr_except):
+              echo fmt"  --- handling exception, jump to {topBlock.handler}"
             break exceptionHandler # continue normal execution
           of TryStatus.Except: # error occured in `except` suite
             if excp.context.isNil: # raised without nesting try/except

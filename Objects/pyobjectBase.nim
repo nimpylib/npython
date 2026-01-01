@@ -136,6 +136,9 @@ type
       (has to use the non-dunder name to ensure `magicNames` is correct)
     ]##
 
+    enter: UnaryMethod
+    exit: TernaryMethod 
+
     getattr: BinaryMethod
     setattr: TernaryMethod
     delattr: BinaryMethod

@@ -854,13 +854,35 @@ ast try_stmt, [AstTry]:
     else:
       unreachable
 
+# with_item: test ['as' expr]
+ast with_item, [AstWithitem]:
+  result = newAstWithitem()
+  # grammar: test ['as' test]
+  result.context_expr = astTest(parseNode.children[0])
+  if parseNode.children.len == 1:
+    return
+  if parseNode.children.len == 3:
+    assert parseNode.children[1].tokenNode.token == Token.`as`
+    result.optional_vars = astExpr(parseNode.children[2])
+    # optional_vars is an assignment target
+    result.optional_vars.setStore()
+    return
+  unreachable
+
 ast with_stmt, [AsdlStmt]:
-  raiseSyntaxError("with not implemented")
-  
-  #[
-ast with_item:
-  discard
-  ]#
+  var res = newAstWith()
+  setNo(res, parseNode.children[0])
+  # children: 'with' with_item (',' with_item)* ':' suite
+  var idx = 1
+  while idx < parseNode.children.len and parseNode.children[idx].tokenNode.token != Token.suite:
+    res.items.add astWithItem(parseNode.children[idx])
+    idx += 2
+  if idx >= parseNode.children.len:
+    unreachable
+  # next child is ':' then suite
+  assert parseNode.children[idx-1].tokenNode.token == Token.Colon
+  res.body = astSuite(parseNode.children[idx])
+  result = res
 
 # except_clause: 'except' [test ['as' NAME]]
 ast except_clause, [AstExceptHandler]:

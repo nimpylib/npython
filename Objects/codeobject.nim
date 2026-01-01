@@ -116,7 +116,7 @@ method `$`*(code: PyCodeObject): string{.raises: [].} =
           line &= fmt" ({code.freeVars[opArg - code.cellVars.len]})"
       of OpCode.CallFunction, OpCode.CallFunction_EX, jumpSet, OpCode.BuildList, 
          OpCode.BuildTuple, OpCode.UnpackSequence, OpCode.MakeFunction,
-         OpCode.RaiseVarargs:
+         OpCode.RaiseVarargs, OpCode.ReRaise:
         discard
       else:
         line &= " (Unknown OpCode)"
