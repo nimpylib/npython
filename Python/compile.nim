@@ -580,6 +580,19 @@ compileMethod If:
     c.compileSeq(astNode.orelse)
   c.addBlock(ending)
 
+compileMethod IfExp:
+  let ending = newBasicBlock()
+  let next = newBasicBlock()
+  # there is an optimization for `and` and `or` operators in the `test`.
+  c.compile(astNode.test)
+  let body = astNode.body
+  c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, body.lineNo.value))
+  c.compile(body)
+  # for now JumpForward is the same as JumpAbsolute ... ( see `compileMethod If`)
+  c.addOp(newJumpInstr(OpCode.JumpForward, ending, c.lastLineNo))
+  c.addBlock(next)
+  c.compile(astNode.orelse)
+  c.addBlock(ending)
 
 compileMethod Raise:
   assert astNode.cause.isNil # should be blocked by ast
@@ -718,8 +731,12 @@ compileMethod ImportFrom:
     c.addStoreOp(aliasNode.asname, lineNo)
 
 compileMethod Expr:
-  let lineNo = astNode.value.lineNo.value
-  c.compile(astNode.value)
+  let obj = astNode.value
+  c.compile(obj)
+  let lineNo = (
+    if obj.lineNo.isNil: AstIfExp(obj).body  # IfExp
+    else: obj
+  ).lineNo.value
   if c.interactive:
     c.addOp(newInstr(OpCode.PrintExpr, lineNo))
   else:

@@ -881,16 +881,52 @@ ast suite, [seq[AsdlStmt]]:
   for child in result:
     assert child != nil
   
+
+proc newIfExp(test, body, orelse: auto): AsdlExpr =
+  var res = newAstIfExp()
+  res.test = astOrTest test
+  res.body = astOrTest body
+  res.orelse = astTest orelse
+  res
+
 # test  or_test ['if' or_test 'else' test] | lambdef
 ast test, [AsdlExpr]:
-  if not (parseNode.children.len == 1):
-    raiseSyntaxError("Inline if else not implemented", parseNode.children[1])
-  let child = parseNode.children[0]
-  if not (child.tokenNode.token == Token.or_test):
-    raiseSyntaxError("lambda not implemented")
-  result = astOrTest(child)
-  assert result != nil
-  
+  ## Handle:
+  ##   - plain: or_test
+  ##   - inline if: or_test 'if' or_test 'else' test
+  ## Lambdas are still not implemented.
+  let children = parseNode.children
+  let n = children.len
+
+  if n == 1:
+    let child = children[0]
+    if child.tokenNode.token == Token.or_test:
+      result = astOrTest(child)
+      assert result != nil
+    else:
+      # this is where "lambdef" would show up
+      raiseSyntaxError("lambda not implemented", child)
+  elif n == 5:
+    # or_test 'if' or_test 'else' test
+    let
+      bodyNode   = children[0]
+      ifNode     = children[1]
+      condNode   = children[2]
+      elseNode   = children[3]
+      orelseNode = children[4]
+
+    if ifNode.tokenNode.token != Token.`if` or elseNode.tokenNode.token != Token.`else`:
+      raiseSyntaxError("invalid conditional expression", ifNode)
+
+    if bodyNode.tokenNode.token != Token.or_test:
+      raiseSyntaxError("invalid conditional body", bodyNode)
+    if condNode.tokenNode.token != Token.or_test:
+      raiseSyntaxError("invalid conditional test", condNode)
+
+    result = newIfExp(condNode, bodyNode, orelseNode)
+  else:
+    raiseSyntaxError("invalid test expression", parseNode)
+
 ast test_nocond, [AsdlExpr]:
   let child = parseNode.children[0]
   assert (child.tokenNode.token == Token.or_test)
