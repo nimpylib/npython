@@ -912,8 +912,12 @@ compileMethod Compare:
     addCmpOp(In)
   of AsdlCmpOpTk.NotIn:
     addCmpOp(NotIn)
-  else:
-    unreachable
+  of AsdlCmpOpTk.Is:
+    #TODO:fixpy: Python's `is` is a instruction (at least in CPython3.14)
+    #c.addOp(newArgInstr(OpCode.IsOp, astNode.args.len, astNode.lineNo.value))
+    addCmpOp(Is)
+  of AsdlCmpOpTk.IsNot:
+    addCmpOp(IsNot)
 
 proc validate_keywords(c: Compiler, keywords: seq[Asdlkeyword]; baseAst: AstCall) =
   ## codegen_validate_keywords

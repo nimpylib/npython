@@ -537,6 +537,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                   if not boolObj.ofPyBoolObject:
                     unreachable
                   sPush boolObj.callMagic(Not, handleExcp=true)
+              of CmpOp.Is:
+                let op2 = sPop()
+                let op1 = sTop()
+                sSetTop newPyBool Py_IS(op1, op2)
+              of CmpOp.IsNot:
+                let op2 = sPop()
+                let op1 = sTop()
+                sSetTop newPyBool(not Py_IS(op1, op2))
               of CmpOp.ExcpMatch:
                 let targetExcp = sPop()
                 if not targetExcp.isExceptionType:
@@ -545,8 +553,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                   handleException(newTypeError newPyAscii(msg))
                 let currentExcp = PyExceptionObject(sTop())
                 sPush matchExcp(PyTypeObject(targetExcp), currentExcp)
-              else:
-                unreachable  # should be blocked by ast, compiler
 
             of OpCode.ImportName:
               let name = names[opArg]

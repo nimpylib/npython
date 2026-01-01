@@ -972,7 +972,8 @@ ast comparison, [AsdlExpr]:
 
 # comp_op  '<'|'>'|'=='|'>='|'<='|'<>'|'!='|'in'|'not' 'in'|'is'|'is' 'not'
 ast comp_op, [AsdlCmpop]:
-  let token = parseNode.children[0].tokenNode.token
+  let child = parseNode.children[0]
+  let token = child.tokenNode.token
   case token
   of Token.Less:
     result = newAstLt()
@@ -990,8 +991,14 @@ ast comp_op, [AsdlCmpop]:
     result = newAstIn()
   of Token.not:
     result = newAstNotIn()
+  of Token.is:
+    if parseNode.children.len == 1:
+      result = newAstIs()
+    else:
+      assert parseNode.children[1].tokenNode.token == Token.not
+      result = newAstIsNot()
   else:
-    raiseSyntaxError(fmt"Complex comparison operation {token} not implemented")
+    unreachable
 #  
 #ast star_expr:
 #  discard
