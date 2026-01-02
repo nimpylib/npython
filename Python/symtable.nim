@@ -163,11 +163,36 @@ proc freeVarsToSeq*(ste: SymTableEntry): seq[PyStrObject] =
 proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError].} = 
   var toVisit: seq[(AstNodeBase, SymTableEntry)]
   toVisit.add((AstNodeBase astRoot, SymTableEntry nil))
+
+  proc visitArgs(argsNode: AsdlArguments, ste: SymTableEntry){.nimcall.} =  
+    let args = AstArguments(argsNode)
+    # positional args
+    for idx, arg in args.args:
+      assert arg of AstArg
+      ste.addDeclaration(AstArg(arg).arg)
+      ste.argVars[AstArg(arg).arg.value] = idx
+    # vararg
+    if not args.vararg.isNil:
+      let v = AstArg(args.vararg)
+      ste.varArg = v.arg.value
+      ste.addDeclaration(v.arg)
+    # keyword-only args
+    for k in args.kwonlyargs:
+      let ka = AstArg(k)
+      ste.kwOnlyArgs.add ka.arg.value
+      ste.addDeclaration(ka.arg)
+    # placeholder for kw-only defaults evaluated during compile
+    ste.kwOnlyDefaults = newSeq[PyObject](args.kw_defaults.len)
+    for i in 0..<args.kw_defaults.len:
+      ste.kwOnlyDefaults[i] = pyNone
+
   while toVisit.len != 0:
     let (astNode, parentSte) = toVisit.pop
     let ste = newSymTableEntry(parentSte)
     st.entries[astNode] = ste
     var toVisitPerSte: seq[AstNodeBase]
+    template visitInNewBlock(astNode: AstNodeBase) =
+      toVisit.add((astNode, ste))
     template visit(n) = 
       if not n.isNil:
         toVisitPerSte.add n
@@ -190,32 +215,20 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
       addBodies(AstInteractive)
     elif astNode of AstFunctionDef:
       ste.kind = SteKind.Function
-      addBodies(AstFunctionDef)
       # deal with function args
       let f = AstFunctionDef(astNode)
-      let args = AstArguments(f.args)
-      # positional args
-      for idx, arg in args.args:
-        assert arg of AstArg
-        ste.addDeclaration(AstArg(arg).arg)
-        ste.argVars[AstArg(arg).arg.value] = idx
-      # vararg
-      if not args.vararg.isNil:
-        let v = AstArg(args.vararg)
-        ste.varArg = v.arg.value
-        ste.addDeclaration(v.arg)
-      # keyword-only args
-      for k in args.kwonlyargs:
-        let ka = AstArg(k)
-        ste.kwOnlyArgs.add ka.arg.value
-        ste.addDeclaration(ka.arg)
-      # placeholder for kw-only defaults evaluated during compile
-      ste.kwOnlyDefaults = newSeq[PyObject](args.kw_defaults.len)
-      for i in 0..<args.kw_defaults.len:
-        ste.kwOnlyDefaults[i] = pyNone
+      visitArgs f.args, ste
+      addBodies(AstFunctionDef)
     elif astNode of AstClassDef:
       ste.kind = SteKind.Class
       addBodies(AstClassDef)
+
+    elif astNode of AstLambda:
+      ste.kind = SteKind.Function
+      # deal with function args
+      let f = AstLambda(astNode)
+      visitArgs f.args, ste
+      visit f.body
     else:
 
       # comprehensions
@@ -257,7 +270,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
         of AsdlStmtTk.FunctionDef:
           let funcNode = AstFunctionDef(astNode)
           ste.addDeclaration(funcNode.name)
-          toVisit.add((astNode, ste))
+          visitInNewBlock astNode
           visitSeq(funcNode.decorator_list)
 
         of AsdlStmtTk.ClassDef:
@@ -266,7 +279,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           assert classNode.keywords.len == 0
           assert classNode.decoratorList.len == 0
           ste.addDeclaration(classNode.name)
-          toVisit.add((astNode, ste))
+          visitInNewBlock astNode
 
         of AsdlStmtTk.Return:
           visit AstReturn(astNode).value
@@ -355,7 +368,7 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
       elif astNode of AsdlExpr:
 
         template prepareCompBody(compNode){.dirty.} =
-          toVisit.add((astNode, ste))
+          visitInNewBlock astNode
           for gen in compNode.generators:
             let genNode = AstComprehension(gen)
             visit genNode.iter
@@ -456,6 +469,9 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
         of AsdlExprTk.Constant:
           discard
 
+        of AsdlExprTk.Lambda:
+          #ste.addDeclaration(pyId "<lambda>")
+          visitInNewBlock astNode
         else:
           unreachable
 

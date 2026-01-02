@@ -17,6 +17,7 @@ import ../Objects/[
 import ../Objects/stringobject/strformat
 import ../Utils/utils
 import ../Include/cpython/compile as compile_h
+import ../Include/internal/pycore_global_strings
 export compile_h
 type
   Instr = ref object of RootObj
@@ -446,12 +447,9 @@ compileMethod Interactive:
   c.compileSeq(astNode.body)
 
 
-compileMethod FunctionDef:
-  for deco in astNode.decorator_list:
-    c.compile(deco)
-  assert astNode.returns == nil
+proc compileArguments(c: Compiler; astNode: auto; argsNode: AstArguments,
+                      codeName: PyStrObject): int =
   # compile kw-only defaults first, then positional defaults; both evaluated in defining scope before MakeFunction
-  let argsNode = AstArguments(AstFunctionDef(astNode).args)
   var extraFlags = 0
   # maybe allows disable complex function def
   when compiles(argsNode.kw_defaults):
@@ -466,15 +464,39 @@ compileMethod FunctionDef:
         c.compile(defExpr)
       c.addOp(newArgInstr(OpCode.BuildTuple, argsNode.defaults.len, astNode.lineNo.value))
       extraFlags = extraFlags or 1
-  # create inner compiler unit so function body compiles into it
-  c.units.add(newCompilerUnit(c.st, astNode, astNode.name.value))
+  extraFlags
+
+template compileFuncWithBody(name, lineNo, compileBody) =
+  let argsNode = AstArguments(astNode.args)
+  let extraFlags = c.compileArguments(astNode, argsNode, name)
+  # create inner compiler unit so lambda body compiles into it
+  c.units.add(newCompilerUnit(c.st, astNode, name))
   assert (not c.tcu.codeName.isNil)
-  c.compileSeq(astNode.body)
-  c.makeFunction(c.units.pop, astNode.name.value, astNode.lineNo.value, extraFlags)
+
+  compileBody
+  # make the function object from the inner compiler unit
+  c.makeFunction(c.units.pop, name, lineNo, extraFlags)
+
+compileMethod Lambda:
+  let name = pyId "<lambda>"
+  let lineNo = astNode.body.lineNo.value
+  compileFuncWithBody name, lineNo:
+    # compile expression body and return its value
+    c.compile(astNode.body)
+    c.addOp(newInstr(OpCode.ReturnValue, lineNo))
+
+compileMethod FunctionDef:
+  for deco in astNode.decorator_list:
+    c.compile(deco)
+  assert astNode.returns == nil
+
+  let name = astNode.name.value
+  compileFuncWithBody name, astNode.lineNo.value:
+    c.compileSeq(astNode.body)
+
   for deco in astNode.decorator_list:
     c.addOp(newArgInstr(OpCode.CallFunction, 1, deco.lineNo.value))
   c.addStoreOp(astNode.name.value, astNode.lineNo.value)
-
 
 compileMethod ClassDef:
   for deco in astNode.decorator_list:

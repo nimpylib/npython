@@ -103,6 +103,7 @@ proc astFuncdef(parseNode: ParseNode): AstFunctionDef
 proc astParameters(parseNode: ParseNode): AstArguments
 proc astTypedArgsList(parseNode: ParseNode): AstArguments
 proc astTfpdef(parseNode: ParseNode): AstArg
+proc astVfpdef(parseNode: ParseNode): AstArg
 
 proc astStmt(parseNode: ParseNode): seq[AsdlStmt]
 proc astSimpleStmt(parseNode: ParseNode): seq[AsdlStmt] 
@@ -137,6 +138,9 @@ proc astTryStmt(parseNode: ParseNode): AstTry
 proc astExceptClause(parseNode: ParseNode): AstExceptHandler
 proc astWithStmt(parseNode: ParseNode): AsdlStmt
 proc astSuite(parseNode: ParseNode): seq[AsdlStmt]
+
+proc astLambdef(parseNode: ParseNode): AstLambda
+proc astLambdefNoCond(parseNode: ParseNode): AstLambda
 
 proc astTest(parseNode: ParseNode): AsdlExpr
 proc astOrTest(parseNode: ParseNode): AsdlExpr
@@ -387,27 +391,19 @@ ast parameters, [AstArguments]:
     result = astTypedArgsList(parseNode.children[1])
   else:
     unreachable
-  
 
-#  typedargslist: (tfpdef ['=' test] (',' tfpdef ['=' test])* [',' [
-#        '*' [tfpdef] (',' tfpdef ['=' test])* [',' ['**' tfpdef [',']]]
-#      | '**' tfpdef [',']]]
-#  | '*' [tfpdef] (',' tfpdef ['=' test])* [',' ['**' tfpdef [',']]]
-#  | '**' tfpdef [','])
-# 
-# Just one tfpdef should be easy enough
-ast typedargslist, [AstArguments]:
+template astArgListAux(parseNode: ParseNode; xfpdef) =
   result = newAstArguments()
   var idx = 0
   var parsingKwOnly = false
   while idx < parseNode.children.len:
     let child = parseNode.children[idx]
     case child.tokenNode.token
-    of Token.tfpdef:
+    of Token.xfpdef:
       if not parsingKwOnly:
-        result.args.add(astTfpdef(child))
+        result.args.add(`ast xfpdef`(child))
       else:
-        result.kwonlyargs.add(astTfpdef(child))
+        result.kwonlyargs.add(`ast xfpdef`(child))
       inc idx
       # optional default: '=' test
       if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.Equal:
@@ -422,8 +418,8 @@ ast typedargslist, [AstArguments]:
     of Token.Star:
       # start kw-only args or vararg
       inc idx
-      if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.tfpdef:
-        result.vararg = astTfpdef(parseNode.children[idx])
+      if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.xfpdef:
+        result.vararg = `ast xfpdef`(parseNode.children[idx])
         inc idx
       parsingKwOnly = true
       if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.Comma:
@@ -438,20 +434,38 @@ ast typedargslist, [AstArguments]:
     # optional comma already handled
   
 
-# tfpdef  NAME [':' test]
-ast tfpdef, [AstArg]:
+proc astXfpdef(parseNode: ParseNode): AstArg =
   result = newAstArg()
   result.arg = newIdentifier(parseNode.children[0].tokenNode.content)
   setNo(result, parseNode.children[0])
+
+#  typedargslist: (tfpdef ['=' test] (',' tfpdef ['=' test])* [',' [
+#        '*' [tfpdef] (',' tfpdef ['=' test])* [',' ['**' tfpdef [',']]]
+#      | '**' tfpdef [',']]]
+#  | '*' [tfpdef] (',' tfpdef ['=' test])* [',' ['**' tfpdef [',']]]
+#  | '**' tfpdef [','])
+# 
+# Just one tfpdef should be easy enough
+ast typedargslist, [AstArguments]:
+  astArgListAux(parseNode, tfpdef)
+
+# tfpdef  NAME [':' test]
+ast tfpdef, [AstArg]:
+  astXfpdef(parseNode)
   
-#[
-ast varargslist:
-  discard
-  
-ast vfpdef:
-  discard
-]#
-  
+# varargslist: (vfpdef ['=' test] (',' vfpdef ['=' test])* [',' [
+#         '*' [vfpdef] (',' vfpdef ['=' test])* [',' ['**' vfpdef [',']]]
+#       | '**' vfpdef [',']]]
+#   | '*' [vfpdef] (',' vfpdef ['=' test])* [',' ['**' vfpdef [',']]]
+#   | '**' vfpdef [',']
+# )
+ast varargslist, [AstArguments]:
+  astArgListAux(parseNode, vfpdef)
+
+# vfpdef: NAME
+ast vfpdef, [AstArg]:
+  astXfpdef(parseNode)
+
 
 # stmt  simple_stmt | compound_stmt
 # simply return the child
@@ -904,8 +918,7 @@ ast test, [AsdlExpr]:
       result = astOrTest(child)
       assert result != nil
     else:
-      # this is where "lambdef" would show up
-      raiseSyntaxError("lambda not implemented", child)
+      result = astLambdef(child)
   elif n == 5:
     # or_test 'if' or_test 'else' test
     let
@@ -927,20 +940,34 @@ ast test, [AsdlExpr]:
   else:
     raiseSyntaxError("invalid test expression", parseNode)
 
+# test_nocond: or_test | lambdef_nocond
 ast test_nocond, [AsdlExpr]:
+  assert parseNode.children.len == 1
   let child = parseNode.children[0]
-  assert (child.tokenNode.token == Token.or_test)
-  result = astOrTest(child)
+  if child.tokenNode.token == Token.or_test:
+    result = astOrTest(child)
+  else:
+    result = astLambdefNoCond(child)
   assert result != nil
 
-    #[]
-ast lambdef:
-  discard
-  
-ast lambdef_nocond:
-  discard
-  
-  ]#
+
+proc astLambdaPre(parseNode: ParseNode): AstLambda =
+  result = newAstLambda()
+  result.args =
+    if parseNode.children.len == 4: astVarargslist(parseNode.children[1])
+    else: newAstArguments()
+
+# lambdef: 'lambda' [varargslist] ':' test
+ast lambdef, [AstLambda]:
+  result = astLambdaPre(parseNode)
+  result.body = parseNode.children[^1].astTest
+
+
+# lambdef_nocond: 'lambda' [varargslist] ':' test_nocond
+ast lambdef_nocond, [AstLambda]:
+  result = astLambdaPre(parseNode)
+  result.body = parseNode.children[^1].astTestNoCond
+
 
 # help and or
 template astForBoolOp(childAstFunc: untyped) = 
