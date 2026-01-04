@@ -25,6 +25,7 @@ proc getBltinName*(excp: BaseExceptionToken): string = excp.symbolName
 type TraceBack* = tuple
   fileName: PyObject  # actually string
   funName: PyObject  # actually string
+  frame: PyObject  # actually PyFrameObject type
   lineNo: int
   colNo: int  # optional, for syntax error
 
@@ -36,7 +37,20 @@ declarePyType BaseException(tpToken):
   args{.member.}: PyTupleObject  # could not be nil
   context{.dunder_member.}: PyBaseExceptionObject  # if the exception happens during handling another exception
   # used for tracebacks, set in neval.nim
-  traceBacks#[#TODO:{.member("__traceback__").}]#: seq[TraceBack]
+  traceBacks{.private.}: seq[TraceBack]
+  traceback{.dunder_member.}: PyObject
+
+proc addTraceBackPrivate*(exc: PyBaseExceptionObject, t: TraceBack) =
+  ## internal, not used
+  exc.traceBacks.add (fileName: t.fileName,
+                      funName: t.funName,
+                      frame: t.frame,
+                      lineNo: t.lineNo,
+                      colNo: t.colNo)
+
+iterator traceBackFromTopmost*(exc: PyBaseExceptionObject): TraceBack =
+  for i in countdown(exc.traceBacks.high, 0):
+    yield exc.traceBacks[i]
 
 declarePyType Exception(base(BaseException)):
   tk: ExceptionToken

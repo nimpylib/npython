@@ -155,7 +155,10 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   proc setTraceBack(excp: PyExceptionObject) = 
     let lineNo = f.code.lineNos[lastI]
     # for exceptions happened when evaluating the frame no colNo is set
-    excp.traceBacks.add (PyObject f.code.fileName, PyObject f.code.codeName, lineNo, -1)
+    let code = f.code
+    excp.addTraceBack(code.fileName, code.codeName, lineNo, -1,
+      frame=f, lastI = lastI
+    )
    
   # valStack, blockStack were once declared as global variable in JS,
   #   as js target would fail in the past. ref nim-lang/Nim#10651

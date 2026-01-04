@@ -102,6 +102,36 @@ proc isExceptionType*(obj: PyObject): bool =
   objType.kind == PyTypeToken.BaseException
 
 
+declarePyType Traceback():
+  #TODO:tb_next is writable since CPython 3.7
+  tb_next{.member, readonly.}: PyTracebackObject
+  tb_frame{.member, readonly.}: PyObject #PyFrameObject
+  tb_lasti{.member, readonly.}: PyIntObject
+  tb_lineno{.member, readonly.}: PyIntObject
+
+proc newPyTraceback*(t: TraceBack): PyTracebackObject =
+  result = newPyTracebackSimple()
+  #result.colon = newPyInt t.colNo
+  result.tb_frame = t.frame
+  #result.tb_lasti = newPyInt(t.lastI)
+  result.tb_lineno = newPyInt t.lineNo
+
+proc addTraceBack*(exc: PyBaseExceptionObject,
+                         fileName, funName: PyObject,
+                         lineNo, colNo: int, frame: PyObject, lastI = -1) =
+  let tb: TraceBack = (fileName: fileName,
+                      funName: funName,
+                      frame: frame,
+                      lineNo: lineNo,
+                      colNo: colNo)
+  let t = newPyTraceback(tb)
+  t.tb_lasti = newPyInt lastI
+  let old = PyTracebackObject(exc.traceback)
+  if not old.isNil:
+    old.tb_next = t
+  exc.traceback = t
+  exc.addTraceBackPrivate tb
+
 proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionObject = 
   let smsg = newPyStr(e.msg)
   let excpObj = newSyntaxError smsg
@@ -111,7 +141,20 @@ proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionOb
   excpObj.end_offset = newPyInt e.colNo
   excpObj.msg = smsg
   # don't have code name
-  excpObj.traceBacks.add (PyObject fileName, PyObject nil, e.lineNo, e.colNo)
+  #[
+    #TODO:SyntaxError
+    #TODO:tstate
+    our SyntaxError missing frame, as we didn't store current_exception in some global state
+    We shall use `setObject` so frame here won't be nil
+  ]#
+  let f = newPyFrame()
+  f.lineno = e.lineNo
+  f.code = newPyCode(
+    fileName,
+    fileName,
+    0
+  )
+  excpObj.addTraceBack(fileName, nil, e.lineNo, e.colNo, f)
   excpObj
 
 proc setString*(e: PyBaseExceptionObject, m: PyStrObject) =

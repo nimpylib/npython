@@ -5,10 +5,8 @@ import algorithm
 import ../Objects/[
   pyobject,
   exceptionsImpl,
-  noneobject,
   stringobject,
 ]
-import ../Objects/numobjects/intobject_decl
 import ../Parser/lexer
 import ../Utils/compat
 
@@ -36,31 +34,17 @@ proc printTb*(excp: PyExceptionObject) =
   while not cur.isNil:
     var singleExcpStrs: seq[string]
     singleExcpStrs.add "Traceback (most recent call last):"
-    for tb in cur.traceBacks.reversed:
-      singleExcpStrs.add tb.fmtTraceBack
-    let msg = $PyStrObject(tpMagic(BaseError, str)(cur)).str
-    var head = cur.pyType.name
+    var curTb = cur.traceback
+    while not curTb.isNil:
+      singleExcpStrs.add curTb.fmtTraceBack
+      curTb = curTb.tb_next_may_nil
+    let msg = $PyStrObject(tpMagic(BaseException, str)(cur)).str
+    var head = cur.typeName
     if msg.len > 0:
       head.add ": "
       head.add msg
     singleExcpStrs.add head
     excpStrs.add singleExcpStrs.join("\n")
     cur = cur.context
-  let joinMsg = "\n\nDuring handling of the above exception, another exception occured\n\n"
-  errEchoCompat excpStrs.reversed.join(joinMsg)
-
-declarePyType Traceback():
-  #TODO:traceback
-  #tb_next: PyTracebackObject
-  #tb_frame: PyFrameObject
-  #tb_lasti{.member, readonly.}: PyIntObject
-  tb_lineno{.member, readonly.}: PyIntObject
-
-proc newPyTraceback*(t: TraceBack): PyTracebackObject =
-  result = newPyTracebackSimple()
-  #result.colon = newPyInt t.colNo
-  result.tb_lineno = newPyInt t.lineNo
-
-proc traceback*(t: PyExceptionObject): PyObject =
-  #TODO:traceback chain
-  if t.traceBacks.len > 0: newPyTraceback(t.traceBacks[^1]) else: pyNone
+  excpStrs.reverse
+  errEchoCompat excpStrs.join("\n\nDuring handling of the above exception, another exception occured\n\n")
