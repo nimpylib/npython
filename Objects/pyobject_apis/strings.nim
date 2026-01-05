@@ -4,6 +4,46 @@ import pkg/pyrepr
 import ../[pyobject,
   stringobject, exceptions,
 ]
+import ../../Utils/compat
+
+proc PyObject_Repr*(obj: PyObject): PyObject{.raises: [].}
+proc PyUnstable_Object_DumpImpl(op: PyObject) {.cdecl.} =
+  ## For debugging convenience.  See Misc/gdbinit for some useful gdb hooks
+  when false:
+    # It seems like the object memory has been freed:
+    # don't access it to prevent a segmentation fault.
+    if PyObject_IsFreed(op):
+      errEchoCompat("<object at " & op.idStr & " is freed>\n")
+      return
+
+  # first, write fields which are the least likely to crash
+  errEchoCompat "object address  : " & op.idStr
+  #errEchoCompat "object refcount : " & $Py_REFCNT(op)
+
+  let typ = op.pyType
+  errEchoCompat "object type     : " & $typ
+  errEchoCompat "object type name: " & (if typ.isNil: "NULL" else: typ.name)
+
+  # the most dangerous part
+  var s = ""
+  s &= "object repr     : "
+  # (perform repr printing under GIL, preserving any raised exception)
+  #let gil = PyGILState_Ensure()
+  #let exc = PyErr_GetRaisedException()
+  let sObj = PyObject_Repr(op)
+  if sObj.isThrownException:
+    return
+  s &= $PyStrObject(sObj).str
+
+  errEchoCompat s
+  #PyObject_Print(op, stderr, 0)
+
+  #PyErr_SetRaisedException(exc)
+  #PyGILState_Release(gil)
+
+proc PyUnstable_Object_Dump*(op: PyObject) {.cdecl, raises: [].} =
+  try: PyUnstable_Object_DumpImpl(op)
+  except IOError: discard
 
 proc reprDefault*(self: PyObject): PyObject {. cdecl .} = 
   newPyString(fmt"<{self.typeName} object at {self.idStr}>")
