@@ -723,8 +723,11 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       name = name[0]
       pragmas.expectKind nnkPragma
 
-      for i in pragmas:
+      # we will delete pseudo pragma like member, private
+      var idx = 0
+      while idx < pragmas.len:
         var isMemberCall: bool
+        let i = pragmas[idx]
         if i.eqIdent"member" or (isMemberCall = i.kind in {nnkCall, nnkCallStrLit}; isMemberCall) and i[0].eqIdent"member":
           var memberPragma = i
           if isMemberCall:
@@ -736,16 +739,22 @@ macro declarePyType*(prototype, fields: untyped): untyped =
             memberNameDiffer = true
           else:
             memberPyId = name
+          pragmas.del idx, 1
         elif i.kind == nnkIdent:
           case i.strVal
           of "dunder_member":
             memberPyId = ident("__" & name.strVal & "__")
             memberNameDiffer = true
-          of "private": fieldPrivate = true
+            pragmas.del idx, 1
+          of "private":
+            fieldPrivate = true
+            pragmas.del idx, 1
+          else:
+            idx.inc
       
       if memberPyId != default NimNode:
         var flags = newCall(bindSym"pyMemberDefFlagsFromTags")
-        for i in 1..<pragmas.len:
+        for i in 0..<pragmas.len:
           let tag = pragmas[i]
           tag.expectKind nnkIdent
           flags.add tag
