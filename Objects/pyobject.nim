@@ -7,7 +7,8 @@ import sets
 import strformat
 import strutils
 import hashes
-import tables
+import std/tables
+export tables
 
 import ../Utils/[utils, macroutils]
 import ../Include/cpython/critical_section
@@ -701,9 +702,11 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   # the fields are not recognized as type attribute declaration
   # need to cast here, but can not handle object variants
   var reclist = nnkRecList.newTree()
+  let emptyn = newEmptyNode()
+  var defval = emptyn
   proc addField(recList, name, tp: NimNode, fieldPrivate=false)=
     let fid = if fieldPrivate: name else: name.postfix"*"
-    let newField = nnkIdentDefs.newTree(fid, tp, newEmptyNode())  
+    let newField = nnkIdentDefs.newTree(fid, tp, defval)  
     recList.add(newField)
   let pyObjType = ident "py" & nameIdent.strVal & "ObjectType"
 
@@ -714,7 +717,13 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       continue
     field.expectKind(nnkCall)
     var name = field[0]
-    let fieldType = field[1][0]
+    var fieldType = field[1][0]
+    if fieldType.kind == nnkAsgn:
+      # Nimv2 allows default value
+      defval = fieldType[1]
+      fieldType = fieldType[0]
+    else:
+      defval = emptyn
     var fieldPrivate = false #XXX: historial
     var memberPyId: NimNode
     var memberNameDiffer = false
