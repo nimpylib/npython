@@ -144,6 +144,10 @@ proc PyMember_SetOne*(obj_addr: PyObject, l: PyMemberDef, v: PyObject): PyBaseEr
     if l.`type` == akPyObject:
       if loadAt[pointer](a).isNil:
         return newAttributeError newPyStr l.name
+  if v.isPyNone:
+    if l.flags.nil2none:
+      storePyObjectAt(a, PyObject nil)
+      return
   template As(T; toNim) =
     var nv: T
     when compiles(PyBaseErrorObject(v.toNim nv)):
