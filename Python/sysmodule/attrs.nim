@@ -38,3 +38,7 @@ proc PySys_SetAttrNonNil*(name: PyStrObject, valueNonNil: PyObject): PyBaseError
     return sysdict.setItem(name, valueNonNil)
   do: return no_sys_module()
 
+proc PySys_GetObject*(name: cstring): PyObject =
+  let nameObj = newPyStr(name)
+  discard PySys_GetOptionalAttr(nameObj, result)
+

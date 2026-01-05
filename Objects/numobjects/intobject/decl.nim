@@ -103,3 +103,16 @@ proc newPyInt*[I: SomeUnsignedInt and not Digit](i: I): PyIntObject =
     return
   result.sign = Positive
   result.digits.fill i
+
+const bigintErr = defined(js) and compileOption("jsBigInt64")
+when bigintErr:
+  import std/hashes
+
+proc newPyIntFromPtr*(p: pointer): PyIntObject =
+  ## `PyLong_FromVoidPtr`
+  newPyInt(
+    when bigintErr: hash(p)
+    else: cast[int](p)
+  )
+proc newPyIntFromPtr*[I: ref | ptr](i: I): PyIntObject =
+  newPyIntFromPtr cast[pointer](i)

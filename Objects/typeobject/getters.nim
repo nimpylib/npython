@@ -9,7 +9,7 @@ import ../stringobject/internal
 using typ: PyTypeObject
 proc type_qualname(typ): PyObject =
   #TODO:tp_flags
-  newPyStr typ.typeName
+  newPyStr typ.name
 proc type_module(typ): PyObject =
   #TODO:tp_flags
   let idx = typ.name.find('.')
@@ -22,6 +22,10 @@ proc type_module(typ): PyObject =
   else:
     pyId builtins
 
+
+proc getQualName*(typ): PyObject =
+  ## `PyType_GetQualName`
+  type_qualname(typ)
 
 proc getFullyQualifiedName*(typ; sep: char): PyObject =
   ## `_PyType_GetFullyQualifiedName`

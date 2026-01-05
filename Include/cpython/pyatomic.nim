@@ -26,11 +26,6 @@ proc Py_atomic_compare_exchange*[T: AtomType](obj, expected: ptr T, desired: T):
     else:
       expected[] = obj[]
 
-proc Py_atomic_load*[T: AtomType](obj: ptr T): T =
-  orSingleThrd:
-    atomicLoadN(obj, ATOMIC_SEQ_CST)
-  do: obj[]
-
 
 template genLoadStore(atomicOpKind){.dirty.} =
   proc `Py_atomic_load atomicOpKind`*[T: AtomType|SomeFloat](obj: ptr T): T =
