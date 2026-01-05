@@ -33,9 +33,25 @@ proc addSource*(filePath, content: string) =
   # s.lines.add content.split("\n")
   s.lines.addCompat content.split("\n")
 
-proc getSource*(filePath: string, lineNo: int): string = 
+type
+  GetSourceRes* = enum
+    GSR_Success
+    GSR_NoSuchFile
+    GSR_LineNoNotSet
+    GSR_LineNoOutOfRange
+
+proc getSource*(filePath: string, lineNo: int; res: var string): GetSourceRes =
   # lineNo starts from 1!
-  sourceFiles[filePath].lines[lineNo-1]
+  if lineNo == 0:
+    return GSR_LineNoNotSet
+  sourceFiles.withValue filePath, value:
+    if lineNo > value.lines.len or lineNo < 1:
+      res = $value.lines.len
+      return GSR_LineNoOutOfRange
+    res = value.lines[lineNo-1]
+    return GSR_Success
+  do:
+    return GSR_NoSuchFile
 
 proc `$`*(lexer: Lexer): string = 
   $lexer.tokenNodes

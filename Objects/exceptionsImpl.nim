@@ -1,9 +1,11 @@
 import pyobject
 import baseBundle
-import ./[tupleobjectImpl, pyobject_apis]
+import ./[tupleobjectImpl, pyobject_apis, stringobject,]
 import ./exceptions
+import ./[codeobject, frameobject]
 import ../Utils/utils
 import ./stringobject/strformat
+import ../Include/cpython/critical_section
 
 export exceptions
 
@@ -102,19 +104,63 @@ proc isExceptionType*(obj: PyObject): bool =
   objType.kind == PyTypeToken.BaseException
 
 
-declarePyType Traceback():
-  #TODO:tb_next is writable since CPython 3.7
-  tb_next{.member, readonly.}: PyTracebackObject
+declarePyType Traceback(mutable):
+  tb_next_may_nil: PyTracebackObject
   tb_frame{.member, readonly.}: PyObject #PyFrameObject
-  tb_lasti{.member, readonly.}: PyIntObject
-  tb_lineno{.member, readonly.}: PyIntObject
+  tb_lasti{.member, readonly.}: int
+  tb_lineno{.member, readonly.}: int
+  colNo: int  ## for syntax error, -1 otherwise
+
+proc get_tb_next*(self: PyTracebackObject): PyObject = self.tb_next_may_nil.nil2none
+
+proc `set_tb_next`*(self: PyTracebackObject; value: PyObject): PyBaseExceptionObject =
+  if value.isNil:
+      return newTypeError newPyAscii"can't delete tb_next attribute"
+
+  #[ We accept None or a traceback object, and map None -> NULL (inverse of
+      tb_next_get) ]#
+  var value = value
+  if value.isPyNone:
+    value = nil
+  elif not value.ofPyTracebackObject:
+    return newTypeError newPyAscii"expected traceback object" & newPyStr(
+                fmt"expected traceback object, got '{value.typeName}'"
+    )
+
+  # Check for loops
+  var cursor = PyTracebackObject value
+  while not cursor.isNil:
+    if cursor == self:
+        return newValueError newPyAscii"traceback loop detected"
+    criticalWrite(cursor):
+      cursor = cursor.tb_next_may_nil
+  self.tb_next_may_nil = PyTracebackObject value
+
+
+genProperty Traceback, "tb_next", tb_next, self.get_tb_next:
+  criticalWrite(self):
+    result = self.set_tb_next other
+
+type TraceBack = tuple
+  fileName: PyObject  # actually string
+  funName: PyObject  # actually string
+  frame: PyObject  # actually PyFrameObject type
+  lineNo: int
+  colNo: int  # optional, for syntax error
+  lasti: int  # optional
 
 proc newPyTraceback*(t: TraceBack): PyTracebackObject =
   result = newPyTracebackSimple()
   #result.colon = newPyInt t.colNo
-  result.tb_frame = t.frame
-  #result.tb_lasti = newPyInt(t.lastI)
-  result.tb_lineno = newPyInt t.lineNo
+  let f = PyFrameObject(t.frame)
+  f.lineno = t.lineNo  #TODO:PyFrame_GetLineNumber
+  result.tb_frame = f
+  let code = f.code
+  code.codeName = PyStrObject t.funName
+  code.fileName = PyStrObject t.fileName
+  result.colNo = t.colNo
+  result.tb_lasti = t.lasti
+  result.tb_lineno = t.lineNo
 
 proc addTraceBack*(exc: PyBaseExceptionObject,
                          fileName, funName: PyObject,
@@ -123,14 +169,13 @@ proc addTraceBack*(exc: PyBaseExceptionObject,
                       funName: funName,
                       frame: frame,
                       lineNo: lineNo,
-                      colNo: colNo)
+                      colNo: colNo, lasti: lastI)
   let t = newPyTraceback(tb)
-  t.tb_lasti = newPyInt lastI
-  let old = PyTracebackObject(exc.traceback)
-  if not old.isNil:
-    old.tb_next = t
-  exc.traceback = t
-  exc.addTraceBackPrivate tb
+  # exc.addTraceBack t
+  let old = PyTracebackObject(exc.privateGetTracebackRef)
+  t.tb_next_may_nil = old
+  exc.privateGetTracebackRef = t
+
 
 proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionObject = 
   let smsg = newPyStr(e.msg)
