@@ -7,7 +7,7 @@ import ast
 import asdl
 import ../Objects/noneobject
 import ../Objects/pyobjectBase
-import ../Objects/stringobjectImpl
+import ../Objects/stringobject
 import ../Utils/utils
 
 type

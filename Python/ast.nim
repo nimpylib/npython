@@ -8,7 +8,7 @@ import strformat
 import asdl
 import ../Parser/[token, parser]
 import ../Objects/[pyobject, noneobject,
-  numobjects, boolobjectImpl, stringobjectImpl, byteobjects,
+  numobjects, boolobjectImpl, stringobject, byteobjects,
   tupleobjectImpl,
   sliceobject  # pyEllipsis
   ]
