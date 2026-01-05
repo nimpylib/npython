@@ -74,7 +74,8 @@ genStoreAtP char:
 template sysErr(s: PyStrObject) =
   return newSystemError s
 
-proc PyMember_GetOne*(obj_addr: PyObject, l: PyMemberDef): PyObject =
+proc PyMember_GetOne(obj_addr: PyObject, l: PyMemberDef;
+    mapNil: proc (typeName, memberName: string): PyObject{.raises: [].}): PyObject =
   l.noRelOff "PyMember_GetOne"
   when Js:
     let a = obj_addr
@@ -91,7 +92,7 @@ proc PyMember_GetOne*(obj_addr: PyObject, l: PyMemberDef): PyObject =
   template member_get_object(x: PyObject): PyObject{.dirty.} =
     if x.isNil:
       let obj = obj_addr
-      newAttributeError newPyStr fmt"'{obj.typeName}' object has no attribute '{l.name}'"
+      mapNil(obj.typeName, l.name)
     else: x
   case l.`type`
   of akBool: As bool, newPyBool
@@ -120,6 +121,12 @@ proc PyMember_GetOne*(obj_addr: PyObject, l: PyMemberDef): PyObject =
       "if mutable needed, please handy write getter and setter"
     As NimPyTuple, newPyTuple # py:tuple for nim:seq[PyObject] (readonly)
   else: sysErr newPyAscii"bad memberdescr type"
+
+proc PyMember_GetOne*(obj_addr: PyObject, l: PyMemberDef): PyObject =
+  PyMember_GetOne(obj_addr, l, proc (typeName, memberName: string): PyObject =
+    if l.flags.nil2none: pyNone
+    else: newAttributeError newPyStr fmt"'{typeName}' object has no attribute '{memberName}'"
+  )
 
 template WARN(s) =
   retIfExc warnEx(pyRuntimeWarningObjectType, s, 1)

@@ -23,7 +23,7 @@ template `&`*(a: PyMemberDefFlags, b: Flag): bool = bool a.ord and b.int
 ]#
 type
   PyMemberDefFlags* = object
-    readonly*, auditRead*, relativeOffset*: bool
+    readonly*, auditRead*, relativeOffset*, nil2none*: bool
 
 import std/macros
 macro pyMemberDefFlagsFromTags*(tags: varargs[untyped]): PyMemberDefFlags =
