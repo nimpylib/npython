@@ -1,7 +1,7 @@
 
 import ./hash_def
 import std/unicode
-export Rune, unicode.`==`, toRunes
+export Rune, unicode.`==`, toRunes, `<%`, `>%`
 from std/strutils import join
 import std/macros
 
