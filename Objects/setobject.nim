@@ -52,13 +52,13 @@ proc ofPyAnySet*(x: PyObject): bool =
   ## PyAnySet_Check
   x.ofPySetObject or x.ofPyFrozenSetObject
 
-template borrowFunc1s(R; name; S){.dirty.} =
-  proc name*(self: `Py S Object`; other: PyStrObject): R{.pyCFuncPragma.} =
-    DictError!self.items.name other
+template borrowFunc1s*(R; name; S; T: untyped = PyStrObject){.dirty.} =
+  proc name*(self: `Py S Object`; other: T): R{.pyCFuncPragma.} =
+    DictError!name(self.items, other)
 
-template borrowFunc1sVoid(name; S){.dirty.} =
-  proc name*(self: `Py S Object`; other: PyStrObject){.pyCFuncPragma.} =
-    DictError!!self.items.name other
+template borrowFunc1sVoid*(name; S; T: untyped = PyStrObject){.dirty.} =
+  proc name*(self: `Py S Object`; other: T){.pyCFuncPragma.} =
+    DictError!!name(self.items, other)
 
 #NOTE: only getItem shall use `DictError!`,
 # for getItemsMayIter, use `handleHashExc`
