@@ -54,7 +54,7 @@ proc PyModuleSpec_IsInitializing*(spec: PyObject; res: var bool): PyBaseErrorObj
   res = false
   if spec.isNil: return
   var value: PyObject
-  var rc = PyObject_GetOptionalAttr(spec, pyId"_initializing", value)
+  var rc = PyObject_GetOptionalAttr(spec, pyId "_initializing", value)
   if rc == Error:
     return PyBaseErrorObject value
   PyObject_IsTrue(value, res)
@@ -94,7 +94,7 @@ proc import_ensure_initialized(modu: PyObject, name): PyBaseErrorObject =
   # Wait until module is done importing.
   when HasImportLib:
     retIfExc callMethod(
-        IMPORTLIB(interp), pyId"_lock_unlock_module", name)
+        IMPORTLIB(interp), pyId "_lock_unlock_module", name)
 
   goto_done
 
