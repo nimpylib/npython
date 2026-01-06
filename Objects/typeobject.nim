@@ -80,7 +80,6 @@ pyObjectType.tp_dealloc = object_dealloc
 
 
 pyTypeObjectType.pyType = pyTypeObjectType
-pyTypeObjectType.typeReadyImpl(true)
 pyTypeObjectType.tp_dealloc = type_dealloc
 
 

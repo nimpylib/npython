@@ -8,15 +8,20 @@ import ./[
   tupleobjectImpl,
   stringobject,
 ]
+import ./typeobject/properties
 export typeobject
+export properties
 
 import ./classobject
 
 
 methodMacroTmpl(Type)
+# this must be after properties import
+pyTypeObjectType.typeReadyImpl(true)
 
 # type_new_init:type_new_alloc
 
+prepareIntFlagOr
 implTypeMagic New(metaType: PyTypeObject, name: PyStrObject, 
                   bases: PyTupleObject, dict: PyDictObject):
   assert metaType == pyTypeObjectType
@@ -36,6 +41,7 @@ implTypeMagic New(metaType: PyTypeObject, name: PyStrObject,
   tp.kind = PyTypeToken.Type
   tp.tp_dealloc = subtype_dealloc[Cls]
   tp.magicMethods.New = tpMagic(Instance, new)
+  tp.tp_flags = Py_TPFLAGS.DEFAULT | Py_TPFLAGS.HEAPTYPE | Py_TPFLAGS.BASETYPE
   updateSlots(tp, dict)
   tp.dict = PyDictObject(tpMethod(Dict, copy)(dict))
   tp.typeReady true

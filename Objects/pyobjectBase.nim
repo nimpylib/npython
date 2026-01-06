@@ -3,8 +3,8 @@ import strutils
 import macros
 import tables
 
-import ../Utils/[utils, rtarrays]
-export rtarrays
+import ../Utils/[utils, rtarrays, intflags]
+export rtarrays, intflags
 import ../Include/descrobject
 
 type
@@ -44,6 +44,14 @@ macro pyCFuncPragma*(def): untyped =
   def
 
 template pyDestructorPragma*(def): untyped = pyCFuncPragma(def)
+
+declareIntFlag PY_TPFLAGS:
+  DEFAULT = 0
+  STATIC_BUILTIN = 1 shl 1  ## `_PY_TPFLAGS_STATIC_BUILTIN`
+  # ...
+  IMMUTABLETYPE = 1 shl 8
+  HEAPTYPE = 1 shl 9
+  BASETYPE = 1 shl 10
 
 type 
   # function prototypes, magic methods tuple, PyObject and PyTypeObject
@@ -210,6 +218,7 @@ type
     magicMethods*: MagicMethods
     bltinMethods*: Table[string, BltinMethodDef]
     getsetDescr*: Table[string, (UnaryMethod, BinaryMethod)]
+    tp_flags*: IntFlag[PY_TPFLAGS]
     tp_dealloc*: destructor
     tp_alloc*: proc (self: PyTypeObject, nitems: int): PyObject{.pyCFuncPragma.}  ## XXX: currently must not return exception
     tp_basicsize*: int ## NPython won't use var-length struct, so no tp_itemsize needed.
