@@ -63,13 +63,16 @@ template genTypeToAnyKind*(PyObject){.dirty.} =
 
   template typeToAnyKind*[T: PyObject](t: typedesc[T]): AnyKind = akPyObject
   template typeToAnyKind*[Py: PyObject](t: typedesc[seq[Py]]): AnyKind = akSequence
-  macro typeToAnyKind*[T](t: typedesc[T]): AnyKind =
-    let res = parseEnum[AnyKind]("ak" & t.strVal)
+  macro typeToAnyKind*[T: not PyObject](t: typedesc[T]): AnyKind =
+    let typDesc = t.getType
+    let typ = typDesc[1]
+    let res = parseEnum[AnyKind]("ak" & typ.strVal)
     newLit res
 
 
   proc initPyMemberDef*[T](name: string, `type`: typedesc[T],
       offset: int; flags=default PyMemberDefFlags, doc=cstring nil): PyMemberDef =
+    {.warning[HoleEnumConv]: off.}
     initPyMemberDef(name, `type`.typeToAnyKind, offset, flags, doc)
 
 
