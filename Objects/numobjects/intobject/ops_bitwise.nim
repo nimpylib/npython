@@ -7,7 +7,7 @@ import ./[
   signbit,
   utils,
 ]
-import ./ops
+import ./[ops_toint, ops_basic_arith,]
 
 using self: PyIntObject
 proc `not`*(self): PyIntObject =
@@ -235,6 +235,7 @@ genShift `shr`, long_rshift1:
   else: return pyIntZero
 
 when isMainModule:
+  import ./ops
   let
     a = newPyInt "0b10"
   echo a shr 2

@@ -4,7 +4,7 @@ import ./pyobject
 import ./[
   exceptions, stringobject, boolobjectImpl,
 ]
-import ./numobjects/intobject/[decl, ops]
+import ./numobjects/intobject/[decl, ops_toint]
 import ../Utils/utils
 
 proc unhashable*(obj: PyObject): PyTypeErrorObject = newTypeError newPyAscii(
