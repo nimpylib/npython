@@ -47,13 +47,14 @@ proc PyType_LookupStackRefAndVersion*(tp: PyTypeObject, name: PyStrObject, o: va
 
 
 proc PyObject_GenericGetAttrWithDict*(self: PyObject; name: PyStrObject|PyObject,
-    typeDict: PyDictObject = self.getTypeDict, supress: static[bool] = false): PyObject{.pyCFuncPragma.} =
-  ## returns nil if supress and not found
+    typeDict: PyDictObject = self.getTypeDict, suppress: static[bool] = false): PyObject{.pyCFuncPragma.} =
+  ## `_PyObject_GenericGetAttrWithDict`
+  ## returns nil if suppress and not found
   nameAsStr
   if typeDict.isNil:
     unreachable("for type object dict must not be nil")
-  when supress:
-    template SupressAE = return nil
+  when suppress:
+    template SuppressAE = return nil
   var descr: PyObject
 
   let tp = self.pyType
@@ -65,9 +66,9 @@ proc PyObject_GenericGetAttrWithDict*(self: PyObject; name: PyStrObject|PyObject
     let descrGet = descr.pyType.magicMethods.get
     if not descrGet.isNil:
       result = descrGet(descr, self)
-      when supress:
+      when suppress:
         if result.isExceptionOf Attribute:
-          SupressAE
+          SuppressAE
       else: return
   if not descr.isNil: tryDescr
 
@@ -83,12 +84,12 @@ proc PyObject_GenericGetAttrWithDict*(self: PyObject; name: PyStrObject|PyObject
   if not descr.isNil:
     return descr
 
-  when supress: SupressAE
+  when suppress: SuppressAE
   else: return newAttributeError(self, name)
 
 proc PyObject_GenericGetAttrWithDict*(self: PyObject; name: PyStrObject|PyObject,
-    typeDict: typeof(nil), supress: static[bool] = false): PyObject{.pyCFuncPragma.} =
-  PyObject_GenericGetAttrWithDict(self, name, supress=supress)
+    typeDict: typeof(nil), suppress: static[bool] = false): PyObject{.pyCFuncPragma.} =
+  PyObject_GenericGetAttrWithDict(self, name, suppress=suppress)
 
 proc PyObject_GenericGetAttr*(self: PyObject, name: PyObject): PyObject {. pyCFuncPragma .} =
   PyObject_GenericGetAttrWithDict(self, name)
