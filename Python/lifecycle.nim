@@ -1,6 +1,6 @@
 import coreconfig
 import ../Objects/[
-  pyobject, exceptions,
+  pyobject, exceptionsImpl,
   stringobject,
   listobject,
   typeobject,
@@ -40,11 +40,14 @@ template chk(e: PyBaseErrorObject, msg: string) =
 
 
 {.push inline.}
-proc pycore_interp_init =
-  # pycore_init_types
+proc pycore_init_types =
   for t in bltinTypes:
     t.typeReady
+  chk PyExc_InitTypes(): "failed to initialize an exception type"
   Py_Int_Float_InitTypes handle_PyStatus_ERR
+
+proc pycore_interp_init =
+  pycore_init_types()
 
   chk PySys_Create(sys): "can't initialize sys module"
 

@@ -33,6 +33,10 @@ proc newPyList*(len: int): PyListObject =
 proc newPyList*(items: openArray[PyObject]): PyListObject = 
   newPyList @items
 
+proc toPyTuple*(tup: PyListObject): PyTupleObject =
+  ## PyList_AsTuple
+  newPyTuple tup.items
+
 template lsSeqToStr(ss): string = '[' & ss.join", " & ']'
 
 genSequenceMagics "list",

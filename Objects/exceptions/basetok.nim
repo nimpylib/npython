@@ -13,8 +13,10 @@ type ExceptionToken* {. pure .} = enum
   Attribute,
   Buffer,
   Value,
+  Reference,
   Lookup,
   StopIter,
+  StopAsyncIter,
   Lock,
   Import,
   Assertion,
@@ -31,28 +33,40 @@ const ExcAttrs = toTable {
   Attribute: "name,obj",
   StopIter: "value",
   Import: "msg,name,name_from,path",
-  Syntax: "end_lineno,end_offset,filename,lineno,msg,offset,print_file_and_line,text",
-  OS: "myerrno,strerror,filename,filename2,winerror,written",
+  #FIXME: `_metadata` over metadata
+  Syntax: "msg,filename,lineno,offset,text,end_lineno,end_offset,print_file_and_line,metadata",
+  OS: "errno,strerror,filename,filename2,winerror",
 }
+
+template yieldRes(value) =
+  for n in value.split(','):
+    yield ident n
+
 when (NimMajor, NimMinor, NimPatch) > (2,3,1):
- iterator extraAttrs*(tok: ExceptionToken): NimNode =
+ iterator extraObjAttrs*(tok: ExceptionToken): NimNode =
   ExcAttrs.withValue(tok, value):
-    for n in value.split(','):
-      yield ident n
+    yieldRes value
 else:
  # nim-lang/Nim#25162
- iterator extraAttrs*(tok: ExceptionToken): NimNode =
+ iterator extraObjAttrs*(tok: ExceptionToken): NimNode =
     let value = ExcAttrs.getOrDefault(tok, "")
     if value != "":
-     for n in value.split(','):
-      yield ident n
-
+      yieldRes value
 
 type BaseExceptionToken*{.pure.} = enum
   ## subclasses of `BaseException` except `Exception` and `BaseExceptionGroup`
   BaseException = 0
-  SystemExit GeneratorExit KeyboardInterrupt 
+  SystemExit GeneratorExit KeyboardInterrupt BaseExceptionGroup
 
-iterator extraAttrs*(tok: BaseExceptionToken): NimNode =
+iterator extraObjAttrs*(tok: BaseExceptionToken): NimNode =
   # only SystemExit has a attr: code
-  if tok == SystemExit: yield ident"code"
+  case tok
+  of SystemExit: yield ident"code"
+  of BaseExceptionGroup:
+    yield ident"message"
+    yield ident"exceptions"
+  else: discard
+
+iterator extraTypedAttrs*(tok: ExceptionToken | BaseExceptionToken): (NimNode, NimNode) =
+  when tok is ExceptionToken:
+    if tok == ExceptionToken.OS: yield (ident"written", ident"int")

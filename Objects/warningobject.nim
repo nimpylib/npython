@@ -82,8 +82,11 @@ implWarningMessageMagic str:
 template declWarning(w){.dirty.} =
   declarePyType w(base(Warning)): discard
 
+declWarning BytesWarning
 declWarning SyntaxWarning
-
+declWarning EncodingWarning
+declWarning UnicodeWarning
+declWarning FutureWarning
 declWarning DeprecationWarning
 declWarning PendingDeprecationWarning
 
@@ -91,3 +94,5 @@ declWarning ImportWarning
 declWarning ResourceWarning
 
 declWarning RuntimeWarning
+declWarning UserWarning
+

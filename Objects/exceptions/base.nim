@@ -7,11 +7,22 @@
 # This might be a bit slower but we are not pursueing ultra performance anyway
 import std/enumutils
 
-import ../[pyobject, stringobject, noneobject]
+import ../[pyobject, stringobject]
 include ./common_h
 import ./[basetok, utils]
 export ExceptionToken, BaseExceptionToken
 
+func ofPyExceptionClass*(x: PyTypeObject): bool =
+  x.kind == PyTypeToken.BaseException
+
+template ofPyExceptionClass*(x: PyObject): bool =
+  ## `PyExceptionClass_Check`
+  if not x.ofPyTypeObject: return
+  ofPyExceptionClass(PyTypeObject(x))
+
+func ofPyExceptionInstance*(x: PyObject): bool =
+  ## `PyExceptionInstance_Check`  
+  ofPyExceptionClass x.pytype
 
 proc getTokenName*(excp: ExceptionToken|BaseExceptionToken): string = excp.symbolName
 proc getTokenNameWithError(tok: ExceptionToken): string = tok.getTokenName & "Error"
@@ -19,6 +30,7 @@ proc getBltinName*(excp: ExceptionToken): string =
   case excp
   of Base: "Exception"
   of StopIter: "StopIteration"
+  of StopAsyncIter: "StopAsyncIteration"
   else: excp.getTokenNameWithError
 proc getBltinName*(excp: BaseExceptionToken): string = excp.symbolName
 
@@ -27,6 +39,7 @@ proc getBltinName*(excp: BaseExceptionToken): string = excp.symbolName
 declarePyType BaseException(tpToken, mutable):
   base_tk: BaseExceptionToken
   thrown: bool
+  #TODO:CRITICAL_SECTION
   # the following is defined `BaseException_getset` in CPython
   args{.member.}: PyTupleObject  # could not be nil
   context{.dunder_member, nil2none.}: PyBaseExceptionObject  # if the exception happens during handling another exception
@@ -51,10 +64,14 @@ alias BaseError, Exception
 
 proc genTypeDeclareImpl(tok: ExceptionToken|BaseExceptionToken, nimTypeName, pyTypeName: NimNode): NimNode =
     var attrs = newStmtList()
-    for n in extraAttrs(tok):
+    template addAttr(n; t) =
       attrs.add newCall(
-        nnkPragmaExpr.newTree(n, nnkPragma.newTree(ident"member")),
-        newStmtList bindSym"PyObject")
+        nnkPragmaExpr.newTree(n, nnkPragma.newTree(ident"member", ident"nil2none")),
+        newStmtList t)
+    for n in extraObjAttrs(tok):
+      addAttr(n, bindSym"PyObject")
+    for (n, t) in extraTypedAttrs(tok):
+      addAttr(n, t)
     if attrs.len == 0:  # no extra attr
       attrs.add nnkDiscardStmt.newTree(newEmptyNode())
     nnkStmtList.newTree(
@@ -100,6 +117,7 @@ declareExceptions
 declareBaseExceptions
 
 alias StopIteration, StopIterError
+alias StopAsyncIteration, StopAsyncIterError
 
 template genNewProcsOf(T; nimTypeNameGetter){.dirty.} =
   macro `genNewProcs T` = 

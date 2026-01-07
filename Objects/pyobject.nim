@@ -310,7 +310,7 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
     of "**":
       popNameTo kwargId
       if argNum > 1 and (vargs = argTypes.last; vargs.kind == nnkPrefix):
-        assert vargs[0].strVal == "*"
+        assert $vargs[0] == "*"
         popNameTo varargId
   if not kwargId.isNil:
     if not oriLastIsKw:
