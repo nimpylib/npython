@@ -7,6 +7,7 @@ import ./[
   signbit,
 ]
 import ../../stringobject/strformat
+import ../../exceptions/extra_utils
 template PyNumber_AsSsize_tImpl(pyObj: PyObject, res: var int, handleTypeErr, handleValAndOverfMsg){.dirty.} =
   let value = PyNumber_Index(pyObj)
   if not value.ofPyIntObject:
@@ -25,15 +26,32 @@ proc PyNumber_AsSsize_t*(pyObj: PyObject, res: var int): PyExceptionObject =
   template handleOverfMsg(_; msg: PyStrObject) = return newOverflowError msg
   PyNumber_AsSsize_tImpl pyObj, res, handleTypeErr, handleOverfMsg
 
-proc PyNumber_AsSsize_t*(pyObj: PyObject, res: var PyExceptionObject): int =
-  ## `res` [inout]
+proc PyNumber_AsSsize_t*(pyObj: PyObject, excType: PyTypeObject; resExc: var PyBaseErrorObject): int =
+  ## `excType` may be nil, in which case overflow clamps to low/high int
+  ##   otherwise it must be an exception type
+  ## 
+  ## `resExc` [out]
   ##
   ## CPython's defined at abstract.c
-  template handleTypeErr(e: PyTypeErrorObject) = res = e
+  template handleTypeErr(e: PyTypeErrorObject) =
+    resExc = e
+    return
   template handleOverfMsg(_; msg: PyStrObject) =
-    PyErr_Format res, msg
-  res = nil
+    if excType.isNil:
+      if PyIntObject(value).negative:
+        result = low int
+      else:
+        result = high int
+      return
+    let t = PyErr_CreateException(excType, msg) #excType.getMagic(New)([PyObject msg], nil)
+    if t.isThrownException:
+      #TODO:get_normalization_failure_note
+      discard
+    resExc = PyBaseErrorObject t
+    resExc.thrown = true
+    return -1
   PyNumber_AsSsize_tImpl(pyObj, result, handleTypeErr, handleOverfMsg)
+  resExc = nil
 
 proc PyNumber_AsClampedSsize_t*(pyObj: PyObject, res: var int): PyTypeErrorObject =
   ## C: `PyNumber_AsSsize_t(pyObj, NULL)`

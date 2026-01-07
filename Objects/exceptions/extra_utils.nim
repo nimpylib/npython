@@ -4,9 +4,10 @@ import ../[pyobject, stringobject, noneobject]
 include ./common_h
 import ./utils
 
-import ../exceptionsImpl
+import ../exceptions
 import ../stringobject/strformat
-import ../../Python/call
+#import ../../Python/call
+#XXX: we do not import call to break cycle dep
 
 const JsHasResMissingInCatchBug = defined(js)
 when JsHasResMissingInCatchBug:
@@ -14,12 +15,17 @@ when JsHasResMissingInCatchBug:
 
 proc PyErr_CreateException*(exception_type: PyTypeObject, value: PyObject): PyBaseExceptionObject =
   ## inner. unstable. `_PyErr_CreateException`
-  let res = if value.isNil or value.isPyNone:
-    call(exception_type)
+  var args = @[PyObject exception_type]
+  if value.isNil or value.isPyNone:
+    #call(exception_type)
+    discard
   elif ofPyTupleObject(value):
-    fastCall(exception_type, PyTupleObject(value).items)
+    #fastCall(exception_type, PyTupleObject(value).items)
+    args.add PyTupleObject(value).items
   else:
-    call(exception_type, value)
+    #call(exception_type, value)
+    args.add value
+  let res = exception_type.getMagic(call)(exception_type, args, nil)
   result = PyBaseExceptionObject res
   if not result.isNil and not result.ofPyExceptionInstance:
     result = newTypeError:

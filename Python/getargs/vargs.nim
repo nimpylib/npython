@@ -2,7 +2,7 @@
 
 import std/macros
 import ../../Objects/[
-  pyobject, tupleobjectImpl,
+  pyobject, tupleobject,
   exceptions,
   stringobject,
 ]

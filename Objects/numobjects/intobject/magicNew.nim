@@ -44,9 +44,8 @@ proc long_new_impl*(typ: PyTypeObject, x: PyObject, obase: PyObject): PyObject{.
   if obase.isNil:
     return PyNumber_Long(x)
 
-  var exc: PyBaseErrorObject
-  let base = PyNumber_AsSsize_t(obase, exc)
-  retIfExc exc
+  var base: int
+  retIfExc PyNumber_AsSsize_t(obase, base)
 
   template retMayE(e: PyObject) =
     let res = e
