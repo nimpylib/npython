@@ -1,7 +1,7 @@
 
 import ../pyobjectBase
 
-let pyTypeObjectType* = newPyType[PyTypeObject]("type")
+let pyTypeObjectType* = newBltinPyType[PyTypeObject]("type")
 # NOTE:
 #[
 type.__base__ is object

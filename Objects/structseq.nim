@@ -258,7 +258,7 @@ proc newPyStructSequenceType*(desc; tp_flags=0): PyObject =
   let tp_members = initialize_members(desc, n_members, n_unnamed_members)
 
   #TODO:tp_slots
-  let typ = newPyType[PyStructSequenceObject](desc.name, base=pyTupleObjectType)
+  let typ = newBltinPyType[PyStructSequenceObject](desc.name, base=pyTupleObjectType)
   typ.magicMethods.New = tpMagic(structsequence, New)
   typ.magicMethods.repr = tpMagic(structsequence, repr)
   typ.members = tp_members

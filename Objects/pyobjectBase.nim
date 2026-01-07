@@ -347,19 +347,24 @@ proc newPyTypePrivate[T: PyObject](name: string): PyTypeObject =
   # Starting from Nim v0.20, tables are initialized by default and it is not necessary to call this function explicitly.
   #result.bltinMethods = initTable[string, BltinMethod]()
   result.getsetDescr = initTable[string, (UnaryMethod, BinaryMethod)]()
-  bltinTypes.add(result)
   result.tp_basicsize = sizeof T
   result.tp_alloc = def_tp_alloc:
     let res = new T
     res.pyType = self
     res
 
+proc newBltinPyTypePrivate[T: PyObject](name: string): PyTypeObject = 
+  result = newPyTypePrivate[T](name)
+  bltinTypes.add(result)
 
-let pyObjectType* = newPyTypePrivate[PyObject]("object")
+let pyObjectType* = newBltinPyTypePrivate[PyObject]("object")
 
 
 proc newPyType*[T: PyObject](name: string, base = pyObjectType): PyTypeObject =
   result = newPyTypePrivate[T](name)
+  result.base = base
+proc newBltinPyType*[T: PyObject](name: string, base = pyObjectType): PyTypeObject =
+  result = newBltinPyTypePrivate[T](name)
   result.base = base
 
 proc hasDict*(obj: PyObject): bool {. inline .} = 

@@ -815,7 +815,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
 
   # boilerplates for pyobject type
   template initTypeTmpl(tbase, pyObjType, fullNameIdent, name, nameStr, hasTpToken, hasDict) = 
-    let `pyObjType`* {. inject .} = newPyType[`fullNameIdent`](nameStr, tbase)
+    let `pyObjType`* {. inject .} = newBltinPyType[`fullNameIdent`](nameStr, tbase)
 
     proc `ofExactPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
       isType(obj.pyType, `pyObjType`)
