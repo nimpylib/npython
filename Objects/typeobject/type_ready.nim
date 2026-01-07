@@ -12,9 +12,6 @@ import ./default_generics
 import ../../Include/internal/[
   pycore_global_strings,
 ]
-import ../pyobject_apis/[
-  attrsGeneric, strings,
-]
 import ./[decl, utils,]
 
 using typ: PyTypeObject
@@ -239,14 +236,6 @@ proc addGeneric(t: PyTypeObject) =
   if (not nilMagic(ge)) and (not nilMagic(eq)):
     trySetSlot(ge, geDefault)
   trySetSlot(gt, gtDefault)
-  trySetSlot(eq, eqDefault)
-  trySetSlot(getattr, PyObject_GenericGetAttr)
-  trySetSlot(setattr, PyObject_GenericSetAttr)
-  trySetSlot(delattr, PyObject_GenericDelAttr)
-  trySetSlot(repr, reprDefault)
-  trySetSlot(hash, hashDefault)
-  trySetSlot(str, t.magicMethods.repr)
-
 
 
 proc type_add_members(tp: PyTypeObject, dict: PyDictObject) =

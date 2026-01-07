@@ -16,7 +16,7 @@ import ./pyobject_apis/attrsGeneric
 export getTypeDict
 import ./typeobject/[
   decl,
-  utils, object_new_init,
+  utils,
   type_ready,
 ]
 export decl, type_ready
@@ -82,9 +82,7 @@ pyObjectType.tp_dealloc = object_dealloc
 pyTypeObjectType.pyType = pyTypeObjectType
 pyTypeObjectType.tp_dealloc = type_dealloc
 
-
-pyObjectType.magicMethods.New = object_new_wrap
-pyObjectType.magicMethods.init = object_init_wrap
+# magic methods init is done in ./typeobjectImpl.nim
 
 # BEGIN_TYPE_LOCK & END_TYPE_LOCK
 when SingleThread:

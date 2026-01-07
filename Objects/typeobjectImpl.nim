@@ -8,12 +8,35 @@ import ./[
   tupleobjectImpl,
   stringobject,
 ]
-import ./typeobject/properties
+import ./typeobject/[properties,
+  default_generics,  object_new_init,
+  ]
 export typeobject
 export properties
 
 import ./classobject
 
+import ./pyobject_apis/[
+  attrsGeneric, strings,
+]
+template baseMagic(name, meth) =
+  pyObjectType.magicMethods.name = meth
+
+
+baseMagic New, object_new_wrap
+baseMagic init, object_init_wrap
+
+baseMagic str, strDefault
+baseMagic repr, reprDefault
+
+baseMagic hash, hashDefault
+
+baseMagic eq, eqDefault
+baseMagic ne, neDefault
+
+baseMagic getattr, PyObject_GenericGetAttr
+baseMagic setattr, PyObject_GenericSetAttr
+baseMagic delattr, PyObject_GenericDelAttr
 
 methodMacroTmpl(Type)
 # this must be after properties import

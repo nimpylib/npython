@@ -45,6 +45,9 @@ proc PyUnstable_Object_Dump*(op: PyObject) {.cdecl, raises: [].} =
   try: PyUnstable_Object_DumpImpl(op)
   except IOError: discard
 
+proc strDefault*(self: PyObject): PyObject {. cdecl .} =
+  self.getMagic(repr)(self)
+
 proc reprDefault*(self: PyObject): PyObject {. cdecl .} = 
   newPyString(fmt"<{self.typeName} object at {self.idStr}>")
 proc PyObject_ReprNonNil*(obj: PyObject): PyObject =
