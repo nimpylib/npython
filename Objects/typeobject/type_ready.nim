@@ -39,7 +39,7 @@ proc type_ready_set_base(typ){.pyCFuncPragma.} =
 
 
 proc inherit_slots(typ; base: PyTypeObject){.pyCFuncPragma.} =
-  var basebase: PyTypeObject
+  let basebase = base.base
 
   template RAW_SLOTDEFINED(SLOT): bool =
     (not base.SLOT.isNil and
@@ -66,7 +66,6 @@ proc inherit_slots(typ; base: PyTypeObject){.pyCFuncPragma.} =
        if type doesn't provide the space. ]#
 
   block: #  if (type->tp_as_number != NULL && base->tp_as_number != NULL) {
-        basebase = base.base
         
         COPYNUM(add);
         COPYNUM(sub);
@@ -121,9 +120,6 @@ proc inherit_slots(typ; base: PyTypeObject){.pyCFuncPragma.} =
         COPYBUF(buffer);
         COPYBUF(release_buffer);
 
-
-  basebase = base.base
-
   RAW_COPYSLOT(tp_dealloc);
   if typ.tp.getattr.isNil:
       do_COPYSLOT getattr
@@ -155,11 +151,11 @@ proc inherit_slots(typ; base: PyTypeObject){.pyCFuncPragma.} =
       #[ Copy comparison-related slots only when
           not overriding them anywhere ]#
       proc useDefaultRichcompare(typ: PyTypeObject): bool =
-        typ.tp.le == leDefault and
-          typ.tp.eq == eqDefault and
-          typ.tp.ne == neDefault
+        typ.tp.le.isNil and
+          typ.tp.eq.isNil and
+          typ.tp.ne.isNil
       if typ.useDefaultRichcompare and
-            typ.tp.hash == hashDefault:
+            typ.tp.hash.isNil:
           proc overrides_hash(typ: PyTypeObject): bool {.cdecl.} =
             let dict = PyDictObject typ.dict;
             assert not dict.isNil
@@ -217,6 +213,7 @@ proc inherit_slots(typ; base: PyTypeObject){.pyCFuncPragma.} =
 proc inherit_special(typ; base: PyTypeObject) =
   if typ.tp_basicsize == 0:
     typ.tp_basicsize = base.tp_basicsize;
+  #TODO:tp_flags
 
 proc type_ready_inherit(typ) =
   let base = typ.base
@@ -238,10 +235,7 @@ proc addGeneric(t: PyTypeObject) =
 
   if (not nilMagic(lt)) and (not nilMagic(eq)):
     trySetSlot(le, leDefault)
-  if (not nilMagic(eq)):
-    trySetSlot(ne, neDefault)
-  else:
-    trySetSlot(ne, neDefault)
+  trySetSlot(ne, neDefault)
   if (not nilMagic(ge)) and (not nilMagic(eq)):
     trySetSlot(ge, geDefault)
   trySetSlot(gt, gtDefault)
@@ -302,11 +296,11 @@ proc initTypeDict(tp: PyTypeObject) =
 proc typeReadyImpl*(tp: PyTypeObject, initial: bool) = 
   ## unstable. innner.
   type_ready_set_base tp
-  tp.addGeneric
   if tp.dict.isNil:
     tp.initTypeDict
   if initial:
     type_ready_inherit tp
+  tp.addGeneric
 
 proc typeReady*(tp: PyTypeObject, initial: bool){.pyCFuncPragma.} = 
   # unstable. type_ready_set_type
