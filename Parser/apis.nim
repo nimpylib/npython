@@ -9,8 +9,9 @@ import ./[
   parser, lexerTypes, lexer,
   ]
 
+import ../Python/sysmodule/audit
 import ../Python/[
-  sysmodule, asdl, ast,
+  asdl, ast,
 ]
 import ../Objects/[pyobject,
   stringobject, exceptionsImpl,

@@ -1,7 +1,9 @@
+from std/unicode import size
 import std/strformat
 
 import ../Include/cpython/pyerrors
 import ../Include/cpython/critical_section
+import ../Include/cpython/compile
 import ../Objects/[
   pyobject,
   exceptionsImpl,
@@ -10,11 +12,13 @@ import ../Objects/[
   codeobject,
   frameobject,
 ]
+import ../Objects/codeobject/locApis
 import ../Objects/exceptions/ioerror
 import ../Objects/numobjects/intobject
 import ../Objects/numobjects/intobject/ops
 import ./sysmodule/attrs
-import ../Parser/lexer
+import ../Parser/[lexer, apis]
+import ../Python/[asdl]
 import ../Utils/compat
 
 using f: PyObject ## std stream e.g. stderr
@@ -35,6 +39,9 @@ template safePyFile_WriteString(s) =
   result.add s
 #template safePyFile_WriteString(s: cstring) = safePyFile_WriteString $s
 
+# We use implementation since https://github.com/python/cpython/pull/29207
+#  but do not apply removal for margin from https://github.com/python/cpython/issues/110721
+
 #proc Py_WriteIndent(indent: int, f): bool =
 proc Py_WriteIndent(indent: int): string =
   ## `_Py_WriteIndent`
@@ -46,17 +53,20 @@ proc Py_WriteIndent(indent: int): string =
     safePyFile_WriteString chunk
     indent -= 10
 
-#[
-#proc Py_WriteIndentedMargin*(indent: int, margin; f): bool =
+using
+  margin: cstring
+  margin_indent: int
+
 proc Py_WriteIndentedMargin*(indent: int, margin): string =
   ## `_Py_WriteIndentedMargin`
   result.add Py_WriteIndent(indent)
   if margin != nil:
     safePyFile_WriteString margin
-]#
+
+func IS_WHITESPACE(c: char): bool{.inline.} = c in {' ', '\t', '\f'}
 
 proc display_source_lineNotNil(f; filename_obj: PyStrObject, lineno, indent: int;
-                  #margin_indent; margin;
+                  margin_indent; margin;
                   truncation: var int, line: var PyStrObject): PyBaseErrorObject =
 
   # open the file
@@ -85,7 +95,7 @@ proc display_source_lineNotNil(f; filename_obj: PyStrObject, lineno, indent: int
   while i < L:
     let c = lineobj[i]
     if Rune(high char) <% c: break
-    if char(c) not_in {' ', '\t', '\12'}:
+    if not IS_WHITESPACE(char(c)):
       break
     inc i
   
@@ -95,6 +105,8 @@ proc display_source_lineNotNil(f; filename_obj: PyStrObject, lineno, indent: int
   truncation = i - indent
 
   var outs: string
+  outs.add Py_WriteIndentedMargin(margin_indent, margin)
+
   # Write some spaces before the line
   outs.add Py_WriteIndent(indent)
 
@@ -104,16 +116,16 @@ proc display_source_lineNotNil(f; filename_obj: PyStrObject, lineno, indent: int
   retIfExc PyFile_WritelineString(outs, f)
 
 proc display_source_line(f; filename: PyStrObject, lineno, indent: int;
-                  #margin_indent: int, margin;
+                  margin_indent; margin;
                   truncation: var int, line: var PyStrObject): PyBaseErrorObject =
   if filename.isNil:
     return
   return display_source_lineNotNil(f, filename, lineno, indent,
-                     #margin_indent, margin,
+                     margin_indent, margin,
                      truncation, line)
 
 proc Py_DisplaySourceLine*(f; filename: PyObject, lineno, indent: int;
-                  #margin_indent: int, margin;
+                  margin_indent; margin;
                   truncation: var int, line: var PyStrObject): PyBaseErrorObject =
   ## overload: accept filename as PyObject (unicode) and delegate to string variant
   if filename.isNil:
@@ -121,16 +133,166 @@ proc Py_DisplaySourceLine*(f; filename: PyObject, lineno, indent: int;
   assert filename.ofPyStrObject
   let fname = PyStrObject(filename)
   return display_source_lineNotNil(f, fname, lineno, indent,
-                     #margin_indent, margin,
+                     margin_indent, margin,
                      truncation, line)
 
+proc print_error_location_carets(toffset: int, start_offset, end_offset,
+                            right_start_offset, left_end_offset: int,
+                            primary: cstring, secondary: cstring): string =
+    let special_chars = (left_end_offset != -1 or right_start_offset != -1)
+    var line: string 
+    
+    for offset in toffset+1 .. end_offset:
+        let str = if offset <= start_offset:
+          cstring" "
+        elif (special_chars and left_end_offset < offset and offset <= right_start_offset):
+          secondary
+        else:
+          primary
+        line.add str
+    line
 
 proc Py_DisplaySourceLine*(f; filename: PyStrObject, lineno, indent: int;
-                  #margin_indent: int, margin;
+                  margin_indent; margin;
                   truncation: var int, line: var PyStrObject): PyBaseErrorObject =
   ## `_Py_DisplaySourceLine`
   return display_source_line(f, filename, lineno, indent,
+                     margin_indent, margin,
                      truncation, line)
+
+proc byte_offset_to_character_offset(source_line: PyStrObject, byte_offset: int): int =
+  ## `_PyPegen_byte_offset_to_character_offset`
+  if source_line.isAscii:
+    return byte_offset
+
+  var j = 0
+  for i, c in source_line.str.unicodeStr:
+    j.inc c.size
+    if j >= byte_offset:
+      return i
+  return source_line.len
+
+#[
+/* AST based Traceback Specialization
+ *
+ * When displaying a new traceback line, for certain syntactical constructs
+ * (e.g a subscript, an arithmetic operation) we try to create a representation
+ * that separates the primary source of error from the rest.
+ *
+ * Example specialization of BinOp nodes:
+ *  Traceback (most recent call last):
+ *    File "/home/isidentical/cpython/cpython/t.py", line 10, in <module>
+ *      add_values(1, 2, 'x', 3, 4)
+ *    File "/home/isidentical/cpython/cpython/t.py", line 2, in add_values
+ *      return a + b + c + d + e
+ *             ~~~~~~^~~
+ *  TypeError: 'NoneType' object is not subscriptable
+ */
+]#
+using segment_str: string
+proc extract_anchors_from_expr(segment_str; expr: AsdlExpr,
+                 left_anchor, right_anchor: var int,
+                 primary_error_char: var cstring, secondary_error_char: var cstring): bool =
+  ## returns if successful
+  case expr.kind
+  of BinOp:
+    let b = AstBinOp(expr)
+    let left = b.left
+    let right = b.right
+    var i = left.col_offset.value  #TODO:end_col_offset
+    while i < right.col_offset.value:
+      if IS_WHITESPACE(segment_str[i]):
+        inc i
+        continue
+
+      left_anchor = i
+      right_anchor = i + 1
+
+      # Check whether this is a two-character operator (e.g. //)
+      if i + 1 < right.col_offset.value and not IS_WHITESPACE(segment_str[i + 1]):
+        inc right_anchor
+
+      # Keep going if the current char is ')'
+      if i + 1 < right.col_offset.value and (segment_str[i] == ')'):
+        inc i
+        continue
+
+
+      primary_error_char = cstring"~"
+      secondary_error_char = cstring"^"
+      break
+
+    return true
+
+  of Subscript:
+    let sub = AstSubscript(expr)
+    #TODO:end_col_offset
+    left_anchor = sub.value.col_offset.value
+    right_anchor = left_anchor  # sub.slice.end_col_offset.value + 1
+    let str_len = len(segment_str)
+
+    # Move right_anchor and left_anchor forward to the first non-whitespace
+    # character that is '[' / ']' respectively (mirrors original C logic).
+    while left_anchor < str_len and (IS_WHITESPACE(segment_str[left_anchor]) or segment_str[left_anchor] != '['):
+      inc left_anchor
+    while right_anchor < str_len and (IS_WHITESPACE(segment_str[right_anchor]) or segment_str[right_anchor] != ']'):
+      inc right_anchor
+    if right_anchor < str_len:
+      inc right_anchor
+
+    primary_error_char = cstring"~"
+    secondary_error_char = cstring"^"
+    return true
+
+  else:
+    return false
+
+proc extract_anchors_from_stmt(segment_str; statement: AsdlStmt,
+                 left_anchor: var int, right_anchor: var int,
+                 primary_error_char: var cstring, secondary_error_char: var cstring): bool =
+  case statement.kind
+  of Expr:
+    return extract_anchors_from_expr(segment_str, AstExpr(statement).value,
+                    left_anchor, right_anchor,
+                    primary_error_char, secondary_error_char)
+  else:
+    return false
+
+proc extract_anchors_from_line(filename: PyStrObject, line: PyStrObject,
+                 start_offset, end_offset: int,
+                 left_anchor, right_anchor: var int,
+                 primary_error_char: var cstring, secondary_error_char: var cstring): bool =
+  ## returns if successful
+  
+  let segment = line.substringUnsafe(start_offset, end_offset)
+
+  let segment_str = $segment.str
+
+  var flags = initPyCompilerFlags()
+
+
+  var module: Asdlmodl
+  let exc = PyParser_ASTFromString(segment_str, filename, Mode.File,
+                     flags, module)
+  if not exc.isNil:
+    return false
+
+  let modu = AstModule(module)
+  if len(modu.body) == 1:
+    let statement = modu.body[0]
+    result = extract_anchors_from_stmt(segment_str, statement,
+                  left_anchor, right_anchor,
+                  primary_error_char, secondary_error_char)
+  else:
+    result = false
+
+#done:
+  if result:
+    # Normalize AST offsets to character offsets and adjust by start_offset.
+    assert left_anchor >= 0
+    assert right_anchor >= 0
+    left_anchor = byte_offset_to_character_offset(segment, left_anchor) + start_offset
+    right_anchor = byte_offset_to_character_offset(segment, right_anchor) + start_offset
 
 const TRACEBACK_SOURCE_LINE_INDENT = 4
 
@@ -151,12 +313,12 @@ proc ignore_source_errors(exc: PyBaseExceptionObject): bool =
 ]#
 proc tb_displayline(tb: PyTracebackObject, f; filename: PyStrObject,
           lineno: int, frame: PyFrameObject, name: PyObject,
-          #margin_indent: int, margin
-          ): PyBaseErrorObject =
+          margin_indent; margin
+          ): PyBaseErrorObject{.raises: [].} =
   if filename.isNil or name.isNil: return
 
   var line: string
-  #line.add Py_WriteIndentedMargin(margin_indent, margin)
+  line.add Py_WriteIndentedMargin(margin_indent, margin)
 
   let
     filenameS = $filename.str
@@ -171,11 +333,70 @@ proc tb_displayline(tb: PyTracebackObject, f; filename: PyStrObject,
 
   result = display_source_line(
           f, filename, lineno, TRACEBACK_SOURCE_LINE_INDENT,
+          margin_indent, margin,
           truncation, source_line);
   if not result.isNil or source_line.isNil:
     # ignore errors since we can't report them, can we?
     if ignore_source_errors(result):
       return nil
+
+  let
+    code_offset = tb.tb_lasti
+    code = frame.code
+    source_line_len = source_line.len
+
+  var
+    start_line,
+     end_line,
+     start_col_byte_offset,
+     end_col_byte_offset: int
+
+  retIfExc code.addr2location(code_offset, start_line, start_col_byte_offset,
+                           end_line, end_col_byte_offset)
+
+  if start_line < 0 or end_line < 0 or start_col_byte_offset < 0 or end_col_byte_offset < 0:
+    return
+
+  let
+    start_offset = byte_offset_to_character_offset(source_line, start_col_byte_offset)
+    end_offset = byte_offset_to_character_offset(source_line, end_col_byte_offset)
+
+  var
+    right_start_offset = -1
+    left_end_offset = -1
+  
+  var
+    primary_error_char = cstring"^"
+    secondary_error_char = primary_error_char
+  # end_offset = tb.colNo
+  # start_offset = end_offset
+  
+  #if start_line == end_line
+  let suc = extract_anchors_from_line(
+      filename, source_line,
+      start_offset, end_offset,
+      left_end_offset, right_start_offset,
+      primary_error_char, secondary_error_char
+      )
+  discard suc
+
+  # Elide indicators if primary char spans the frame line
+  let
+    stripped_line_len = source_line_len - truncation - TRACEBACK_SOURCE_LINE_INDENT
+    has_secondary_ranges = (left_end_offset != -1 or right_start_offset != -1)
+  if end_offset - start_offset == stripped_line_len and not has_secondary_ranges:
+    return nil
+
+  line.setLen 0
+  line.add Py_WriteIndentedMargin(margin_indent, margin)
+
+  
+  secondary_error_char = cstring"~"
+  
+  line.add print_error_location_carets(truncation, start_offset, end_offset,
+                                    right_start_offset, left_end_offset,
+                                    primary_error_char, secondary_error_char)
+  result = PyFile_WritelineString(line, f)
 
 const TB_RECURSIVE_CUTOFF = 3
 
@@ -189,7 +410,9 @@ proc tb_print_line_repeated(f; cnt: int): PyBaseErrorObject =
 
     result = PyFile_WritelineString(line, f)
 
-proc tb_printinternal(tb: PyTracebackObject, f; limit: int): PyBaseErrorObject{.raises: [].} =
+proc tb_printinternal(tb: PyTracebackObject, f; limit: int;
+    margin_indent; margin;
+    ): PyBaseErrorObject{.raises: [].} =
   var depth = 0
   var last_file: PyStrObject = nil
   var last_line = -1
@@ -223,7 +446,7 @@ proc tb_printinternal(tb: PyTracebackObject, f; limit: int): PyBaseErrorObject{.
     inc cnt
     if cnt <= TB_RECURSIVE_CUTOFF:
       retIfExc tb_displayline(tb, f, code.fileName, tb_lineno,
-                        frame, code.codeName#, indent, margin
+                        frame, code.codeName, margin_indent, margin
                         )
       #TODO:PyErr_CheckSignals
       when declared(PyErr_CheckSignals):
@@ -236,12 +459,11 @@ proc tb_printinternal(tb: PyTracebackObject, f; limit: int): PyBaseErrorObject{.
 
 const PyTraceBack_LIMIT = 1000
 
-proc PyTraceBack_Print_with_noNL_header*(
+proc PyTraceBack_Print_Indented_with_noNL_header*(
     v: PyTracebackObject,
-    #indent: int, margin; header_margin: cstring,
+    indent: int, margin; header_margin: cstring,
     header: cstring,
     f: PyObject): PyBaseErrorObject{.raises: [].} =
-  ## `_PyTraceBack_Print`
   var limit: int = PyTraceBack_LIMIT
 
   if v.isNil: return
@@ -262,18 +484,30 @@ proc PyTraceBack_Print_with_noNL_header*(
 
   var outs: string
 
-  #outs.add Py_WriteIndentedMargin(indent, header_margin)
+  outs.add Py_WriteIndentedMargin(indent, header_margin)
 
   outs.add header
 
   retIfExc PyFile_WritelineString(outs, f)
 
-  retIfExc tb_printinternal(v, f, limit)
-
+  retIfExc tb_printinternal(v, f, limit, indent, margin)
 
 const
   EXCEPTION_TB_HEADER_noNL* = "Traceback (most recent call last):"  #XXX: like CPython ERROR_TB_HEADER but no newline
   #EXCEPTION_GROUP_TB_HEADER_noNL* = "Exception Group Traceback (most recent call last):"  #XXX: like CPython ERROR_GROUP_TB_HEADER but no newline
+
+proc PyTraceBack_Print_with_noNL_header*(
+    v: PyTracebackObject,
+    header: cstring,
+    f: PyObject): PyBaseErrorObject{.raises: [].} =
+  ## `_PyTraceBack_Print`
+  const
+    indent = 0
+    margin = cstring nil
+    header_margin = cstring nil
+    header = cstring EXCEPTION_TB_HEADER_noNL
+  return PyTraceBack_Print_Indented_with_noNL_header(
+    v, indent, margin, header_margin, header, f)
 
 proc traceback*(excp: PyBaseExceptionObject): PyTracebackObject =
   ## `PyException_GetTraceback`

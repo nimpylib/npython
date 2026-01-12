@@ -1,5 +1,4 @@
-import strformat
-import strutils
+import std/strformat
 
 import ./[pyobject,
   exceptions,
@@ -41,7 +40,11 @@ declarePyType Code(tpToken):
 
 proc argCount*(self: PyCodeObject): int{.inline.} = self.argScopes.len
 genProperty Code, "co_argcount", argcount, newPyInt self.argCount
-genProperty Code, "co_firstlineno", firstlineno, newPyInt self.lineNos[0]
+proc firstlineno*(self: PyCodeObject): int{.inline.} =
+  # Needed?
+  #if self.lineNos.len == 0: return 0
+  return self.lineNos[0]
+genProperty Code, "co_firstlineno", firstlineno, newPyInt self.firstlineno
 static: assert OpCode.high.BiggestInt <= char.high.BiggestInt
 proc code_adaptiveImpl(self: PyCodeObject): seq[char] =
   result = newSeqOfCap[char](2*self.code.len)

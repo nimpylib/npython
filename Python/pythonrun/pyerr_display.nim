@@ -11,7 +11,6 @@ import ../../Utils/[compat,
   fileio,
 ]
 
-import std/strformat
 import ../sysmodule/attrs
 import ../../Objects/[
   stringobject,
@@ -21,6 +20,7 @@ import ../../Objects/[
 import ../../Include/internal/pycore_ceval_rec
 import ../../Include/internal/pycore_global_strings
 import ../../Objects/pyobject_apis/[attrs, strings,]
+import ../../Objects/stringobject/strformat
 import ../../Objects/typeobject/getters
 import ../../Objects/numobjects/intobject
 
@@ -59,6 +59,117 @@ proc print_exception_traceback(ctx; value): PyBaseErrorObject =
     let header: cstring = EXCEPTION_TB_HEADER_noNL
     result = PyTraceBack_Print_with_noNL_header(tb, header, f)
 
+template EXC_MARGIN(ctx): untyped = (if ctx.exception_group_depth!=0: cstring"| " else: "")
+template EXC_INDENT(ctx): untyped = (2 * ctx.exception_group_depth)
+
+proc write_indented_margin(ctx): string =
+  Py_WriteIndentedMargin(EXC_INDENT(ctx), EXC_MARGIN(ctx))
+
+proc parse_syntax_error(err: PyObject;
+             message: var PyObject;
+             filename: var PyObject;
+             lineno: var int;
+             offset: var int;
+             end_lineno: var int;
+             end_offset: var int;
+             text: var PyObject): PyBaseErrorObject =
+  var v: PyObject
+
+  message = PyObject_GetAttr(err, pyId(msg))
+  retIfExc message
+
+  v = PyObject_GetAttr(err, pyId(filename))
+  filename = if v.isPyNone:
+    # use "<string>" like CPython
+    Py_DECLARE_STR(anon_string, "<string>")
+    newPyStr(anon_string)
+  else:
+    v
+  v = PyObject_GetAttr(err, pyId(lineno))
+  retIfExc v
+  retIfExc PyLong_AsSsize_t(v, lineno)
+
+  v = PyObject_GetAttr(err, pyId(offset))
+  retIfExc v
+  if v.isPyNone:
+    offset = -1
+  else:
+    retIfExc PyLong_AsSsize_t(v, offset)
+
+  if err.pyType == pySyntaxErrorObjectType:
+    template getIntOrNilNone(name; defval) =
+      v = PyObject_GetAttr(err, pyId(name))
+      if v.isThrownException or v.isPyNone:
+        name = defVal
+      else:
+        retIfExc PyLong_AsSsize_t(v, name)
+    getIntOrNilNone(end_lineno, lineno)
+    getIntOrNilNone(end_offset, -1)
+  else:
+    # SyntaxError subclasses
+    end_lineno = lineno
+    end_offset = -1
+
+  v = PyObject_GetAttr(err, pyId(text))
+  retIfExc v
+  if v.isPyNone:
+    text = nil
+  else:
+    text = v
+
+proc print_error_text(ctx; offset, end_offset: int; text_obj: PyStrObject): PyBaseErrorObject =
+  let caret_repetitions =
+    if end_offset > 0 and end_offset > offset: end_offset - offset
+    else: 1
+  
+  var text = text_obj.asUTF8
+
+  # Convert offset from 1-based to 0-based
+  #var offset = offset - 1
+  var offset = offset + 1 #XXX: why plus 1? Er, CPython uses code above...
+
+  # Calculate text length excluding trailing newline
+  var len = text.len
+  if len > 0 and text[len - 1] == '\n':
+    len.dec
+  
+  # Clip offset to at most len
+  if offset > len:
+    offset = len
+
+  # Skip past newlines embedded in text
+  var itext = 0
+  while true:
+    let inl = text.find('\n')
+    if inl == -1 or inl >= offset:
+      break
+
+    let onl = inl + 1
+    itext += onl
+    len -= onl
+    offset -= onl
+  text = text[itext ..< text.len]
+
+  const Ident = "    "
+  var line: string
+  # Print text
+  let margin_indent = write_indented_margin(ctx)
+  line.add margin_indent
+  line.add Ident
+  line.add text
+
+  retIfExc(PyFile_WritelineString(line, ctx.file))
+
+  # Print caret line
+  line.setLen 0
+  line.add margin_indent
+  line.add Ident
+  for _ in 0 ..< offset - 1:
+    line.add ' '
+  for _ in 0 ..< caret_repetitions:
+    line.add '^'
+  retIfExc(PyFile_WritelineString(line, ctx.file))
+
 proc print_exception_file_and_line(ctx; valueRef: var PyObject): PyBaseErrorObject =
   let f = ctx.file
 
@@ -69,23 +180,38 @@ proc print_exception_file_and_line(ctx; valueRef: var PyObject): PyBaseErrorObje
   of Error: return PyBaseErrorObject tmp
   of Get: discard
 
-  let v = PyObject_GetAttr(valueRef, pyId filename)
-  retIfExc v
+  var
+    message, filename, text: PyObject
+    lineno, offset, end_lineno, end_offset: int
+  let exc = parse_syntax_error(valueRef, message, filename,
+        lineno, offset, end_lineno, end_offset, text)
+  if not exc.isNil:
+    # PyErr_Clear()
+    return nil
+  valueRef = message
 
-  let filename: PyStrObject =
-    if v.isPyNone:
-      newPyStr(pyId "<string>")
-    else:
-      if not v.ofPyStrObject:
-        return newTypeError newPyAscii"filename must be a string or None"
-      PyStrObject v
-  
-  let lineno = 0
-
-  let filenameS = $filename.str
-  let line = &"  File \"{filenameS}\", line {lineno}"
+  var line: string
+  line.add write_indented_margin(ctx)
+  handleFormatExc:
+    line.add &"  File \"{filename:S}\", line {lineno}"
 
   retIfExc(PyFile_WritelineString(line, f))
+
+  if not text.isNil:
+    let str_text = PyStrObject(text)
+    let (_, line_size) = str_text.asUTF8AndSize
+    #[If the location of the error spawn multiple lines, we want
+    to just print the first one and highlight everything until
+    the end of that one since we don't support multi-line error
+    messages.]#
+    if end_lineno > lineno:
+      end_offset = line_size
+    # Limit the amount of '^' that we can display to
+    # the size of the text in the source line.
+    end_offset = min(line_size + 1, end_offset)
+
+    retIfExc print_error_text(ctx, offset, end_offset, str_text)
+
 
 proc get_print_exception_message(typ: PyObject; value; line: var string): PyBaseErrorObject =
   ## return the message line: `module.qualname[: str(exc)]`
