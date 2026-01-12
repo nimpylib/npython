@@ -11,6 +11,7 @@ import ../Utils/utils
 import ./stringobject/strformat
 import ../Include/cpython/critical_section
 import ../Python/getargs/[vargs, kwargs]
+import ../Parser/lexer
 
 export exceptions
 
@@ -378,15 +379,44 @@ proc addTraceBack*(exc: PyBaseExceptionObject,
   t.tb_next_may_nil = old
   exc.privateGetTracebackRef = t
 
+proc getSource*(filename: PyStrObject, lineNo: int, source_obj: var (PyStrObject|PyObject)): PyBaseErrorObject =
+  var source: string
+  case getSource($filename.str, lineNo, source)
+  of GSR_Success:
+    discard
+  #[
+  of GSR_LineNoNotSet:
+    source = "<no source line available>"
+  of GSR_LineNoOutOfRange:
+    source = &"<no source line available (line number {lineno} out of range {source})>"
+  of GSR_NoSuchFile:
+    source = "<no source line available (file not found)>"
+  ]#
+  of GSR_LineNoNotSet, GSR_LineNoOutOfRange:
+    return newIndexError newPyAscii"line number out of range"
+  of GSR_NoSuchFile:
+    return newIOError newPyAscii "no such file"
+  source_obj = newPyStr source
 
 proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionObject = 
   let smsg = newPyStr(e.msg)
   let excpObj = newSyntaxError smsg
-  excpObj.lineno = newPyInt e.lineNo
+  let lineNo = newPyInt e.lineNo
+  excpObj.lineno = lineNo
+
   #TODO:end_lineno
+  #excpObj.end_lineno = lineNo
+
   excpObj.filename = fileName
-  excpObj.end_offset = newPyInt e.colNo
+  let offset = newPyInt e.colNo
+  excpObj.offset = offset
+
+  #TODO:end_offset
+  #excpObj.end_offset = newPyInt(e.colNo + 1)
   excpObj.msg = smsg
+
+  retIfExc getSource(fileName, e.lineNo, excpObj.text)
+
   # don't have code name
   #[
     #TODO:SyntaxError
