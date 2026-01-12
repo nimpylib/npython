@@ -1,4 +1,5 @@
 
+from std/strutils import replace
 import strformat
 import tables
 import std/sets
@@ -7,6 +8,7 @@ import opcode
 import builtindict
 import ./[call, traceback]
 import ../Include/internal/pycore_global_strings
+import ../Include/ceval
 import ../Objects/typeobject/apis/attrs
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
@@ -21,6 +23,8 @@ import ./[
   intrinsics,
 ]
 export pyimport, neval_frame
+when defined(debug_instr) or defined(debug_instr2):
+  import ./neval_debug
 
 type
   # the exception model is different from CPython. todo: Need more documentation
@@ -284,8 +288,11 @@ proc evalFrame*(f: PyFrameObject): PyObject =
           while true:
             {. computedGoto .}
             let (opCode, opArg) = fetchInstr
-            when defined(debug):
-              echo fmt"{opCode}, {opArg}, {valStack.len}"
+            when defined(debug_instr2):
+              echo fmt"[{lastI: 4}] {opCode} {opArg} | stack before exec: {tostr valStack}"
+            when defined(debug_instr):
+              debug_thisInstr
+
             case opCode
             of OpCode.PopTop:
               discard sPop
@@ -295,6 +302,14 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.NOP:
               continue
+
+            of OpCode.Copy:
+              assert opArg > 0
+              sPush sPeek(opArg)
+            of OpCode.Swap:
+              let top1 = sPeek(1)
+              sSetTop sPeek(opArg)
+              sPeek(opArg) = top1
 
             of OpCode.UnaryPositive:
               doUnary(positive)
@@ -627,6 +642,25 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 do:
                   notDefined name
               sPush obj
+            
+            of OpCode.LoadSpecial:
+              # 3.14+: LOAD_SPECIAL loads a special method like __enter__, __exit__, __aenter__, __aexit__
+              let s = getSpecialFromOpArg opArg
+
+              let name = s.name
+              let owner = sPop()
+              var meth = PyObject_LookupSpecial(owner, name)
+              if meth.isThrownException:
+                let errfmt = if PyEval_SpecialMethodCanSuggest(owner, opArg):
+                  s.error_suggestion
+                else:
+                  s.error
+                let errstr = errfmt.replace("%T", owner.pyType.name)
+                assert not errstr.contains('%')
+                meth = newTypeError(newPyStr errstr)
+              sSetTop meth
+              sPush owner
+
             #TODO:dis SetupFinally, SetupCleanup, SetupWith shall be pesudo opcodes,
             #  not real opcodes,
             #  (being replaced during `assemble`)
@@ -692,6 +726,15 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.StoreFast:
               fastLocals[opArg] = sPop()
+            
+            of StoreFastLoadFast:
+              # opCode is two int4
+              fastLocals[opArg shr 4] = sPop()
+              sPush fastLocals[opArg and 0xF]
+
+            of StoreFastStoreFast:
+              fastLocals[opArg shr 4] = sTop()
+              fastLocals[opArg and 0xF] = sPeek(2)
 
             of OpCode.DeleteGlobal:
               let name = names[opArg]

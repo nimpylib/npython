@@ -6,6 +6,7 @@ import ./[pyobject,
   stringobject,
   byteobjects,
 ]
+import ../Include/ceval
 import ./numobjects/intobject_decl
 import ../Python/[opcode, symtable]
 
@@ -80,18 +81,15 @@ implCodeMagic repr:
   let msg = fmt("<code object {codeName} at {self.idStr}, file \"{fileName}\">")
   newPyStr(msg)
 
-method `$`*(code: PyCodeObject): string{.raises: [].} = 
-  var s: seq[string]
-  s.add("Names: " & $code.names)
-  s.add("Local variables: " & $code.localVars)
-  s.add("Cell variables: " & $code.cellVars)
-  s.add("Free variables: " & $code.freeVars)
-  # temperary workaround for code obj in the disassembly
-  var otherCodes: seq[PyCodeObject]
-  for idx, opArray in code.code:
-    let opCode = OpCode(opArray[0])
-    let opArg = opArray[1]
-    var line = fmt"{idx:>10} {opCode:<30}"
+proc toStringBy*(t: tuple[opCode: OpCode, opArg: OpArg], 
+                 code: PyCodeObject,
+                 otherCodes: var seq[PyCodeObject]): string =
+  ## unstable
+  ## 
+  ## Return a string representation of a single bytecode instruction.
+  let (opCode, opArg) = t
+  block:
+    var line = fmt"{opCode:<30}"
     if opCode in hasArgSet:
       line &= fmt"{opArg:<4}"
       case opCode
@@ -116,13 +114,24 @@ method `$`*(code: PyCodeObject): string{.raises: [].} =
           line &= fmt" ({code.freeVars[opArg - code.cellVars.len]})"
       of OpCode.CallFunction, OpCode.CallFunction_EX, jumpSet, OpCode.BuildList, 
          OpCode.BuildTuple, OpCode.UnpackSequence, OpCode.MakeFunction,
-         OpCode.RaiseVarargs, OpCode.ReRaise:
+         OpCode.RaiseVarargs, OpCode.ReRaise, OpCode.Swap:
         discard
+      of OpCode.LoadSpecial:
+        line &= fmt" ({getSpecialFromOpArg(opArg).name})"
       else:
         line &= " (Unknown OpCode)"
-    s.add(line)
-  s.add("\n")
-  result = s.join("\n")
+    line
+
+method `$`*(code: PyCodeObject): string{.raises: [].} = 
+  result.add("Names: " & $code.names)
+  result.add("Local variables: " & $code.localVars)
+  result.add("Cell variables: " & $code.cellVars)
+  result.add("Free variables: " & $code.freeVars)
+  # temperary workaround for code obj in the disassembly
+  var otherCodes: seq[PyCodeObject]
+  for idx, opArray in code.code:
+    result.add(&"{idx:>10} " & opArray.toStringBy(code, otherCodes))
+    result.add('\n')
   for otherCode in otherCodes:
     result &= $otherCode
 
