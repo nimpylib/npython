@@ -15,6 +15,7 @@ import ../../Objects/[
 ]
 import ./utils
 
+import ../../Objects/abstract/format
 import ../getargs/[kwargs, tovals, dispatch]
 
 proc abs*(c: PyObject): PyObject{.bltin_clinicGen.} = PyNumber_Absolute c
@@ -54,6 +55,9 @@ proc chr*(c: PyObject): PyObject{.bltin_clinicGen.} =
 proc callable*(obj: PyObject): PyObject{.bltin_clinicGen.} = newPyBool obj.ofPyCallable
 proc ascii*(us: PyObject): PyObject{.bltin_clinicGen.} = PyObject_ASCII us
 
+proc format*(obj: PyObject, format_spec: PyObject = newPyAscii()): PyObject{.bltin_clinicGen.} =
+  PyObject_Format(obj, format_spec)
+
 template register_unarys* =
   bind regfunc
   regfunc ascii
@@ -64,4 +68,5 @@ template register_unarys* =
   regfunc hex
   regfunc chr
   regfunc callable
+  regfunc format
 

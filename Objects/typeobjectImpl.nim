@@ -19,6 +19,7 @@ import ./classobject
 import ./pyobject_apis/[
   attrsGeneric, strings,
 ]
+import ../Python/getargs/dispatch
 template baseMagic(name, meth) =
   pyObjectType.magicMethods.name = meth
 
@@ -37,6 +38,16 @@ baseMagic ne, neDefault
 baseMagic getattr, PyObject_GenericGetAttr
 baseMagic setattr, PyObject_GenericSetAttr
 baseMagic delattr, PyObject_GenericDelAttr
+
+proc object_format(self: PyObject, format_spec_obj: PyObject): PyObject {.clinicGenMeth("blt_obj_fmt", false).} =
+  checkTypeOrRetTE(format_spec_obj, PyStrObject, pyStrObjectType)
+  let format_spec = PyStrObject(format_spec_obj)
+  if format_spec.len > 0:
+    let n = self.pyType.typeName
+    return newTypeError newPyStr &"unsupported format string passed to {n:.200s}.__format__"
+  return PyObject_Str self
+
+pyObjectType.bltinMethods["__format__"] = (blt_obj_fmt, false)
 
 methodMacroTmpl(Type)
 # this must be after properties import

@@ -5,6 +5,7 @@ import ../../[
   pyobjectBase,
   exceptions, 
 ]
+import ../../stringobject/fstring
 template asDouble*(op: PyFloatObject): float = op.v
 template asDouble*(op: PyFloatObject; v: var float): PyBaseErrorObject =
   ## `PyFloat_AS_DOUBLE`
@@ -30,3 +31,8 @@ proc PyFloat_AsFloat*(op: PyObject; v: var float32): PyBaseErrorObject =
   result = PyFloat_AsDouble(op, df)
   if result.isNil:
     v = float32 df
+
+methodMacroTmpl(float)
+bindFormatValue float, self.asDouble
+genFormat float
+

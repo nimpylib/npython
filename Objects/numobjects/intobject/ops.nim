@@ -515,7 +515,8 @@ proc PyLong_FromString*[C: char](s: openArray[C]; nParsed: var int; base: int = 
   result = res.fromStr(s, nParsed, base)
   if result.isNil: result = res
 
-proc long_format_binary(a: PyIntObject, base: uint8, alternate: bool, v: var string): PyBaseErrorObject =
+proc format_binary*(a: PyIntObject, base: uint8, alternate: bool, v: var string): PyBaseErrorObject =
+  ## long_format_binary
   assert base in {2u8, 8, 16}
 
   let
@@ -620,7 +621,7 @@ proc format*(i: PyIntObject, base: uint8, s: var string): PyBaseErrorObject =
   # `_PyLong_Format`
   # `s` is a `out` param
   if base == 10: toStringCheckThreshold(i, s)
-  else: long_format_binary(i, base, true, s)
+  else: format_binary(i, base, true, s)
 
 
 proc newPyInt*[C: char](smallInt: C): PyIntObject =

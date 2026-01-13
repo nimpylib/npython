@@ -1,4 +1,4 @@
-import strformat
+import ./stringobject/fstring
 
 # import bigints
 
@@ -18,7 +18,8 @@ implRangeMagic len:
 
 implRangeMagic repr:
   # todo: make it the same as CPython
-  newPyAscii(fmt"range({self.start}, {self.ending}, {self.step}, {self.length})")
+  handleFormatExc:
+    result = newPyAscii(fmt"range({self.start}, {self.ending}, {self.step}, {self.length})")
 
 
 implRangeMagic init:

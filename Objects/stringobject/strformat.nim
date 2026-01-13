@@ -9,7 +9,15 @@ import ../../Utils/utils
 
 type FormatPyObjectError* = object of CatchableError  ## inner
 
-var exc: PyBaseErrorObject
+var exc{.threadVar.}: PyBaseErrorObject
+template setPyFormatExc*(e: PyBaseErrorObject) =
+  bind exc, FormatPyObjectError
+  exc = e
+
+template raisePyFormatExc*(e: PyBaseErrorObject) =
+  bind setPyFormatExc
+  setPyFormatExc e
+  raise new FormatPyObjectError
 
 template handleFormatExc*(handle, body) =
   bind exc, FormatPyObjectError
