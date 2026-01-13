@@ -203,7 +203,7 @@ proc getNextToken(
     addToken(Name)
 
   template asIs(x): untyped = x  
-  template addString(pairingChar: char, escaper: untyped = lexer.decode_unicode_with_escapes, tok=Token.String) =
+  template addStringImpl(pairingChar: char, isRaw: bool, escaper: untyped, tok=Token.String) =
     ## PY-DIFF: We use different Token for bytes and str, for s as a String/Bytes Token,
     ##  `s` is translated content (e.g. `r'\n'` translated to Newline Char),
     ##  unlike CPython only has String Token and `s[0]` is prefix and `s[1]` is quotation mark, as it's no need to check again
@@ -215,14 +215,29 @@ proc getNextToken(
       lexer.tripleStr.start = (lexer.lineNo, idx)
       return lexer.feedTripleStrContent(line, idx)
     idx.inc
-    let last = idx + line.skipUntil(pairingChar, idx)
-    if last == line.len: # pairing `"` not found
-      raiseSyntaxError("Invalid string syntax")
-    else:
-      let s = escaper(line[idx..<last])
-      result = newTokenNode(tok, lexer.lineNo, idx, s)
-      idx = last
-      idx.inc  # skip ending pairingChar
+    var last = idx
+    while true:
+      last += line.skipUntil(pairingChar, last)
+      if last == line.len: # pairing `"` not found
+        raiseSyntaxError("Invalid string syntax")
+      else:
+        when isRaw: break
+        else:
+          if line[last-1] == '\\':
+            last.inc  # avoid treating \' or \" as ending quote
+          else:
+            break
+    let s = escaper(line[idx..<last])
+    result = newTokenNode(tok, lexer.lineNo, idx, s)
+    idx = last
+    idx.inc  # skip ending pairingChar
+
+  template addString(pairingChar: char, tok=Token.String) =
+    addStringImpl(pairingChar, false,
+      lexer.decode_unicode_with_escapes,
+      tok)
+  template addRawString(pairingChar: char, tok=Token.String) =
+    addStringImpl(pairingChar, true, asIs, tok)
 
   let curChar = line[idx]
   case curChar
@@ -236,15 +251,15 @@ proc getNextToken(
     if nextIsQuote():
       idx += 1
       case prefix
-      of BPrefix: addString quote, lexer.decode_bytes_with_escapes, Token.Bytes
-      of RPrefix: addString quote, asIs
+      of BPrefix: addString quote, Token.Bytes
+      of RPrefix: addRawString quote
       else: addString quote
     elif (
       prefix in BPrefix and quote in RPrefix or
       quote in BPrefix and prefix in RPrefix
-    ) and nextIsQuote: # raw bytes: br, bR, rb, etc.
+    ) and (idx += 1; nextIsQuote): # raw bytes: br, bR, rb, etc.
       idx += 1
-      addString quote, asIs, Token.Bytes
+      addRawString quote, Token.Bytes
     else:
       addId
   of '0'..'9':
