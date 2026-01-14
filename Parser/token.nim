@@ -16,6 +16,15 @@ const
               ("NUMBER"    , "Number"),
               ("BYTES"    ,  "Bytes"),
               ("STRING"    , "String"),
+
+              ("FSTRING_START",  "FStringStart"),
+              ("FSTRING_MIDDLE", "FStringMiddle"),
+              ("FSTRING_END",    "FStringEnd"),
+
+              ("TSTRING_START",  "TStringStart"),
+              ("TSTRING_MIDDLE", "TStringMiddle"),
+              ("TSTRING_END",    "TStringEnd"),
+
               ("NEWLINE"   , "Newline"),
               ("INDENT"    , "Indent"),
               ("DEDENT"    , "Dedent"),
@@ -43,6 +52,7 @@ const
               ("!="        , "Notequal"),
               ("<="        , "Lessequal"),
               (">="        , "Greaterequal"),
+              ("!"         , "Exclamation"),
               ("~"         , "Tilde"),
               ("^"         , "Circumflex"),
               ("<<"        , "Leftshift"),
@@ -160,7 +170,9 @@ proc genTerminatorSet: set[Token] {. compileTime .} =
 const terminatorSet = genTerminatorSet()
 
 # token nodes that should have a content field
-const contentTokenSet* = {Token.Name, Token.Number, Token.String, Token.Bytes}
+const contentTokenSet* = {Token.Name, Token.Number, Token.String, Token.Bytes,
+  TStringMiddle, FStringMiddle,
+  }
 
 type
   TokenNode* = ref object

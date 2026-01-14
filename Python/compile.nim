@@ -16,8 +16,9 @@ import ../Objects/[
   codeobject, noneobject]
 import ../Objects/stringobject/strformat
 import ../Utils/utils
+import ../Include/ceval
 import ../Include/cpython/compile as compile_h
-import ../Include/internal/pycore_global_strings
+import ../Include/internal/[pycore_global_strings, pycore_compile]
 export compile_h
 type
   Instr = ref object of RootObj
@@ -1043,6 +1044,77 @@ compileMethod Call:
     c.compile(arg)
   c.addOp(newArgInstr(op, astNode.args.len, astNode.lineNo.value))
 
+
+compileMethod JoinedStr:
+  let loc = astNode.lineno.value;
+  let value_count = astNode.values.len
+  if value_count > PY_STACK_USE_GUIDELINE:
+    Py_DECLARE_STR(empty, "")
+    c.addLoadConst(Py_STR(empty), loc)
+    let nameId = c.tste.nameId(newPyAscii".join")
+    c.addOp(newArgInstr(OpCode.LoadAttr, nameId, loc))
+    #ADDOP_NAME(c, loc, LOAD_METHOD, pyId(join), names)
+    c.addOp(newArgInstr(OpCode.BuildList, 0, loc))
+    for i in astNode.values:
+      c.compile(i)
+      c.addOp(newArgInstr(OpCode.ListAppend, 1, loc))
+    c.addOp(newArgInstr(OpCode.CallFunction, 1, loc))
+  else:
+    c.compileSeq(astNode.values)
+    if value_count > 1:
+      c.addOp(newArgInstr(OpCode.BuildString, value_count, loc))
+    elif value_count == 0:
+      Py_DECLARE_STR(empty, "");
+      c.addLoadConst(Py_STR(empty), loc)
+
+proc conversion2FCV(conversion: int, astNode: AstFormattedValue|AstInterpolation): int =
+  let ccon = chr(conversion)
+  ord(
+    case ccon
+    of 's': FVC_STR
+    of 'r': FVC_REPR
+    of 'a': FVC_ASCII
+    else:
+      raiseSyntaxError(
+        &"f-string: invalid conversion character {repr(ccon)}: expected 's', 'r', or 'a'",
+        astNode
+      ) #let exc = newSystemError(newPyStr "Unrecognized conversion character " & $conversion)
+  )
+
+# Used to implement f-strings. Format a single value.
+compileMethod formattedValue:
+  let conv = astNode.conversion
+
+  # The expression to be formatted.
+  c.compile(astNode.value)
+  let loc = astNode.lineNo.value
+  if not conv.isNil:
+    let oparg = conversion2FCV(conv.value, astNode)
+    c.addOp(newArgInstr(OpCode.ConvertValue, oparg, loc))
+
+  if not astNode.format_spec.isNil:
+    # Evaluate the format spec, and update our opcode arg.
+    c.compile(astNode.format_spec)
+    c.addOp(OpCode.FormatWithSpec, loc)
+  else:
+    c.addOp(OpCode.FormatSimple, loc)
+
+compileMethod Interpolation:
+  let loc = astNode.lineno.value
+
+  c.compile astNode.value
+  c.addLoadConst astNode.str.value, loc
+
+  var oparg = 2
+  if not astNode.format_spec.isNil:
+    oparg.inc
+    c.compile(astNode.format_spec)
+
+  let conv = astNode.conversion
+  if not conv.isNil:
+    oparg = oparg or (conversion2FCV(conv.value, astNode) shl 2)
+  
+  c.addOp(newArgInstr(OpCode.BuildInterpolation, oparg, loc))
 
 compileMethod Attribute:
   let lineNo = astNode.lineNo.value

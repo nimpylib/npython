@@ -414,6 +414,7 @@ genAsdlTypes:
     Compare(expr left, cmpop* ops, expr* comparators),
     Call(expr fun, expr* args, keyword* keywords),
     FormattedValue(expr value, int? conversion, expr? format_spec),
+    Interpolation(expr value, constant str, int? conversion, expr? format_spec),
     JoinedStr(expr* values),
     Constant(constant value),
 
