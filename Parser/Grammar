@@ -104,10 +104,15 @@ term: factor (('*'|'@'|'/'|'%'|'//') factor)*
 factor: ('+'|'-'|'~') factor | power
 power: atom_expr ['**' factor]
 atom_expr: ['await'] atom trailer*
+fstring_format_spec: FSTRING_MIDDLE | fstring_replacement_field
+#TODO:star_expr  instead of test below
+fstring_replacement_field: '{' (yield_expr | test) ['='] ['!' NAME] [':' fstring_format_spec*] '}'
+fstring: FSTRING_START fstring_format_spec* FSTRING_END
+tstring: TSTRING_START fstring_format_spec* TSTRING_END
 atom: ('(' [yield_expr|testlist_comp] ')' |
        '[' [testlist_comp] ']' |
        '{' [dictorsetmaker] '}' |
-       NAME | NUMBER | BYTES+ | STRING+ | '...' | 'None' | 'True' | 'False')
+       NAME | NUMBER | BYTES+ | STRING+ | fstring+ | tstring+ | '...' | 'None' | 'True' | 'False')
 # XXX: PY-DIFF: we (npython), split `bytes` from STRING   token type
 testlist_comp: (test|star_expr) ( comp_for | (',' (test|star_expr))* [','] )
 trailer: '(' [arglist] ')' | '[' subscriptlist ']' | '.' NAME

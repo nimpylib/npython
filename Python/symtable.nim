@@ -480,8 +480,17 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
         of AsdlExprTk.Lambda:
           #ste.addDeclaration(pyId "<lambda>")
           visitInNewBlock astNode
+        of FormattedValue:
+          let node = AstFormattedValue(astNode)
+          visit node.value
+        of Interpolation:
+          let node = AstInterpolation(astNode)
+          visit node.value
+        of AsdlexprTk.JoinedStr:
+          visitSeq AstJoinedStr(astNode).values
+
         else:
-          unreachable
+          unreachable $AsdlExpr(astNode).kind
 
       elif astNode of AsdlSlice:
         case AsdlSlice(astNode).kind

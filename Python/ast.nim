@@ -60,6 +60,18 @@ proc newAstConstant(obj: PyObject): AstConstant =
   result.value = new AsdlConstant 
   result.value.value = obj
 
+template setNo(astNode: untyped, parseNode: ParseNode) = 
+  astNode.lineNo = newInt(parseNode.tokenNode.lineNo)
+  astNode.colOffset = newInt(parseNode.tokenNode.colNo)
+
+template copyNo(astNode1, astNode2: untyped) = 
+  astNode1.lineNo = astNode2.lineNo
+  astNode1.colOffset = astNode2.colOffset
+
+proc newAstConstantWithNoFrom(obj: PyObject, infoObj: ParseNode): AstConstant = 
+  result = newAstConstant obj
+  setNo(result, infoObj)
+
 proc newBoolOp(op: AsdlBoolop, values: seq[AsdlExpr]): AstBoolOp =
   result = newAstBoolOp()
   result.op = op
@@ -87,13 +99,6 @@ proc newTuple(elts: seq[AsdlExpr]): AstTuple =
   result.elts = elts
   result.ctx = newAstLoad()
 
-template setNo(astNode: untyped, parseNode: ParseNode) = 
-  astNode.lineNo = newInt(parseNode.tokenNode.lineNo)
-  astNode.colOffset = newInt(parseNode.tokenNode.colNo)
-
-template copyNo(astNode1, astNode2: untyped) = 
-  astNode1.lineNo = astNode2.lineNo
-  astNode1.colOffset = astNode2.colOffset
 
 type CollectionExprNew[T: Asdlexpr] = proc (ls: seq[AsdlExpr]): T{.nimcall.}
 
@@ -159,6 +164,8 @@ proc astFactor(parseNode: ParseNode): AsdlExpr
 proc astPower(parseNode: ParseNode): AsdlExpr
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr
 proc astAtom(parseNode: ParseNode): AsdlExpr
+proc astFstringFormatSpec(parseNode: ParseNode): AsdlExpr
+proc astFstringReplacementField(parseNode: ParseNode): AsdlExpr
 proc astTestlistComp[T: Asdlexpr](parseNode: ParseNode, newor: CollectionExprNew[T]): AsdlExpr
 proc astTrailer(parseNode: ParseNode, leftExpr: AsdlExpr): AsdlExpr
 proc astSubscriptlist(parseNode: ParseNode): AsdlSlice
@@ -650,6 +657,12 @@ ast return_stmt, [AsdlStmt]:
   node.value = astTestList(parseNode.children[1])
   node
   
+ast yield_expr, [Asdlexpr]:
+  raiseSyntaxError("Yield not implemented")
+
+#ast yield_arg:
+#  discard
+
 ast yield_stmt, [AsdlStmt]:
   raiseSyntaxError("Yield not implemented")
   
@@ -1187,6 +1200,103 @@ proc astAtomExpr(parseNode: ParseNode): AsdlExpr =
   for trailerChild in parseNode.children[1..^1]:
     result = astTrailer(trailerChild, result)
   
+
+# fstring_format_spec: FSTRING_MIDDLE | fstring_replacement_field
+ast fstring_format_spec, [Asdlexpr]:
+  assert parseNode.children.len == 1
+  let child1 = parseNode.children[0]
+  if child1.tokenNode.token == Token.fstring_replacement_field:
+    return astFstringReplacementField child1
+  result = newAstConstantWithNoFrom(newPyStr(child1.tokenNode.content), child1)
+
+# fstring_replacement_field: '{' (yield_expr | star_expr) '='? ['!' NAME] [':' fstring_format_spec*] '}'
+ast fstring_replacement_field, [Asdlexpr]:
+  ## AstFormattedValue | AstInterpolation
+  assert parseNode.children[ 0].tokenNode.token == Token.Lbrace
+  let L = parseNode.children.len
+  assert parseNode.children[L-1].tokenNode.token == Token.Rbrace
+
+  var idx = 0
+  template curNode(): untyped =
+    parseNode.children[idx]
+  template step = idx.inc
+  template nextNode(): untyped =
+    step()
+    curNode()
+  # ast `star_expr` not impl
+  let valueNode = nextNode()
+  var value = astTest(valueNode)  #TODO:star_expr
+  step()
+  var
+    name: AstConstant
+    conversion: AsdlInt
+    format_specs: AstJoinedStr
+    isInterp = false
+  let mayNameNode = curNode()
+  isInterp = mayNameNode.tokenNode.token == Token.Equal
+  if isInterp:
+    let expr_value = $value  #TODO:fstring:= this is not correct
+    name = newAstConstantWithNoFrom(newPyStr(expr_value & '='), mayNameNode)
+    step()
+  if curNode().tokenNode.token == Token.Exclamation:
+    let s = nextNode().tokenNode.content
+    assert s.len == 1
+    conversion = newInt int s[0]
+    step()
+  let cur = curNode()
+  case cur.tokenNode.token
+  of Token.RBrace:
+    discard # end
+  of Token.Colon:
+    format_specs = newAstJoinedStr()
+    setNo(format_specs, cur)
+    for i in idx+1 ..< L-1:
+      let node = nextNode()
+      format_specs.values.add astFstringFormatSpec(node)
+  else:
+    unreachable()
+
+  var res = newAstFormattedValue()
+  res.value = value
+  res.conversion = conversion
+  res.format_spec = format_specs
+  setNo(res, parseNode.children[0])
+  result = res
+  if isInterp:
+    let val = newAstJoinedStr()
+    val.values = @[Asdlexpr name, result]
+    setNo(val, mayNameNode)
+    return val
+
+
+# fstring: FSTRING_START fstring_format_spec* FSTRING_END
+# tstring: TSTRING_START fstring_format_spec* TSTRING_END
+proc astFTstring(parseNode: ParseNode): AstJoinedStr =
+    # Build JoinedStr from f-/t- string pieces and embedded expressions
+    let res = newAstJoinedStr()
+    var vals: seq[AsdlExpr] = @[]
+    let lastIdx = parseNode.children.len-1
+    assert parseNode.children[0      ].tokenNode.token in {Token.FStringStart,Token.TStringStart}
+    assert parseNode.children[lastIdx].tokenNode.token in {Token.FStringEnd,  Token.TStringEnd}
+
+    for i in 1 ..< lastIdx:
+      let child = parseNode.children[i]
+      case child.tokenNode.token
+      of Token.FStringMiddle, Token.TStringMiddle:
+        if child.tokenNode.content.len > 0:
+          let pyS = newPyString(child.tokenNode.content)
+          vals.add newAstConstantWithNoFrom(pyS, child)
+      else:
+        # child is a non-terminator representing an expression inside {}
+        let fv = astFstringFormatSpec(child)
+        vals.add fv
+    res.values = vals
+    #setNo(res.values[0], parseNode.children[0])
+    res.lineNo = newInt parseNode.children[0].tokenNode.lineNo
+    result = res
+
+# ftstring: (fstring | tstring)
+
 # atom: ('(' [yield_expr|testlist_comp] ')' |
 #      '[' [testlist_comp] ']' |
 #      '{' [dictorsetmaker] '}' |
@@ -1277,6 +1387,12 @@ ast atom, [AsdlExpr]:
 
   of Token.BYTES:
     resStrOrBytesVia newPyBytes
+
+  of Token.fstring, Token.tstring:
+    assert parseNode.children.len == 1, "TODO"
+    let res = astFTstring(child1)
+    # do not setNo
+    return res
 
   of Token.True:
     result = newAstConstant(pyTrueObj)
@@ -1586,11 +1702,6 @@ ast comp_for, [seq[AsdlComprehension]]:
 ast encoding_decl:
   discard
   
-ast yield_expr:
-  discard
-  
-ast yield_arg:
-  discard
 ]#
 
 proc ast*(root: ParseNode): AsdlModl = 
