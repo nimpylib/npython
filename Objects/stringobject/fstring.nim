@@ -15,11 +15,19 @@ template handleValueErrorAsPyFormatExc*(body) =
   except ValueError as e:
     raisePyFormatExc newValueError newPyStr e.msg
 
-template bindFormatValue*(T, selfToNimType){.dirty.} =
+template implFormatValue*(T, impl){.dirty.} =
   bind handleValueErrorAsPyFormatExc
-  proc formatValue*(res: var string, self: `Py T Object`; format_spec = "") =
+  proc formatValue*(res: var string, self: `Py T Object`; format_spec: static[string] = ""){.raises: [FormatPyObjectError].} =
+    impl(res, self, format_spec)
+  proc formatValue*(res: var string, self: `Py T Object`; format_spec: string) =
     handleValueErrorAsPyFormatExc:
-      res.formatValue(selfToNimType, format_spec)
+      impl(res, self, format_spec)
+
+template bindFormatValue*(T, selfToNimType){.dirty.} =
+  bind implFormatValue
+  template impl(res, self, format_spec) =
+    res.formatValue(selfToNimType, format_spec)
+  implFormatValue T, impl
 
 template genFormat*(T){.dirty.} =
   bind handleFormatExc
