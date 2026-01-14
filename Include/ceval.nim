@@ -14,10 +14,24 @@ else:
     #Py_END_ALLOW_THREADS
 
 import ../Objects/typeobject/apis/attrs
+import ../Objects/pyobject_apis/strings
 import ../Objects/[
   pyobjectBase,
   stringobject,
 ]
+
+declareIntFlag PyFormatValueCode:
+  FVC_NONE      0x0
+  FVC_STR       0x1
+  FVC_REPR      0x2
+  FVC_ASCII     0x3
+
+
+type conversion_func = typeof PyObject_Str
+const PyEval_ConversionFuncs*: array[FVC_STR..FVC_ASCII, conversion_func] = [
+    PyObject_Str, PyObject_Repr, PyObject_ASCII
+]
+
 
 type
   PySpecialMethod = object

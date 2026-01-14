@@ -9,6 +9,8 @@ type
     DUP_TOP_TWO,
     ROT_FOUR,
     NOP,
+    FORMAT_SIMPLE,    # 12
+    FORMAT_WITH_SPEC,# 13
     UNARY_POSITIVE,
     UNARY_NEGATIVE,
     UNARY_NOT,
@@ -66,6 +68,8 @@ type
     HAVE_ARGUMENT,  # ----- following opcodes all have argument
     STORE_NAME,
     DELETE_NAME,
+    BUILD_INTERPOLATION, # 45
+    CONVERT_VALUE,  # 58
     UNPACK_SEQUENCE,
     FOR_ITER,
     UNPACK_EX,
