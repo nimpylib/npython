@@ -7,15 +7,15 @@ import compile
 import opcode
 import builtindict
 import ./[call, traceback]
-import ../Include/internal/pycore_global_strings
 import ../Include/ceval
+import ../Include/internal/pycore_global_strings
 import ../Objects/typeobject/apis/attrs
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
                    setobject, notimplementedobject, boolobjectImpl,
-                   exceptionsImpl,
+                   exceptionsImpl, stringobjectImpl, interpolationobject,
                    ]
-import ../Objects/abstract/[dunder, number,]
+import ../Objects/abstract/[dunder, number, format]
 import ../Utils/utils
 import ./[
   neval_frame,
@@ -510,6 +510,13 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             of OpCode.LoadName:
               unreachable("locals() scope not implemented")
 
+            of BuildString:
+              var args = newSeq[PyObject](opArg)
+              for i in countdown(opArg-1, 0):
+                args[i] = sPop()
+              let newStr = newPyAscii().join args
+              sPush newStr
+
             of OpCode.BuildTuple:
               var args = newSeq[PyObject](opArg)
               for i in countdown(opArg-1, 0):
@@ -719,7 +726,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               let obj = fastLocals[opArg]
               if obj.isNil:
                 let name = f.code.localVars[opArg]
-                let msg = fmt"local variable {name} referenced before assignment"
+                let msg = FormatPyObjectError!fmt"local variable {name} referenced before assignment"
                 let excp = newUnboundLocalError(newPyStr msg)
                 handleException(excp)
               sPush obj
@@ -880,6 +887,43 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               if slice.isThrownException:
                 handleException(slice)
               sSetTop slice
+            
+            of BuildInterpolation:
+              let conversion = opArg shr 2
+              let format_o = if (opArg and 1) != 0:
+                sPop()
+              else:
+                newPyAscii()
+              let
+                str = sPop()
+                value = sPop()
+              let res = newPyInterpolation(value, str, conversion, format_o)
+              if res.isThrownException:
+                handleException res
+              sPush res
+
+            of ConvertValue:
+              let op = PyFormatValueCode opArg
+              assert op in FVC_STR .. FVC_ASCII
+              let conv_fn = PyEval_ConversionFuncs[op]
+              let res = conv_fn(sPop())
+              if res.isThrownException:
+                handleException res
+              sPush res
+            
+            of FormatSimple:
+              let val = sTop()
+              if not val.ofExactPyStrObject:
+                let res = PyObject_Format(val, nil)
+                if res.isThrownException:
+                  handleException res
+                sSetTop res
+            of FormatWithSpec:
+              let spec = sPop()
+              let res = PyObject_Format(sTop(), spec)
+              if res.isThrownException:
+                handleException res
+              sSetTop res
 
             of OpCode.LoadClosure:
               sPush cellVars[opArg]
@@ -888,7 +932,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               let c = cellVars[opArg]
               if c.refObj.isNil:
                 let name = f.code.cellVars[opArg]
-                let msg = fmt"local variable {name} referenced before assignment"
+                let msg = FormatPyObjectError!fmt"local variable {name} referenced before assignment"
                 let excp = newUnboundLocalError(newPyStr(msg))
                 handleException(excp)
               sPush c.refObj
