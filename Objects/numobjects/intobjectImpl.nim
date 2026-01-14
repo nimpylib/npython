@@ -113,7 +113,7 @@ implIntMethod bit_length(): self.bit_length()
 implIntMethod bit_count(): self.bit_count()
 implIntMethod is_integer(): pyTrueObj
 
-proc formatValueInt(res: var string; self: PyIntObject, format_spec: string, spec: StandardFormatSpecifier) =
+proc formatValueInt(res: var string; self: PyIntObject, format_spec: string, spec: StandardFormatSpecifier){.raises: [FormatPyObjectError].} =
   var str: PyStrObject
   var s: string
   #TODO:NIMPYLIB
@@ -176,17 +176,21 @@ proc formatValueInt(res: var string; self: PyIntObject, format_spec: string, spe
       let exc = self.toStringCheckThreshold(s)
       if not exc.isNil:
         raisePyFormatExc exc
-      res.formatValue(s, sformat_spec)
+      handleValueErrorAsPyFormatExc:
+        res.formatValue(s, sformat_spec)
       return
 
     let exc = self.format_binary(base, spec.alternateForm, s)
     if not exc.isNil:
       raisePyFormatExc exc
-    res.formatValue(s, sformat_spec)
+    handleValueErrorAsPyFormatExc:
+      res.formatValue(s, sformat_spec)
 
-proc formatValue*(res: var string; self: PyIntObject, format_spec = "") =
-  handleValueErrorAsPyFormatExc:
-    let spec = format_spec.parseStandardFormatSpecifier
+template impl(res, self, format_spec) =
+    when format_spec is static:
+      const spec = format_spec.parseStandardFormatSpecifier
+    else:
+      let spec = format_spec.parseStandardFormatSpecifier
     case spec.typ
     of {'f', 'F', 'e', 'E', 'g', 'G', '%'}:
       var ovf: PyOverflowErrorObject
@@ -198,6 +202,7 @@ proc formatValue*(res: var string; self: PyIntObject, format_spec = "") =
     else:
       formatValueInt(res, self, format_spec, spec)
 
+implFormatValue int, impl
 genFormat int
 
 implIntMagic New(tp: PyObject, *actualArgs):

@@ -1022,7 +1022,7 @@ proc validate_keywords(c: Compiler, keywords: seq[Asdlkeyword]; baseAst: AstCall
     let name = kw.arg.value
     if has.containsOrIncl name:
       FormatPyObjectError!!raiseSyntaxError(
-        &"keyword argument repeated: {name:U}", baseAst)
+        &"keyword argument repeated: {name}", baseAst)
 
 compileMethod Call:
   let kwL = astNode.keywords.len
