@@ -78,9 +78,9 @@ const
               ("<>"        , "PEP401"),
   ]
 
-
+const text = slurp(grammarFileName)
 proc readGrammarToken: seq[string] {.compileTime.} = 
-  var textLines = slurp(grammarFileName).splitLines()
+  var textLines = text.splitLines()
   for line in textLines:
     if line.len == 0:
       continue
@@ -92,7 +92,6 @@ proc readGrammarToken: seq[string] {.compileTime.} =
 
 # everything inside pars
 proc readReserveName: HashSet[string] {.compileTime.} = 
-  let text = slurp(grammarFileName)
   result = initHashSet[string]()
   var idx = 0
   while idx < text.len:
@@ -122,7 +121,7 @@ macro genTokenType(tokenTypeName, boundaryName: untyped): untyped =
   var enumFields: seq[NimNode]
   enumFields.add(ident("NULLTOKEN"))
   for t in basicToken:
-    enumFields.add(ident(t[1]))
+    enumFields.add(nnkEnumFieldDef.newTree(ident(t[1]), newStrLitNode(t[0])))
   for t in reserveNameSet:
     enumFields.add(ident(t))
   enumFields.add(boundaryName)

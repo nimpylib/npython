@@ -1234,5 +1234,5 @@ proc compile*(input, fileName: PyStrObject|string, flags=initPyCompilerFlags(), 
     fileName, flags, optimize
 
 proc compile*(input: ParseNode, fileName: PyStrObject|string, flags=initPyCompilerFlags(), optimize = -1): PyObject{.raises: [].} =
-  compile ast(input),
+  compile ast(input, $fileName),
     fileName, flags, optimize

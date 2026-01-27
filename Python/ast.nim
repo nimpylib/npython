@@ -6,7 +6,7 @@ import typetraits
 import strformat
 
 import asdl
-import ../Parser/[token, parser]
+import ../Parser/[token, parser, lexer]
 import ../Objects/[pyobject, noneobject,
   numobjects, boolobjectImpl, stringobject, byteobjects,
   tupleobjectImpl,
@@ -14,6 +14,7 @@ import ../Objects/[pyobject, noneobject,
   ]
 import ../Utils/[utils, compat]
 
+var filename{.threadVar.}: string
 
 template raiseSyntaxError*(msg: string, astNode: untyped) = 
   raiseSyntaxError(msg, "", astNode.lineNo.value, astNode.colOffset.value)
@@ -1231,12 +1232,46 @@ ast fstring_replacement_field, [Asdlexpr]:
     name: AstConstant
     conversion: AsdlInt
     format_specs: AstJoinedStr
-    isInterp = false
+    has_debug_text = false
   let mayNameNode = curNode()
-  isInterp = mayNameNode.tokenNode.token == Token.Equal
-  if isInterp:
-    let expr_value = $value  #TODO:fstring:= this is not correct
-    name = newAstConstantWithNoFrom(newPyStr(expr_value & '='), mayNameNode)
+  has_debug_text = mayNameNode.tokenNode.token == Token.Equal
+  if has_debug_text:
+    type Info = tuple[lineNo: int, colNo: int]
+    proc getStart(n: ParseNode): Info =
+      if n.tokenNode.token.isTerminator:
+        return (n.tokenNode.lineNo, n.tokenNode.colNo - 1)
+      return getStart(n.children[0])
+    proc getStop(n: ParseNode): Info =
+      if n.tokenNode.token.isTerminator:
+        let L = if n.tokenNode.token in contentTokenSet: n.tokenNode.content.len
+        else: len $n.tokenNode.token
+        return (n.tokenNode.lineNo, n.tokenNode.colNo + L)
+      return getStop(n.children[^1])
+    let
+      start = valueNode.getStart
+      stop  = valueNode.getStop
+    var expr_value: string
+    var to_add = ""
+    var startCol = start.colNo + 1 # XXX: `+ 1` to skip '{'
+    for i in start.lineNo .. stop.lineNo:
+      var cur: string
+      case getSource(filename, i, cur)
+      of GSR_LineNoOutOfRange: unreachable
+      of GSR_NoSuchFile, GSR_LineNoNotSet:
+        expr_value.add fmt"<source unavailable: {filename}:{i}>"
+        #FIXME:fstring:=
+      of GSR_Success:
+        let stopCol = if i < stop.lineNo:
+          cur.len
+        else:
+          stop.colNo
+        expr_value.add cur.substr(startCol, stopCol - 1)
+      expr_value.add to_add
+      startCol = 0
+      to_add = "\n"
+    #let expr_value = $value
+    expr_value.add '='
+    name = newAstConstantWithNoFrom(newPyStr(expr_value), mayNameNode)
     step()
   if curNode().tokenNode.token == Token.Exclamation:
     let s = nextNode().tokenNode.content
@@ -1262,7 +1297,7 @@ ast fstring_replacement_field, [Asdlexpr]:
   res.format_spec = format_specs
   setNo(res, parseNode.children[0])
   result = res
-  if isInterp:
+  if has_debug_text:
     let val = newAstJoinedStr()
     val.values = @[Asdlexpr name, result]
     setNo(val, mayNameNode)
@@ -1704,7 +1739,8 @@ ast encoding_decl:
   
 ]#
 
-proc ast*(root: ParseNode): AsdlModl = 
+proc ast*(root: ParseNode, tfileName: string): AsdlModl = 
+  filename = tfileName
   case root.tokenNode.token
   of Token.file_input:
     result = astFileInput(root)
@@ -1714,13 +1750,13 @@ proc ast*(root: ParseNode): AsdlModl =
     unreachable  # currently no eval mode
   else:
     unreachable
-  when defined(debug):
+  when defined(debug_ast):
     echo result
 
 proc ast*(input, fileName: string): AsdlModl{.raises: [SyntaxError].} =
   let root = parse(input, fileName)
   try:
-    result = ast(root)
+    result = ast(root, fileName)
   except SyntaxError as e:
     e.fileName = fileName
     raise e
