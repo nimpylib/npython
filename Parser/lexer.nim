@@ -127,23 +127,55 @@ proc eatTripleQuote(line: openArray[char], idx: var int, pairingChar: char): boo
     #[0.isPairOff and ]#1.isPairOff and 2.isPairOff
   if result: idx.inc 3
 
-proc feedTripleStrContent(lexer: Lexer, line: string, idx: var int): TokenNode =
+using mode: Mode
+proc lexFString(
+    lexer: Lexer, 
+    line: string, 
+    idx: var int, mode; the_current_tok: tokenizer_mode): TokenNode {.raises: [SyntaxError].}
+  ## .. note:: Currently assert `line[idx-1]` (not `line[idx]`) is to be token F/TStringStart
+  ## returns F/TStringEnd, or nil if more lines are needed
+
+proc feedTripleStrContent(lexer: Lexer, line: string, idx: var int, mode): TokenNode =
   assert lexer.tripleStr.within
 
   let last = idx + line.skipUntil(lexer.tripleStr.quote, idx)
   let start = idx
+  var isFStringLike = false
   template pushTill(i) =
-    let s = lexer.tripleStr.escape(line[start..<i])
-    lexer.tripleStr.val.add s
+    let p = lexer.tripleStr.escape
+    isFStringLike = p.isNil
+    if isFStringLike: # asIs
+      lexer.tripleStr.val.add line[start..<i]
+    else:
+      let s = lexer.tripleStr.escape(line[start..<i])
+      lexer.tripleStr.val.add s
   if last != line.len:
-    if (idx=last; eatTripleQuote(line, idx, lexer.tripleStr.quote)):
+    let quote = lexer.tripleStr.quote
+    if (idx=last; eatTripleQuote(line, idx, quote)):
       # if found ending triple quote in the same line
       pushTill last
-      result = newTokenNode(
+      result = if isFStringLike:
+        var tok_mode = new_tokenizer_mode(TOK_FSTRING_MODE, quote, 3, lexer.tripleStr.raw,
+          case lexer.tripleStr.tokenKind:
+          of FStringStart: FSTRING
+          of TStringStart: TSTRING
+          else: unreachable
+        )
+        #FIXME:fstring: multi-line f-string
+        tok_mode.start = lexer.tripleStr.start.lineNo
+        tok_mode.multi_line_start = lexer.tripleStr.start.lineNo
+        tok_mode.start_offset = lexer.tripleStr.start.colNo
+        tok_mode.multi_line_start_offset = lexer.tripleStr.start.colNo
+        var i = 0 #lexer.tripleStr.start.colNo
+        for _ in 1..3:
+          lexer.tripleStr.val.add quote  # restore ending quotes
+        lexer.lexFString(lexer.tripleStr.val, i, mode, tok_mode)
+      else: newTokenNode(
         lexer.tripleStr.tokenKind,
         lexer.tripleStr.start.lineNo,
         lexer.tripleStr.start.colNo,
         lexer.tripleStr.val)
+      
       lexer.tripleStr.within = false
       lexer.tripleStr.val.setLen 0
       return
@@ -164,15 +196,46 @@ proc feedTripleStrContent(lexer: Lexer, line: string, idx: var int): TokenNode =
   idx = line.len
   lexer.tripleStr.val.add '\n'  # all newline in triple string are normalized to NL
 
-proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline, raises: [SyntaxError].} 
+proc eatStartTripleQuote(lexer: Lexer, line: openArray[char], idx: var int, pairingChar: char, tok: Token,
+  raw: bool,
+  prc: LexerEscaper,
+): bool =
+  result = eatTripleQuote(line, idx, pairingChar)
+  if result:
+    lexer.tripleStr.raw = raw
+    lexer.tripleStr.escape = prc
+    lexer.tripleStr.tokenKind = tok
+    lexer.tripleStr.quote = pairingChar
+    lexer.tripleStr.within = true
+    lexer.tripleStr.start = (lexer.lineNo, idx)
+
+template withLexTripleQuoteString(lexer: Lexer, line: openArray[char], idx: var int, pairingChar: char,
+    tok: Token, raw: bool,
+    prc: LexerEscaper,
+    result: var TokenNode,
+    ) =
+  if lexer.eatStartTripleQuote(line, idx, pairingChar, tok, raw, prc):
+    result = lexer.feedTripleStrContent(line, idx, mode)
+    return result
+  else:
+    assert line[idx] == pairingChar
+    idx.inc
+
 
 template raiseSyntaxError(msg: string) = 
   # fileName set elsewhere
   raiseSyntaxError(msg, lexer.fileName, lexer.lineNo, idx)
 
-template getStr(str): TokenNode =
-  newTokenNode(Token.FStringMiddle, lexer.lineNo, idx,
-    if the_current_tok.raw: str else: lexer.decode_unicode_with_escapes str)
+template mapStr(str; isRaw): untyped =
+  if isRaw: str else: lexer.decode_unicode_with_escapes str
+
+template genStrMapper(name; isRaw) {.dirty.} =
+  proc name(str: string): string =
+    when isRaw: str else: lexer.decode_unicode_with_escapes str
+
+template getStr(str): TokenNode = newTokenNode(Token.FStringMiddle, lexer.lineNo, idx,
+  mapStr(str, the_current_tok.raw))
+
 template retStr(str) =
   return getStr(str)
 
@@ -180,8 +243,10 @@ const
   LBrace = '{'
   RBrace = '}'
 
-template TODO_multi_fstring =
-  unreachable "not impl multi-line f-string"  #TODO:fstring
+func sfmt(msg: string, the_current_tok: tokenizer_mode): string{.raises: [].} =
+  ValueError!(msg % (if the_current_tok.string_kind == FSTRING: "f-string" else: "t-string"))
+template raiseFTSyntaxError(msg: string) =
+  raiseSyntaxError sfmt(msg, the_current_tok)
 
 template newTokenNodeWithNo(Tk): TokenNode = 
     newTokenNode(Token.Tk, lexer.lineNo, idx)
@@ -190,6 +255,14 @@ proc lexFStringInExpr(lexer: Lexer, line: string, idx: var int, mode: Mode, the_
   ## lex expression in f-string before the closing '}'
   ## 
   ## returns Rbrace token when '}' is found, or nil if more lines are needed
+
+# adjust implicit continuation nesting for (), [], {}
+template incParenLevel = lexer.parenLevel.inc
+template incParenLevel(i) = lexer.parenLevel.inc i
+template decParenLevel =
+  if lexer.parenLevel <= 0:
+    raiseSyntaxError "unmatched closing bracket"
+  lexer.parenLevel.dec
 
 proc lexFStringMiddleOrMiddleAndExpr(lexer: Lexer, line: string, idx: var int, mode: Mode, the_current_tok: tokenizer_mode): TokenNode =
   var s: string
@@ -215,6 +288,7 @@ proc lexFStringMiddleOrMiddleAndExpr(lexer: Lexer, line: string, idx: var int, m
     of LBrace:
       handleDupBraceOr LBrace:
         # start `{ ... }`
+        incParenLevel
         lexer.withNextMode:
           it.quote_size = the_current_tok.quote_size
           it.quote = the_current_tok.quote
@@ -222,14 +296,14 @@ proc lexFStringMiddleOrMiddleAndExpr(lexer: Lexer, line: string, idx: var int, m
           it.enter_FSTRING_EXPR
           assert line[idx] == LBrace
           idx.inc
-          it.start = idx
+          it.start_offset = idx
         lexer.add getStr s
         lexer.add newTokenNodeWithNo(Lbrace)
         return lexer.lexFStringInExpr(line, idx, mode, lexer.getMode())
     of RBrace:
       handleDupBraceOr RBrace:
         # `xxx}xxx`
-        #TODO:fstring: is this prediction right?
+        decParenLevel
         if lexer.getMode().curly_bracket_expr_start_depth == 0:
           # end of `{ ... }` when `:` occurs within f-string expression
           lexer.getMode().curly_bracket_expr_start_depth.dec
@@ -237,7 +311,7 @@ proc lexFStringMiddleOrMiddleAndExpr(lexer: Lexer, line: string, idx: var int, m
           lexer.add getStr s
           return newTokenNodeWithNo(Rbrace)
         else:
-          raiseSyntaxError "f-string: single '}' is not allowed"
+          raiseFTSyntaxError "$#: single '}' is not allowed"
     of '\'', '"':
       if the_current_tok.quote != c:
         s.add c
@@ -251,13 +325,15 @@ proc lexFStringMiddleOrMiddleAndExpr(lexer: Lexer, line: string, idx: var int, m
             continue
         if the_current_tok.quote_size == 1:
           idx.inc
-          lexer.add getStr s
-          return
-            if the_current_tok.string_kind == FSTRING: newTokenNodeWithNo(FStringEnd)
-            else: newTokenNodeWithNo(TStringEnd)
         else:
           assert the_current_tok.quote_size == 3
-          TODO_multi_fstring
+          # triple f-string is also handled in feedTripleStrContent
+          if not eatTripleQuote(line, idx, c):
+            raiseFTSyntaxError "unterminated triple-quoted $# literal"
+        lexer.add getStr s
+        return
+          if the_current_tok.string_kind == FSTRING: newTokenNodeWithNo(FStringEnd)
+          else: newTokenNodeWithNo(TStringEnd)
     else:
       s.add c
     idx.inc
@@ -273,6 +349,8 @@ proc getNextToken(
   lexer: Lexer, 
   line: string, 
   idx: var int, mode: Mode): TokenNode {. raises: [SyntaxError] .} =
+  if lexer.tripleStr.within:
+    return lexer.feedTripleStrContent(line, idx, mode)
   lexer.getNextTokenImpl(line, idx, mode, fstring_mode = false)
 
 proc lexFStringInExpr(lexer: Lexer, line: string, idx: var int, mode: Mode, the_current_tok: tokenizer_mode): TokenNode =
@@ -291,7 +369,7 @@ proc lexFStringInExpr(lexer: Lexer, line: string, idx: var int, mode: Mode, the_
     of Rpar: paren.dec
     of Lsqb: bracket.inc
     of Rsqb: bracket.dec
-    #TODO:fstring: curly count is right?
+    #FIXME:fstring: curly count is right?
     of Token.Lbrace:
       braceCnt.inc
     of Token.Rbrace:
@@ -308,31 +386,32 @@ proc lexFStringInExpr(lexer: Lexer, line: string, idx: var int, mode: Mode, the_
         return lexer.lexFStringMiddleOrMiddleAndExpr(line, idx, mode, the_current_tok)
     of lambda:
       if paren == 0 and bracket == 0 and braceCnt == 0:
-        raiseSyntaxError "f-string: lambda expressions are not allowed without parentheses"
+        raiseFTSyntaxError "$#: lambda expressions are not allowed without parentheses"
     else: discard
     lexer.add ntok
 
-  if the_current_tok.quote_size == 3:
-    TODO_multi_fstring
-  unreachable "shall not reach here"
+  incParenLevel paren + bracket + braceCnt
 
 proc lexFString(
     lexer: Lexer, 
     line: string, 
-    idx: var int, mode: Mode, tok_mode: tokenizer_mode): TokenNode =
-  ## assuming F/TStringStart has already been added to lexer
-  ## returns F/TStringEnd, or nil if more lines are needed
+    idx: var int, mode: Mode, the_current_tok: tokenizer_mode): TokenNode =
+  # doc is forward-declared
   #assert INSIDE_FSTRING(lexer)
-  assert lexer.tokenNodes[^1].token in {FStringStart, TStringStart}
+  #assert lexer[idx] in {FStringStart, TStringStart}
+  lexer.add if (the_current_tok.string_kind == string_kind_t.FSTRING): newTokenNodeWithNo FStringStart
+    else: newTokenNodeWithNo TStringStart
   while idx < line.len:
-    let res = lexer.lexFStringMiddleOrMiddleAndExpr(line, idx, mode, tok_mode)
-    assert not res.isNil
+    let res = lexer.lexFStringMiddleOrMiddleAndExpr(line, idx, mode, the_current_tok)
+    if res.isNil:
+      assert idx == line.len
+      return
     if res.token in {FStringEnd, TStringEnd}:
       return res
     else:
       lexer.add res
   if not lexer.cont:
-    raiseSyntaxError "unterminated f-string literal"
+    raiseFTSyntaxError "unterminated $# literal"
 
 # the function can probably be generated by a macro...
 proc getNextTokenImpl(
@@ -343,8 +422,6 @@ proc getNextTokenImpl(
   ## 
   ## Current for f-string's expression,
   ##  it returns the last FStringEnd or TStringEnd and store preceding tokens in `lexer`
-  if lexer.tripleStr.within:
-    return lexer.feedTripleStrContent(line, idx)
 
   template addToken(tokenName) =
     var content: string
@@ -372,19 +449,13 @@ proc getNextTokenImpl(
   template addId =
     addToken(Name)
 
-  template asIs(x): untyped = x  
-  template addStringImpl(pairingChar: char, isRaw: bool, escaper: untyped, tok=Token.String) =
+  template addString(pairingChar: char, tok=Token.String, isRaw: bool = false) =
     ## PY-DIFF: We use different Token for bytes and str, for s as a String/Bytes Token,
     ##  `s` is translated content (e.g. `r'\n'` translated to Newline Char),
     ##  unlike CPython only has String Token and `s[0]` is prefix and `s[1]` is quotation mark, as it's no need to check again
-    if eatTripleQuote(line, idx, pairingChar):
-      lexer.tripleStr.quote = pairingChar
-      lexer.tripleStr.within = true
-      lexer.tripleStr.tokenKind = tok
-      lexer.tripleStr.escape = (proc(s: string): string = escaper(s))
-      lexer.tripleStr.start = (lexer.lineNo, idx)
-      return lexer.feedTripleStrContent(line, idx)
-    idx.inc
+    genStrMapper prc, isRaw
+    withLexTripleQuoteString(lexer, line, idx, pairingChar, tok, isRaw, prc, result)
+
     var last = idx
     while true:
       last += line.skipUntil(pairingChar, last)
@@ -397,39 +468,27 @@ proc getNextTokenImpl(
             last.inc  # avoid treating \' or \" as ending quote
           else:
             break
-    let s = escaper(line[idx..<last])
+    let s = prc(line[idx..<last])
     result = newTokenNode(tok, lexer.lineNo, idx, s)
     idx = last
     idx.inc  # skip ending pairingChar
 
-  template addString(pairingChar: char, tok=Token.String) =
-    addStringImpl(pairingChar, false,
-      lexer.decode_unicode_with_escapes,
-      tok)
-  template addRawString(pairingChar: char, tok=Token.String) =
-    addStringImpl(pairingChar, true, asIs, tok)
-
-
   template retFString(strkind: string_kind_t, traw: bool) =
-    var quote_size = 1
-    if eatTripleQuote(line, idx, quote):
-      quote_size = 3
-    else:
-      idx.inc
-    
-    var tok_mode = new_tokenizer_mode(TOK_FSTRING_MODE)
+    let quote_size = 1
+    withLexTripleQuoteString(lexer, line, idx, quote,
+        if strkind == FSTRING: Token.FStringStart
+        else: Token.TStringStart
+        ,
+      traw, nil, result)
 
-    tok_mode.quote = quote
-    tok_mode.quote_size = quote_size
-    tok_mode.raw = traw
-    tok_mode.string_kind = strkind
+    var tok_mode = new_tokenizer_mode(TOK_FSTRING_MODE, quote, quote_size,
+      traw, strkind,
+    )
 
-    tok_mode.start = idx
-    tok_mode.multi_line_start = idx #FIXME
+    tok_mode.start_offset = idx
+    tok_mode.multi_line_start_offset = idx #FIXME
     tok_mode.first_line = lexer.lineNo
 
-    lexer.add if (strkind == string_kind_t.FSTRING): newTokenNodeWithNo FStringStart
-      else: newTokenNodeWithNo TStringStart
     return lexer.lexFString(line, idx, mode, tok_mode)
   while true: # Only for empty between tokens
     let curChar = line[idx]
@@ -456,7 +515,7 @@ proc getNextTokenImpl(
         idx += 1
         case prefix
         of BPrefix: addString quote, Token.Bytes
-        of RPrefix: addRawString quote
+        of RPrefix: addString quote, isRaw = true
         of FPrefix:
           retFString FSTRING, false
         else: addString quote
@@ -470,7 +529,7 @@ proc getNextTokenImpl(
               idx += 2
               doSth
           chk BPrefix:
-            addRawString quote, Token.Bytes
+            addString quote, Token.Bytes, isRaw = true
             break ChkPrefix
           chk FPrefix:
             retFString FSTRING, true
@@ -486,12 +545,16 @@ proc getNextTokenImpl(
       result = newTokenNodeWithNo(Newline)
       idx += 1
     of '(':
+      incParenLevel
       addSingleCharToken(Lpar)
     of ')':
+      decParenLevel
       addSingleCharToken(Rpar)
     of '[':
+      incParenLevel
       addSingleCharToken(Lsqb)
     of ']':
+      decParenLevel
       addSingleCharToken(Rsqb)
     of ':':
       addSingleCharToken(Colon)
@@ -577,8 +640,10 @@ proc getNextTokenImpl(
     of '%':
       addSingleOrDoubleCharToken(Percent, PercentEqual, '=')
     of '{':
+      incParenLevel
       addSingleCharToken(Lbrace)
     of '}':
+      decParenLevel
       addSingleCharToken(Rbrace)
     of '!':
       if tailing('='):
@@ -610,7 +675,7 @@ proc getNextTokenImpl(
   assert (not result.isNil) or lexer.cont
 
 
-proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline.} = 
+proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline, raises: [SyntaxError].} = 
   # Process one line at a time
   assert line.find('\n') == -1
   var line = line
@@ -663,13 +728,6 @@ proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline.} =
     let tok = getNextToken(lexer, line, idx, mode)
     if tok.isNil:
       continue
-    # adjust implicit continuation nesting for (), [], {}
-    case tok.token
-    of Token.Lpar, Token.Lsqb, Token.Lbrace:
-      lexer.parenLevel.inc
-    of Token.Rpar, Token.Rsqb, Token.Rbrace:
-      if lexer.parenLevel > 0: lexer.parenLevel.dec
-    else: discard
     lexer.add(tok)
   if not lexer.cont:
     lexer.add(Token.NEWLINE, idx)
