@@ -102,7 +102,7 @@ proc run_parser_from_file_pointer(fp; mode: Mode, filename_obj: PyStrObject; enc
   interactiveHandleErrcode
 
   try:
-    res = ast(rootCst) #TODO:flags
+    res = ast(rootCst, $filename_obj) #TODO:flags
   except SyntaxError as e:
     return mayNewPromise fromBltinSyntaxError(e, filename_obj)
   result
@@ -118,10 +118,11 @@ proc run_parser_from_string(str: string; mode: Mode, filename_obj: PyStrObject; 
     ): PyBaseErrorObject  =
 
   #pymain_header()
-  let rootCst = wrapSynErr(filename_obj, parse(str, $fileName_obj, mode))
+  let filename = $filename_obj
+  let rootCst = wrapSynErr(filename_obj, parse(str, filename, mode))
 
   wrapSynErr filename_obj:
-    res = ast(rootCst) #TODO:flags
+    res = ast(rootCst, filename) #TODO:flags
 
 proc run_parser_from_file_pointer(fp; mode: Mode, filename_obj: PyStrObject; enc: string, flags: PyCompilerFlags,
     errcode: var ParseErrorcode,
