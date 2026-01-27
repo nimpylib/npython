@@ -3,11 +3,15 @@ def f():
    "bdc"
 
 assert f() == "asdbdc"
+
+
 assert("""123
-""" == "123\n")
+b
+ 5""" == "123\nb\n 5")
 
 assert("""123\
-456""" == "123456")
+456
+ abc""" == "123456\n abc")
 
 assert [
   1,2,
