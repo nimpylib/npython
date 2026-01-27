@@ -408,10 +408,8 @@ proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline.} =
   # ignore indentation changes for this physical line.
   if lexer.cont:
     lexer.metContChar = false
-    # skip leading spaces/tabs but do not alter indent stack
-    idx += line.skipWhile({' ', '\t', '\v'}, idx)
-    if idx == line.len or line[idx] == '#':
-      return
+    # XXX: do not skip leading spaces/tabs but do not alter indent stack,
+    #  in case of multiline string literals
   else:
     # Calculate the indentation level based on spaces and tabs
     while idx < line.len:
