@@ -70,6 +70,7 @@ type
       val: string,
       quote: char, # ' or "
       tokenKind: Token,  # String or Bytes
+      raw: bool,
       escape: LexerEscaper,
       start: tuple[
         lineNo, colNo: int,
@@ -88,6 +89,14 @@ proc new_tokenizer_mode*(kind: tokenizer_mode_kind_t): tokenizer_mode{.inline.} 
     result.multi_line_start_offset = -1
 
     result.last_expr_end = -1
+proc new_tokenizer_mode*(kind: tokenizer_mode_kind_t, quote: char, quote_size: int,
+    raw: bool, strkind: string_kind_t): tokenizer_mode{.inline.} =
+  result = new_tokenizer_mode(kind)
+  result.quote = quote
+  result.quote_size = quote_size
+  result.string_kind = strkind
+  result.raw = raw
+
 proc asNextMode(lexer; m: tokenizer_mode) =
   ## TOK_NEXT_MODE
   #result = tokenizer_mode()
