@@ -30,8 +30,15 @@ type
     quote_size*: int
     raw*: bool
 
-    curly_bracket_depth*,
-      curly_bracket_expr_start_depth*: int
+    curly_bracket_depth*,  ##[number of unmatched {, unconditional,
+      e.g. including those in nested f-strings like f"{ {1} }" -> '{1}'
+      ]##
+      curly_bracket_expr_start_depth*: int  ##[
+        depth of f-string expression start, -1 if not in f-string expression
+        only affected by the `{`, `}` that starts or ends f-string expressions
+
+        So `>= 0` if in f-string expression
+      ]##
     start*, multi_line_start*: int
     first_line*: int
 
@@ -45,7 +52,7 @@ type
       in_debug*: bool
     # int in_format_spec;
 
-    string_kind: string_kind_t
+    string_kind*: string_kind_t
 
   LexerEscaper* = proc (s: string): string{.raises: [SyntaxError].}
   Lexer* = ref object
@@ -68,12 +75,19 @@ type
         lineNo, colNo: int,
       ]
     ]  ## is handling triple string (multiline string)
-    tok_mode_stack*: seq[tokenizer_mode] #= @[tokenizer_mode()] # array[MAXFSTRINGLEVEL, tokenizer_mode]
+    tok_mode_stack: seq[tokenizer_mode] #= @[tokenizer_mode()] # array[MAXFSTRINGLEVEL, tokenizer_mode]
 
 using lexer: Lexer
 {.push inline.}
 proc getMode*(lexer): var tokenizer_mode = lexer.tok_mode_stack[^1]  ## TOK_GET_MODE
-proc new_tokenizer_mode: tokenizer_mode{.inline.} = discard
+proc new_tokenizer_mode*(kind: tokenizer_mode_kind_t): tokenizer_mode{.inline.} =
+    result.kind = kind
+    result.curly_bracket_depth = 0
+    result.curly_bracket_expr_start_depth = -1
+    result.start_offset = -1
+    result.multi_line_start_offset = -1
+
+    result.last_expr_end = -1
 proc asNextMode(lexer; m: tokenizer_mode) =
   ## TOK_NEXT_MODE
   #result = tokenizer_mode()
@@ -84,7 +98,7 @@ proc popMode*(lexer): tokenizer_mode =
 template withNextMode*(lexer; it; doWithIt) =
   bind new_tokenizer_mode, asNextMode
   block:
-    var it{.inject.} = new_tokenizer_mode()
+    var it{.inject.} = new_tokenizer_mode(TOK_FSTRING_MODE)
     doWithIt
     lexer.asNextMode it
 template withNextMode*(lexer; doWithIt) =
@@ -92,9 +106,12 @@ template withNextMode*(lexer; doWithIt) =
 
 
 template INSIDE_FSTRING*(lexer: Lexer): bool = lexer.tok_mode_stack.len > 0
+template enter_FSTRING_EXPR*(tok: tokenizer_mode) = tok.curly_bracket_expr_start_depth = 0
 template INSIDE_FSTRING_EXPR*(tok: tokenizer_mode): bool = tok.curly_bracket_expr_start_depth >= 0
 template INSIDE_FSTRING_EXPR_AT_TOP*(tok: tokenizer_mode): bool =
     (tok.curly_bracket_depth - tok.curly_bracket_expr_start_depth == 1)
+func withinFStringExpr*(tok: tokenizer_mode): bool =
+  tok.curly_bracket_depth - tok.curly_bracket_expr_start_depth == 0
 
 
 proc parseModeEnum*(s: string, res: var Mode): bool =
