@@ -447,6 +447,9 @@ compileMethod Interactive:
   c.interactive = true
   c.compileSeq(astNode.body)
 
+compileMethod Expression:
+  c.compile(astNode.body)
+  c.addOp(newInstr(OpCode.ReturnValue, astNode.body.lineNo.value))
 
 proc compileArguments(c: Compiler; astNode: auto; argsNode: AstArguments,
                       codeName: PyStrObject): int =

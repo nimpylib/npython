@@ -213,6 +213,9 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
     elif astNode of AstInteractive:
       ste.kind = SteKind.Module
       addBodies(AstInteractive)
+    elif astNode of AstExpression:
+      ste.kind = SteKind.Module #TODO:eval: right?
+      visit AstExpression(astNode).body
     elif astNode of AstFunctionDef:
       ste.kind = SteKind.Function
       # deal with function args

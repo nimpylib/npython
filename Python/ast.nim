@@ -320,11 +320,18 @@ ast file_input, [AstModule]:
     if child.tokenNode.token == Token.stmt:
       result.body.addCompat astStmt(child)
 
-#[
-ast eval_input, []:
-  discard
-  
-]#
+# eval_input: testlist NEWLINE* ENDMARKER
+ast eval_input, [AstExpression]:
+  result = newAstExpression()
+  let child = parseNode.children[0]
+  if child.tokenNode.token != Token.testlist:
+    raiseSyntaxError("expected testlist in eval input", child)
+  let e = astTestlist(child)
+  result.body = e
+  for i in 1..<parseNode.children.len:
+    let child = parseNode.children[i]
+    if child.tokenNode.token not_in {Token.NEWLINE, Token.ENDMARKER}:
+      raiseSyntaxError("unexpected token in eval input", child)
 
 # decorator: '@' dotted_name [ '(' [arglist] ')' ] NEWLINE
 ast decorator, [AsdlExpr]:
@@ -1747,7 +1754,7 @@ proc ast*(root: ParseNode, tfileName: string): AsdlModl =
   of Token.single_input:
     result = astSingleInput(root)
   of Token.eval_input:
-    unreachable  # currently no eval mode
+    result = astEvalInput(root)
   else:
     unreachable
   when defined(debug_ast):

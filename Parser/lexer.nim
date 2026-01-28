@@ -733,8 +733,6 @@ proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline, raises: [Synta
     lexer.add(Token.NEWLINE, idx)
 
 proc lexString*(lexer: Lexer, input: string, mode=Mode.File) = 
-  assert mode != Mode.Eval # eval not tested
-
   # interactive mode and an empty line
   if mode == Mode.Single and input.len == 0 and not lexer.tripleStr.within:
     lexer.dedentAll
