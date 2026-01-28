@@ -852,12 +852,12 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               var closure: PyObject = nil
               if (opArg and 16) != 0:
                 varargName = sPop()
+              if (opArg and 8) != 0:
+                closure = sPop()
               if (opArg and 1) != 0:
                 defaults = sPop()
               if (opArg and 2) != 0:
                 kwDefaults = sPop()
-              if (opArg and 8) != 0:
-                closure = sPop()
               let funObj = newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals, PyTupleObject(closure), PyTupleObject(defaults))
               if not varargName.isNil:
                 funObj.code.varArgName = PyStrObject(varargName)

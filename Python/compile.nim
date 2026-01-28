@@ -456,18 +456,18 @@ proc compileArguments(c: Compiler; astNode: auto; argsNode: AstArguments,
   # compile kw-only defaults first, then positional defaults; both evaluated in defining scope before MakeFunction
   var extraFlags = 0
   # maybe allows disable complex function def
-  when compiles(argsNode.kw_defaults):
-    if argsNode.kw_defaults.len > 0:
-      for defExpr in argsNode.kw_defaults:
-        c.compile(defExpr)
-      c.addOp(newArgInstr(OpCode.BuildTuple, argsNode.kw_defaults.len, astNode.lineNo.value))
-      extraFlags = extraFlags or 2
   when compiles(argsNode.defaults):
     if argsNode.defaults.len > 0:
       for defExpr in argsNode.defaults:
         c.compile(defExpr)
       c.addOp(newArgInstr(OpCode.BuildTuple, argsNode.defaults.len, astNode.lineNo.value))
       extraFlags = extraFlags or 1
+  when compiles(argsNode.kw_defaults):
+    if argsNode.kw_defaults.len > 0:
+      for defExpr in argsNode.kw_defaults:
+        c.compile(defExpr)
+      c.addOp(newArgInstr(OpCode.BuildTuple, argsNode.kw_defaults.len, astNode.lineNo.value))
+      extraFlags = extraFlags or 2
   extraFlags
 
 template compileFuncWithBody(name, lineNo, compileBody) =
