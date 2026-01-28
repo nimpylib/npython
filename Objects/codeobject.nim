@@ -39,10 +39,16 @@ declarePyType Code(tpToken):
     code_len_when_last_cached{.private.}: int
 
     #TODO:code.co_flags
-    flags: int  # no use yet
+    flags{.member"co_flags", readonly.}: int  # no use yet
 
-proc argCount*(self: PyCodeObject): int{.inline.} = self.argScopes.len
-genProperty Code, "co_argcount", argcount, newPyInt self.argCount
+template genIntGetter(pureName, seqAttr){.dirty.} =
+  proc pureName*(self: PyCodeObject): int{.inline.} = self.seqAttr.len
+  genProperty Code, "co_" & astToStr(pureName), pureName, newPyInt self.pureName
+
+genIntGetter argcount, argScopes
+genIntGetter kwonlyargcount, kwOnlyNames
+genIntGetter nlocals, localVars
+
 proc firstlineno*(self: PyCodeObject): int{.inline.} =
   # Needed?
   #if self.lineNos.len == 0: return 0
