@@ -23,7 +23,9 @@ impExp pythonrun,
 using flags: PyCompilerFlags
 using fp: fileio.File
 using filename: PyStrObject
-using globals, locals: PyDictObject
+using
+  globals: PyDictObject
+  locals: PyObject
 
 #var interp = (interactive_src_count: 0)
 
@@ -54,8 +56,8 @@ template run_modAux(interactive: static bool): untyped{.dirty.} =
 using modu: AsdlModl
 using pmod: var AsdlModl
 
-proc run_mod(modu; filename; globals; locals: PyDictObject; flags; interactive_src: PyStrObject, generate_new_source=true): PyObject = run_modAux true
-proc run_mod(modu; filename; globals; locals: PyDictObject; flags): PyObject = run_modAux false
+proc run_mod(modu; filename; globals; locals; flags; interactive_src: PyStrObject, generate_new_source=true): PyObject = run_modAux true
+proc run_mod(modu; filename; globals; locals; flags): PyObject = run_modAux false
 
 using errcode: var ParseErrorcode
 

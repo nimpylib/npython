@@ -14,6 +14,13 @@ import ../Objects/[pyobject,
 import ../Utils/[
   utils,
 ]
+#TODO:interpreters
+var gFrame{.threadVar.}: PyFrameObject
+proc PyEval_GetFrame*(): PyFrameObject = gFrame
+proc PyEval_GetGlobals*: PyObject =
+  if gFrame.isNil: nil
+  else: gFrame.globals
+
 proc newPyFrame*(fun: PyFunctionObject, 
                  args: openArray[PyObject], 
                  back: PyFrameObject): PyObject{.raises: [].}
@@ -45,6 +52,7 @@ proc newPyFrame*(fun: PyFunctionObject,
               fmt"{code.argNames[^diff..^1]}. {provided} args are given."
     return newTypeError(newPyStr(msg))
   let frame = newPyFrame()
+  gFrame = frame
   frame.back = back
   frame.code = code
   frame.globals = fun.globals

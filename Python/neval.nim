@@ -1009,17 +1009,48 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   finally:
     cleanUp()
 
+template TODO_locals*(locals) =
+  #TODO:locals
+  if not locals.isNil:
+    assert system.`==`(PyObject globals, locals), "locals() scope not implemented yet"
 
 # interfaces to upper level
-proc runCode*(co: PyCodeObject, globals = newPyDict()): PyObject = 
+proc runCode*(co: PyCodeObject, globals = newPyDict(), locals: PyObject = nil): PyObject = 
   when defined(debug):
     echo co
   let fun = newPyFunc(co.codeName, co, globals)
   let f = newPyFrame(fun)
+  TODO_locals locals
   f.evalFrame
 
-proc evalCode*(co: PyCodeObject; globals = newPyDict(), locals: PyDictObject = nil): PyObject =
+proc evalCode*(co: PyCodeObject; globals = newPyDict(), locals: PyObject = nil): PyObject =
   ## PyEval_EvalCode
-  if not locals.isNil:
-    assert system.`==`(globals, locals), "Currently, locals must be literal equal to globals"
-  co.runCode globals
+  var locals = locals
+  if locals.isNil:
+    locals = globals
+  co.runCode globals, locals
+
+proc evalCode*(co: PyCodeObject, globals = newPyDict(), locals: PyObject = nil, closure: PyObject): PyObject =
+  # PyEval_EvalCodeEx
+  var locals = locals
+  if locals.isNil:
+    locals = globals
+
+  let fun = newPyFunc(co.codeName, co, globals, PyTupleObject(closure))
+  TODO_locals locals
+  fun.call()
+
+
+proc PyEval_MergeCompilerFlags*(cf: PyCompilerFlags): bool =
+  let current_frame = PyEval_GetFrame()
+  #if (current_frame == tstate->base_frame) {
+  #    current_frame = NULL;
+  #}
+  result = cf.flags.ord != 0
+  if not current_frame.isNil:
+    let codeflags = current_frame.code.flags
+    let compilerflags = codeflags# & PyCF.MASK
+    if compilerflags != 0:
+      result = true
+      cf.flags = typeof(cf.flags) cf.flags.ord or compilerflags.ord
+

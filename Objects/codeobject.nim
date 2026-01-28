@@ -38,6 +38,9 @@ declarePyType Code(tpToken):
     code_adaptive_cached{.private.}: PyBytesObject
     code_len_when_last_cached{.private.}: int
 
+    #TODO:code.co_flags
+    flags: int  # no use yet
+
 proc argCount*(self: PyCodeObject): int{.inline.} = self.argScopes.len
 genProperty Code, "co_argcount", argcount, newPyInt self.argCount
 proc firstlineno*(self: PyCodeObject): int{.inline.} =

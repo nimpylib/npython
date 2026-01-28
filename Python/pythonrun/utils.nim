@@ -12,7 +12,9 @@ import ../sysmodule/[attrs, audit]
 
 
 using filename: PyStrObject
-using globals, locals: PyDictObject
+using
+  globals: PyDictObject
+  locals: PyObject
 #[
 import ./builtindict
 proc run_eval_code_obj_for_pyc(co: PyCodeObject, globals; locals): PyObject =
