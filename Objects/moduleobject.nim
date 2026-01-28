@@ -38,6 +38,7 @@ proc getDict*(self): PyDictObject =
   assert not result.isNil
 
 proc init_dict(modu: PyModuleObject, md_dict: PyDictObject, name: PyStrObject) =
+  md_dict[pyDUId name] = name
   md_dict[pyDUId package] = pyNone
   md_dict[pyDUId loader] = pyNone
   md_dict[pyDUId spec] = pyNone
