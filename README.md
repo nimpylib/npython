@@ -80,11 +80,11 @@ Capable of:
 * interactive mode and file mode
 * ...
 
-Check out `./tests` to see more examples.
+Check out [`./tests`](./tests/) to see more examples.
 
 ### Todo
 * integrate with [nimpylib](https://github.com/nimpylib/nimpylib)
 * builtin compat dict
 * better bigint lib
-* ... ref [Todo on Wiki](https://github.com/nimpylib/npython.wiki)
+* ... ref [Todo on Wiki](https://github.com/nimpylib/npython/wiki)
 
