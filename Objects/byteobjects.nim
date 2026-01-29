@@ -10,13 +10,17 @@ import ../Utils/addr0
 #XXX: Nim's string ops has bugs for NUL('\0') char, e.g. len('1\02') gives 2
 declarePyType Bytes(tpToken):
   items: seq[char]
-  setHash: bool
-  privateHash: Hash
+  setHash{.private.}: bool
+  privateHash{.private.}: Hash
 
 declarePyType ByteArray(reprLock, mutable):
   items: seq[char]
 
-proc hash*(self: PyBytesObject): Hash = Py_HashBuffer(self.items)
+proc hash*(self: PyBytesObject): Hash =
+  if self.setHash: return self.privateHash
+  self.setHash = true
+  result = Py_HashBuffer(self.items)
+  self.privateHash = result
 
 type PyBytesWriter* = object
   #overallocate*: bool
@@ -46,6 +50,8 @@ proc `$`(self: seq[char]): string =
 
 type PyByteLike = PyBytesObject or PyByteArrayObject
 
+proc `==`*(a, b: PyBytesObject): bool {. inline .} = a.hash == b.hash and a.items == b.items
+proc `==`*(a, b: PyByteArrayObject): bool {. inline .} = a.items == b.items
 proc len*(s: PyByteLike): int {. inline, cdecl .} = s.items.len
 proc `$`*(s: PyByteLike): string = $s.items
 iterator items*(s: PyByteLike): char =
