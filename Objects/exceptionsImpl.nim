@@ -4,6 +4,7 @@ import pyobject
 import baseBundle
 import ./[tupleobjectImpl, pyobject_apis, stringobject, typeobject,]
 import ./[exceptions, warningobject, noneobject]
+import ./exceptions/setter
 import ./abstract/number
 import ./abstract/sequence/tup
 import ./[codeobject, frameobject]
@@ -14,6 +15,7 @@ import ../Python/getargs/[vargs, kwargs]
 import ../Parser/lexer
 
 export exceptions
+export setter
 
 macro genMethodMacros: untyped  =
   result = newStmtList()
@@ -433,12 +435,6 @@ proc fromBltinSyntaxError*(e: SyntaxError, fileName: PyStrObject): PyExceptionOb
   )
   excpObj.addTraceBack(fileName, nil, e.lineNo, e.colNo, f)
   excpObj
-
-proc setString*(e: PyBaseExceptionObject, m: PyStrObject) =
-  withSetItem e.args, acc: acc[0] = m
-proc setString*(e: PyBaseExceptionObject, m: string) =
-  ## `_PyErr_SetString`
-  e.setString newPyStr m
 
 
 template ITEM(excName: untyped): untyped =

@@ -2,10 +2,11 @@
 ##XXX: rec-dep: ../sequence shall not import this, otherwise rec-dep
 import ../../[
   pyobjectBase,
-  exceptionsImpl,
+  exceptions,
   listobject,
   tupleobject,
 ]
+import ../../exceptions/setter
 import ../iter
 
 proc PySequence_List*(v: PyObject): PyObject =
