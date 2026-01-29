@@ -7,9 +7,9 @@ import ./[
   exceptions, noneobject,
   stringobject, iterobject,
   setobject,
-  numobjects,
   ]
 import ./abstract/[iter, dunder,]
+import ./abstract/sequence/list
 import ./dictobject
 export dictobject
 from ../Utils/utils import DictError, `!!`
@@ -34,22 +34,31 @@ proc updateImpl*(self: PyDictObject, E: PyObject): PyObject{.raises: [].} =
     getitem = E.getMagic(getitem)
   if not keysFunc.isThrownException and not getitem.isNil:
     let ret = fastCall(keysFunc, [])
-    if ret.isThrownException: return ret
+    retIfExc ret
     handleHashExc:
       pyForIn i, ret:
-        self[i] = getitem(E, i)
+        let e = getitem(E, i)
+        retIfExc e
+        self[i] = e
   else:
     var idx = 0
     pyForIn ele, E:
-      let getter = ele.getMagic(getitem)
-      if getter.isNil:
+      # Convert item to sequence, and verify length 2.
+      let fast = PySequence_Fast(ele, "object is not iterable")
+      if fast.isThrownException:
         return newTypeError newPyAscii(
           "cannot convert dictionary update sequence element #" &
           $idx & " to a sequence")
+      let n = PySequence_Fast_GET_SIZE(fast)
+      if n != 2:
+        return newValueError newPyAscii(
+          "dictionary update sequence element #" & $idx &
+          " has length " & $n & "; 2 is required")
+
       # only use getitem
       let
-        k = getter(ele, pyIntZero)
-        v = getter(ele, pyIntOne)
+        k = PySequence_Fast_GET_ITEM(ele, 0)
+        v = PySequence_Fast_GET_ITEM(ele, 1)
       handleHashExc: self[k] = v
       idx.inc
   pyNone
