@@ -63,25 +63,33 @@ proc updateImpl*(self: PyDictObject, E: PyObject): PyObject{.raises: [].} =
       idx.inc
   pyNone
 
+proc updateImpl*(self: PyDictObject, arg: PyObject, kw: PyDictObject): PyObject{.raises: [].} =
+  let ret = self.updateImpl(arg)
+  retIfExc ret
+  assert ret.isPyNone
+  result = pyNone
+  if kw.isNil: return
+  self.updateImpl(kw)
+
 implDictMagic iOr(E: PyObject), [mutable: write]: self.updateImpl E
 
 # XXX: how to impl using std/table?
 # implDictMethod popitem(), [mutable: write]:
 
-implDictMethod update(E: PyObject), [mutable: write]:
-  # XXX: `**kw` not supported in syntax
-  self.updateImpl E
-
-implDictMagic init:
+implDictMethod update, [mutable: write]:
   let argsLen = args.len
-  case argsLen
-  of 0: pyNone
-  of 1:
-    let ret = self.updateImpl(args[argsLen-1])
-    if ret.isThrownException: return ret
+  result = case argsLen
+  of 0:
+    if not kwargs.isNil:
+      self.updateImpl(PyDictObject kwargs)
     pyNone
+  of 1:
+    self.updateImpl(args[argsLen-1], PyDictObject kwargs)
   else:
     errArgNum argsLen, 1
+  assert not result.isNil
+
+implDictMagic init: self.updatePyDictObjectMethod(args, kwargs)
 
 
 proc fromkeys(mp: PyDictObject, iterable: PyDictObject|PySetObject|PyFrozenSetObject, value: PyObject): PyDictObject =
