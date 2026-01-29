@@ -7,6 +7,7 @@ import ./[
   exceptions, noneobject,
   stringobject, iterobject,
   setobject,
+  tupleobject,
   ]
 import ./abstract/[iter, dunder,]
 import ./abstract/sequence/list
@@ -73,8 +74,14 @@ proc updateImpl*(self: PyDictObject, arg: PyObject, kw: PyDictObject): PyObject{
 
 implDictMagic iOr(E: PyObject), [mutable: write]: self.updateImpl E
 
-# XXX: how to impl using std/table?
-# implDictMethod popitem(), [mutable: write]:
+implDictMethod popitem(), [mutable: write]:
+  #PREF: optimize
+  # NOTE: currently we use Table (unordered) instead of OrderedTable
+  #  (Nim has `pop` defined for OrderedTable, but not for Table)
+  for (k, v) in self.pairs:
+    DictError!!self.del(k)
+    return newPyTuple [k, v]
+  return newKeyError newPyAscii"popitem(): dictionary is empty"
 
 implDictMethod update, [mutable: write]:
   let argsLen = args.len
