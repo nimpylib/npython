@@ -15,7 +15,8 @@ import ./getargs
 
 import ../Utils/trans_imp
 impExp bltinmodule,
-  compile_eval_exec, iterobjects, io, sums, iterops, unarys
+  compile_eval_exec, globals_locals_vars,
+  iterobjects, io, sums, iterops, unarys
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
   let nameStr = newPyAscii(name)
@@ -31,6 +32,7 @@ proc registerBltinObject(name: string, obj: PyObject) =
 register_io
 register_iterops
 register_compile_eval_exec
+register_globals_locals_vars
 register_unarys
 registerBltinFunction "sum", builtin_sum
 
