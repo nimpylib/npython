@@ -2,6 +2,7 @@ import std/macros
 import std/strutils
 type
   IntFlag*[E: enum] = distinct cint
+const sizeofIntFlag* = sizeof(cint)  ## internal
 
 proc `or`*[E](a, b: IntFlag[E]): IntFlag[E] =  IntFlag[E] a.cint or b.cint
 proc `==`*[E](a, b: IntFlag[E]): bool = a.cint == b.cint
@@ -48,17 +49,17 @@ template prepareIntFlagOr*{.dirty.} =
   template `|`[E: enum](a: IntFlag[E], b: E): IntFlag[E] = a or IntFlag[E] b
   {.pop.}
 
+template maskImpl(a, b): bool =
+  let ib = cint(b); (cint(a) and ib) == ib
 template declareIntFlag*(name; pure; body) =
-  bind fillAsEnumFromStmtList, IntFlag
+  bind fillAsEnumFromStmtList, IntFlag, maskImpl
 
   fillAsEnumFromStmtList name, true, body
 
   converter toIntFlag*(x: name): IntFlag[name] = IntFlag[name](x)
   proc `|`*(a, b: name): IntFlag[name] = a or b
-  proc `&`*(a, b: name): bool =
-    let ib = cint(b); (cint(a) and ib) == ib
-  proc `&`*(a: IntFlag[name], b: name): bool =
-    let ib = cint(b); (cint(a) and ib) == ib
+  proc `&`*(a, b: name): bool = maskImpl(a, b)
+  proc `&`*[E](a: IntFlag[E], b: name): bool = maskImpl(a, b)
 
 template declareIntFlag*(name; body) = declareIntFlag(name, true, body)
 
@@ -77,8 +78,12 @@ when isMainModule:
   declareIntFlag PyFlags2:
     ## asd
     ## asddsa
-    A2 = 1
-    B2 = 3
+    A2 = 0x10
+    B2 = 0x20
     B3 = (11|PyFlags2.B2)
   echo PyFlags.A | PyFlags.B
+
+  type IF = IntFlag[PyFlags|PyFlags2]
+  var f2: IF
+  discard f2 & PyFlags.B
 
