@@ -92,7 +92,11 @@ template doInplace(opName: untyped) =
         raiseAssert(
           &"augumented assignment for {opCode} is not implemented yet")
       else: unreachable()
-      f.code.code.insert (st, opArg), lastI+1
+      # NOTE: here we directly modify the bytecode to
+      #  but we cannot simply add or insert new instructions,
+      #   which will mess up our index-based jump targets
+      f.code.code[lastI] = (st, opArg)
+      lastI.dec
   else:
     sSetTop res
 
