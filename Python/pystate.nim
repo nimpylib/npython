@@ -11,7 +11,7 @@ import ../Include/internal/[
 
 proc Py_GetMainModule*(): PyObject =
   ## `_Py_GetMainModule`
-  result = sys.modules.getOptionalItem(pyDUId("__main__"))
+  result = sys.modules.getOptionalItem(pyDUId(main))
   if result.isNil:
     return pyNone
 

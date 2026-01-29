@@ -59,7 +59,7 @@ template init_globals_locals_ensure_bltin(no_globals_err,
       assert not globals.isNil
     else:
       globals = PyEval_GetGlobalsFromRunningMain()
-      if globals.isNil:
+      if globals.isNil or globals.isThrownException:
         return newSystemError newPyAscii no_globals_err
   
   var locals = locals
