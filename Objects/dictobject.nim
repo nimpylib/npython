@@ -161,7 +161,9 @@ implDictMethod setdefault, [mutable: write]:
     args[1]
   self.setdefault(key, defVal)
 
-implDictMethod clear(), [mutable: write]: self.clear()
+implDictMethod clear(), [mutable: write]:
+  self.clear()
+  pyNone
 
 implDictMethod copy(), [mutable: read]:
   let newT = newPyDict()
