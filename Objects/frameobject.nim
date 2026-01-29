@@ -5,14 +5,19 @@ import pyobject
 import codeobject
 import dictobjectImpl
 import cellobject
+import ./stringobject/strformat
 import ./[
+  byteobjects,
+  #boolobject,
   listobject,
   stringobject,
   exceptions,
 ]
 import ./pyobject_apis/strings
 import ./abstract/iter
-import ../Include/cpython/[critical_section, ]
+import ../Include/cpython/[critical_section, compile]
+import ../Include/internal/pycore_interpframe_struct
+export PyInterpFrameOwner
 
 declarePyType Frame(mutable):
   #TODO:frame see CPython's frame.c:take_ownership and frameobject.c:PyFrame_GetBack
@@ -20,12 +25,19 @@ declarePyType Frame(mutable):
   code{.member"f_code", readonly.}: PyCodeObject
   lineno: int = -1
   # dicts and sequences for variable lookup
-  # locals not used for now
+  # locals not used for now,
+  #   so PEP 667 not implemented
+  #   f_locals is accessed via a proxy object, see below
   # locals{.member"f_locals", readonly.}: PyObject
   globals{.member"f_globals", readonly.}: PyDictObject
   # builtins: PyDictObject
   fastLocals: seq[PyObject]
   cellVars: seq[PyCellObject]
+  owner{.private.}: PyInterpFrameOwner
+
+func privateOwner*(f: PyFrameObject): var PyInterpFrameOwner{.inline.} =
+  ## internal, term to change
+  result = f.owner
 
 proc PyUnstable_InterpreterFrame_GetLine(f: PyFrameObject): int =
   #TODO:PyFrame_GetLineNumber
@@ -50,7 +62,7 @@ method `$`*(f: PyFrameObject): string{.raises: [].} =
   let fnObj = PyObjectRepr(code.fileName)
   assert fnObj.ofPyStrObject
   let fn = $PyStrObject(fnObj).str
-  return &"<frame at {f.idStr}, file {fn}, line {lineno}, code {code.codeName}>"
+  return &"<frame at {f.idStr}, file {fn}, line {lineno}, code {$code.codeName}>"
 
 implFrameMagic repr: newPyStr $self
 
@@ -167,6 +179,53 @@ proc keys*(self: PyFrameLocalsProxyObject): PyObject{.pyCFuncPragma.} =
 
   return names
 
+implFrameLocalsProxyMethod keys: self.keys()
+implFrameLocalsProxyMagic getitem:
+  let frame = self.frame
+  template retNotFound = return newKeyError(
+        PyStrFmt&"local variable '{other:R}' is not defined")
+  if not other.ofPyStrObject:
+    retNotFound
+  when hasLocalDict:
+    if not frame.f_extra_locals.isNil:
+      assert(ofPyDictObject(frame.f_extra_locals))
+
+      var exc: PyBaseErrorObject
+      case PyDictObject(frame.f_extra_locals).getItemRef(other, result, exc)
+      of Error: return exc
+      of Missing: retNotFound
+      of Got:
+        return
+  else:
+    let key = PyStrObject other
+    let co = frame.code
+    var idx = co.localVars.find key
+    if idx != -1:
+      return frame.fastLocals[idx]
+    # Okay not in the fast locals, try extra locals
+    idx = co.cellVars.find key
+    if idx < 0:
+      retNotFound
+    if idx < co.cellVars.len:
+      return frame.cellVars[idx]
+    idx -= co.cellVars.len
+    assert idx < co.freeVars.len
+    let cell = frame.cellVars[idx]
+    assert (not cell.isNil)
+    return cell.refObj
+
+when hasLocalDict:
+ implFrameLocalsProxyMagic contains:
+  let dummy = self.getitemPyFrameLocalsProxyObjectMagic(other)
+  if dummy.ofPyKeyErrorObject:
+    pyFalseObj
+  elif dummy.isThrownException:
+    dummy
+  else:
+    pyTrueObj
+
+  #implFrameLocalsProxyMagic setitem:
+
 implFrameLocalsProxyMagic iter:
   let keys = self.keys
   PyObject_GetIter(keys)
@@ -176,6 +235,35 @@ implFrameLocalsProxyMagic repr, [reprLockWithMsg("{...}")]:
   retIfExc dct.updateImpl self
   PyObject_Repr(dct)
 
+when hasLocalDict:
+  declareIntFlag PyLocals_Kind:
+    CO_FAST_ARG_POS 0x02  # pos-only, pos-or-kw, varargs
+    CO_FAST_ARG_KW  0x04  # kw-only, pos-or-kw, varkwargs
+    CO_FAST_ARG_VAR 0x08  # varargs, varkwargs
+    CO_FAST_ARG (CO_FAST_ARG_POS.ord or CO_FAST_ARG_KW.ord or CO_FAST_ARG_VAR.ord)
+    CO_FAST_HIDDEN  0x10
+    CO_FAST_LOCAL   0x20
+    CO_FAST_CELL    0x40
+    CO_FAST_FREE    0x80
+
+  proc getKind*(kinds: PyBytesObject, i: int): PyLocals_Kind =
+    ## `_PyLocals_GetKind`
+    #assert(PyBytes_Check(kinds));
+    assert(0 <= i and i < len(kinds))
+    return PyLocals_Kind(kinds[i])
+
+
+  proc hasHiddenLocals(frame: PyFrameObject): bool =
+      ##[ `_PyFrame_HasHiddenLocals`
+      * This function returns if there are hidden locals introduced by PEP 709,
+      * which are the isolated fast locals for inline comprehensions
+      */]##
+      let co = frame.code
+      for i in 0..<co.nlocals: #co.nlocalsplus:
+        let kind = getKind(co.localspluskinds, i)
+        if (kind & CO_FAST_HIDDEN):
+          if hasval(frame, co, i):
+            return true
 
 proc common_getLocalsImpl_frame_locals_get_impl(self: PyFrameObject): PyObject =
   ## `_PyFrame_GetLocals`
@@ -184,8 +272,8 @@ proc common_getLocalsImpl_frame_locals_get_impl(self: PyFrameObject): PyObject =
 
   when hasLocalDict:
     let co = self.code
-    if not (co.co_flags & CO_OPTIMIZED) and not PyFrame_HasHiddenLocals(self.f_frame):
-      if self.locals.isNil:
+    if not (co.flags & CO.OPTIMIZED) and not hasHiddenLocals(self):
+      if co.locals.isNil:
         # // We found cases when f_locals is NULL for non-optimized code.
         # // We fill the f_locals with an empty dict to avoid crash until
         # // we find the root cause.

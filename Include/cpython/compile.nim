@@ -2,6 +2,17 @@
 import ../../Python/versionInfo
 import ../../Utils/intflags
 
+declareIntFlag CO:
+  OPTIMIZED = 1
+  NEWLOCALS = 2
+  VARARGS = 4
+  VARKEYWORDS = 8
+  NESTED = 0x10  # 16
+  GENERATOR = 0x20
+  COROUTINE = 0x80
+  ITERABLE_COROUTINE = 0x100
+  ASYNC_GENERATOR = 0x200
+
 declareIntFlag PyCodeFutureOption:
   DIVISION         = 0x020000 ## CO_FUTURE_DIVISION
   ABSOLUTE_IMPORT  = 0x040000 ## CO_FUTURE_ABSOLUTE_IMPORT
@@ -11,6 +22,13 @@ declareIntFlag PyCodeFutureOption:
   BARRY_AS_BDFL    = 0x400000 ## CO_FUTURE_BARRY_AS_BDFL
   GENERATOR_STOP   = 0x800000 ## CO_FUTURE_GENERATOR_STOP
   ANNOTATIONS      = 0x1000000 ## CO_FUTURE_ANNOTATIONS
+
+func shOR(e: typedesc[enum]): int =
+  var i = e.low.ord
+  while i <= e.high.ord:
+    result = result or i
+    i = i shl 1
+const PyCF_MASK* = shOR(PyCodeFutureOption)
 
 const PyCF_ONLY_AST = 0x0400
 declareIntFlag PyCF:

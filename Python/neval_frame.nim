@@ -15,11 +15,49 @@ import ../Utils/[
   utils,
 ]
 #TODO:interpreters
-var gFrame{.threadVar.}: PyFrameObject
-proc PyEval_GetFrame*(): PyFrameObject = gFrame
+var current_frame{.threadVar.}: PyFrameObject
+# tstate->current_frame
+#   which is `_PyInterpreterFrame` in CPython
+
+proc isIncomplete*(frame: PyFrameObject): bool =
+  # `_PyFrame_IsIncomplete`
+  if frame.privateOwner.ord >= FRAME_OWNED_BY_INTERPRETER.ord or
+     frame.privateOwner == FRAME_OWNED_BY_GENERATOR:
+    # .owner >= FRAME_OWNED_BY_INTERPRETER
+    #TODO:generator
+    return true
+  #TODO:RESUME
+  return false
+
+proc getFirstComplete*(frame: PyFrameObject): PyFrameObject =
+  # `_PyFrame_GetFirstComplete`
+  result = frame
+  while not result.isNil and isIncomplete(result):
+    result = result.back
+
+proc privateGetframeNoAudit*(depth: int): PyObject =
+  ## internal. for `sys._getframe([depth])`
+  var depth = depth
+  var frame = current_frame
+  if not frame.isNil:
+      while depth > 0:
+        frame = getFirstComplete(frame.back)
+        if frame.isNil:
+          break
+        dec depth
+  if frame.isNil:
+      return newValueError newPyAscii(
+                        "call stack is not deep enough")
+  result = frame
+  #let pyFrame = PyFrame_GetFrameObject(result)
+  #if (pyFrame && _PySys_Audit(tstate, "sys._getframe", "(O)", pyFrame) < 0) {
+  #retIfExc audit("sys._getframe", result)
+
+proc PyEval_GetFrame*(): PyFrameObject =
+  getFirstComplete(current_frame)
 proc PyEval_GetGlobals*: PyObject =
-  if gFrame.isNil: nil
-  else: gFrame.globals
+  if current_frame.isNil: nil
+  else: current_frame.globals
 
 proc newPyFrame*(fun: PyFunctionObject, 
                  args: openArray[PyObject], 
@@ -52,8 +90,16 @@ proc newPyFrame*(fun: PyFunctionObject,
               fmt"{code.argNames[^diff..^1]}. {provided} args are given."
     return newTypeError(newPyStr(msg))
   let frame = newPyFrame()
-  gFrame = frame
-  frame.back = back
+  frame.back = if back.isNil: current_frame else: back
+
+  frame.privateOwner = if current_frame.isNil:
+    #TODO:interpreters
+    FRAME_OWNED_BY_INTERPRETER
+  else:
+    #TODO:generators
+    FRAME_OWNED_BY_THREAD
+
+  current_frame = frame
   frame.code = code
   frame.globals = fun.globals
   # todo: use flags for faster simple function call

@@ -1049,7 +1049,7 @@ proc PyEval_MergeCompilerFlags*(cf: PyCompilerFlags): bool =
   result = cf.flags.ord != 0
   if not current_frame.isNil:
     let codeflags = current_frame.code.flags
-    let compilerflags = codeflags# & PyCF.MASK
+    let compilerflags = codeflags.ord and PyCF_MASK
     if compilerflags != 0:
       result = true
       cf.flags = typeof(cf.flags) cf.flags.ord or compilerflags.ord
