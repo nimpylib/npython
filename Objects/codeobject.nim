@@ -6,6 +6,7 @@ import ./[pyobject,
   byteobjects,
 ]
 import ../Include/ceval
+import ../Include/cpython/compile
 import ./numobjects/intobject_decl
 import ../Python/[opcode, symtable]
 
@@ -39,7 +40,7 @@ declarePyType Code(tpToken):
     code_len_when_last_cached{.private.}: int
 
     #TODO:code.co_flags
-    flags{.member"co_flags", readonly.}: int  # no use yet
+    flags{.member"co_flags", readonly.}: IntFlag[CO | PyCodeFutureOption]
 
 template genIntGetter(pureName, seqAttr){.dirty.} =
   proc pureName*(self: PyCodeObject): int{.inline.} = self.seqAttr.len
