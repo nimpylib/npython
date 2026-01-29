@@ -1,6 +1,7 @@
 
 from std/typeinfo import AnyKind
 export AnyKind
+import ../Utils/intflags
 #import ../Objects/stringobject
 
 #[
@@ -57,12 +58,14 @@ proc initPyMemberDef*(name: string, `type`: AnyKind,
     offset: int; flags=default PyMemberDefFlags, doc=cstring nil): PyMemberDef =
   PyMemberDef(name: name, `type`: `type`, offset: offset, flags: flags, doc: doc)
 
+static: assert sizeofIntFlag <= int.sizeof, "dev: typeToAnyKind for IntFlag needs update"
 template genTypeToAnyKind*(PyObject){.dirty.} =
-  bind AnyKind
+  bind AnyKind, IntFlag
   mixin parseEnum, newLit, strVal
 
   template typeToAnyKind*[T: PyObject](t: typedesc[T]): AnyKind = akPyObject
   template typeToAnyKind*[Py: PyObject](t: typedesc[seq[Py]]): AnyKind = akSequence
+  template typeToAnyKind*[T: IntFlag](t: typedesc[T]): AnyKind = akInt
   macro typeToAnyKind*[T: not PyObject](t: typedesc[T]): AnyKind =
     let typDesc = t.getType
     let typ = typDesc[1]
