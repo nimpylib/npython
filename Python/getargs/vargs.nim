@@ -57,7 +57,7 @@ proc PyArg_VaUnpackTuple(name: NimNode; args: NimNode#[openArray[PyObject]]#; mi
   PyArg_DoTupleImpl asgn
 
 proc PyArg_VaParseTuple*(name: NimNode; args: NimNode#[openArray[PyObject]]#; min, max: Natural;
-  vargs: NimNode#[varargs[PyObject]]#,
+  vargs: NimNode#[varargs[auto]]#,
 ): NimNode =
   #TODO: current this expr is void, using `retIfExc` to `return` exception, change to become an expr
   template asgn(v, args, i): untyped =
@@ -74,6 +74,11 @@ template PyArg_UnpackTuple*(name; args: openArray[PyObject]; min, max: Natural;
 ) =
   bind unpack_stack
   unpack_stack(name, args, min, max, vargs)
+
+macro PyArg_ParseTuple*(name: string; args: openArray[PyObject], min, max: static Natural;
+  vargs: varargs[typed],
+) =
+  PyArg_VaParseTuple(name, args, min, max, vargs)
 
 template PyArg_UnpackTuple*(name; args: PyTupleObject, min, max: Natural;
   vargs: varargs[PyObject],

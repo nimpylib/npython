@@ -9,11 +9,13 @@ import ../Objects/[
   noneobject,
   typeobject,
 ]
+  
 import ../Objects/exceptions/extra_utils
-import ../Objects/numobjects/intobject_decl
+import ../Objects/numobjects/[intobject_decl, numobjects_comm]
 import ../Objects/bltcommon; export bltcommon
 import ../Utils/trans_imp
-import ./getargs/[va_and_kw, dispatch]
+from ./neval_frame import privateGetframeNoAudit
+import ./getargs/[vargs, va_and_kw, dispatch]
 impExp sysmodule,
   decl, init, audit, hooks, attrs, int_max_str_digits
 
@@ -32,8 +34,7 @@ implSysModuleMethod excepthook(exctype: PyTypeObject, value: PyBaseErrorObject, 
 implSysModuleMethod displayhook(x): displayhook(x)
 
 implSysModuleMethod get_int_max_str_digits(): newPyInt PySys_GetIntMaxStrDigits()
-implSysModuleMethod set_int_max_str_digits(*a, **kw):
-  retIfExc PyArg_ParseTupleAndKeywordsAs("set_int_max_str_digits", a, kw, [], maxdigits: int)
+implSysModuleMethod set_int_max_str_digits(maxdigits: int):
   retIfExc PySys_SetIntMaxStrDigits(maxdigits)
   pyNone
 
@@ -43,4 +44,8 @@ proc exit*(status: PyObject = pyNone): PyObject{.clinicGenWithPrefix"sys".} =
   res.thrown = true
   return res
 
-implSysModuleMethod exit(*args): sys_exit(args, nil)
+implSysModuleMethod "_getframe"(depth = 0):
+  result = privateGetframeNoAudit(depth)
+  retIfExc audit("sys._getframe", result)
+
+implSysModuleMethod exit(exitcode = PyObject pyIntZero): sysmodule.exit(exitcode)

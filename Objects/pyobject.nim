@@ -289,21 +289,29 @@ template noKw(name){.dirty.} =
   #TODO:rec-dep
   else: {.error: "please import Objects/bltcommon".}
 
+proc countDefval(argTypes: NimNode): int =
+  for child in argTypes:
+    if child.kind == nnkExprEqExpr:
+      result.inc
+
 macro checkArgTypes*(nameAndArg, code: untyped): untyped = 
   let methodName = nameAndArg[0]
   var argTypes = nameAndArg[1]
   let body = newStmtList()
-  let argNum = argTypes.len  # origin py params len
+  let argNum = argTypes.len  # origin py total params len,
+  #  including *args/**kwargs, and those with defval
+  var posArgNum = argNum  # positional only arg num
   let oriParams = code.params  # origin nim params
 
   var oriLastIsKw: bool
-  let oriMultiArg = oriParams.paramsLastSeqObjectOrWithDict oriLastIsKw
+  let oriSupMultiArg = oriParams.paramsLastSeqObjectOrWithDict oriLastIsKw
   var varargId, kwargId: NimNode
   var vargs: NimNode  # args or kwargs
 
   template popNameTo(res) =
       res = vargs[1]
       argTypes.del(argTypes.len-1, 1)
+      posArgNum.dec
   if argNum > 0 and (vargs = argTypes.last; vargs.kind == nnkPrefix):
     case vargs[0].strVal
     of "*": popNameTo varargId
@@ -319,19 +327,26 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
   elif oriLastIsKw:
     body.add getAst noKw $methodName
   if not varargId.isNil:
-    if not oriMultiArg:
+    if not oriSupMultiArg:
       error "varargs is not allowed for this kind of functions", code
-  if oriMultiArg:
+  let nDefval = countDefval(argTypes)
+  posArgNum.dec nDefval
+  if oriSupMultiArg:
+    let methodNameStrNode = newStrLitNode($methodName)
+    let posNode = newIntLitNode(posArgNum)
     if varargId.isNil:
       #  return `checkArgNum(1, "append")` like
-      body.add newCall(ident("checkArgNum"), 
-                newIntLitNode(argNum), 
-                newStrLitNode($methodName)
-              )
+      let call = newCall("checkArgNum", posNode,)
+      if nDefval > 0:
+        call.add newIntLitNode(posArgNum + nDefval)
+      call.add methodNameStrNode
+
+      body.add call
     else:
+      posArgNum.dec
       body.add newCall(ident("checkArgNumAtLeast"), 
-                newIntLitNode(argNum - 1), 
-                newStrLitNode($methodName)
+                posNode,
+                methodNameStrNode
               )
       let remainingArgNode = varargId
       let nowNum = argTypes.len
@@ -341,7 +356,15 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
 
   template addLetDecl(name, value) =
     discard body.add newLetStmt(name, value)
-  let toUnpackVargs = oriMultiArg
+  
+  let toUnpackVargs = oriSupMultiArg
+  var vararg_len: NimNode
+  if toUnpackVargs:
+    vararg_len = genSym(nskLet, "vararg_len")
+    body.add newLetStmt(
+      vararg_len,
+      newCall("len", ident("args"))
+    )
   for idx, child in argTypes:
     let obj =
       if toUnpackVargs:
@@ -360,16 +383,60 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
       error "only *args, **kwargs is allowed (and each no more than one)", child
     else:
       let name = child[0]
-      let tp = child[1]
-      if tp.strVal == "PyObject":  # won't bother checking 
+      var tp: NimNode
+      var defval: NimNode
+      var hasDefVal = false
+      if child.kind == nnkExprColonExpr:
+        tp = child[1]
+      else:
+        #TODO: handle startPosOnly, startKwOnly
+        expectKind child, nnkExprEqExpr
+        hasDefVal = true
+        defval = child[1]
+      if hasDefVal:
+        posArgNum.dec
+      if not hasDefVal and tp.strVal == "PyObject":  # won't bother checking 
         addLetDecl(name, obj)
       else:
-        let tpObj = ident(objName2tpObjName(tp.strVal))
         let methodNameStrNode = newStrLitNode(methodName.strVal)
-        body.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
-        body.add(quote do:
-          let `name` = `tp`(`obj`)
-        )
+        if not hasDefVal and tp.strVal[0] == 'P':
+          # if is a PyObject subtype
+          #XXX: very hacky way to detect PyObject subtype
+          let tpObj = ident(objName2tpObjName(tp.strVal))
+          body.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
+          body.add(quote do:
+            let `name` = `tp`(`obj`)
+          )
+        else:
+          let stmtInBlk = newStmtList()
+          let tmp = genSym(nskVar, "tmpvar")
+          stmtInBlk.add if hasDefVal:
+            newVarStmt(tmp, defval)
+          else:
+            quote do:
+              var `tmp`: `tp`
+          template asgnTmpNode: untyped{.dirty.} = quote do: `tmp` = `obj`
+          let tovalExpr =
+            if defval.kind == nnkCommand and defval.last.kind == nnkNilLit and
+                defval[0].strVal == "PyObject":
+                # default value is `nil`, so we need not check arg num
+              asgnTmpNode
+            else:
+              quote do: retIfExc toval(`obj`, `tmp`)
+          stmtInBlk.add if not toUnpackVargs: tovalExpr
+          else:
+            let outRng = if hasDefVal:
+              quote do: `tmp` = `defval`
+            else:
+              quote do: errArgNum(`idx`, `posArgNum`, `methodNameStrNode`)
+            #TODO:compile: optimize redundant check when compiling
+            quote do:
+              if `idx` < `vararg_len`:
+                `tovalExpr`
+              else:
+                `outRng`
+          stmtInBlk.add tmp  # the last expr is the value
+          body.add newLetStmt(name, newBlockStmt(stmtInBlk))
   body.add code.body
   code.body = body
   code

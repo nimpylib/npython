@@ -138,9 +138,5 @@ proc PyDict_FromKeys*(cls: PyObject, iterable, value: PyObject): PyObject =
       retIfExc PyObject_SetItem(d, key, value)
   d
 
-implDictMethod fromkeys(*a), [classmethod]:
-  var
-    iterable: PyObject
-    value = pyNone
-  PyArg_UnpackTuple("fromkeys", a, 1, 2, iterable, value)
+implDictMethod fromkeys(iterable: PyObject, value = PyObject pyNone), [classmethod]:
   PyDict_FromKeys(selfNoCast, iterable, value)
