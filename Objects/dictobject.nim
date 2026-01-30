@@ -139,18 +139,12 @@ implDictMethod get, [mutable: write]:
   result.handleBadHash:
     return self.table.getOrDefault(key, defVal)
 
-implDictMethod pop, [mutable: write]:
-  checkargnumatleast 1
-  let key = args[0]
-  if args.len == 1:
-    return self.delitemimpl key
-  checkargnum 2
-  let defval = args[1]
-  if self.pop(key, result):
-    return
-  # XXX: Python's dict.pop(k, v) discard TypeError, KeyError
-  return defval
-
+implDictMethod pop(key: PyObject, defval = PyObject nil), [mutable: write]:
+  ## `_PyDict_Pop`
+  if not self.pop(key, result):
+    return if defval.isNil: keyError key
+    else: defval
+  # XXX: Python's dict.pop(k, v) discard TypeError
 
 implDictMethod setdefault, [mutable: write]:
   checkargnumatleast 1
