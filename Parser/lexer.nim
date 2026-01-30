@@ -498,7 +498,7 @@ proc getNextTokenImpl(
       if idx < line.len:
         continue
       else:
-        break
+        return
     of '#': # Comment line
       idx = line.len
       break
