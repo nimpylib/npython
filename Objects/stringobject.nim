@@ -169,12 +169,7 @@ template itemSize*(self: UnicodeVariant): int =
 
 proc hashImpl(self: UnicodeVariant): Hash {. inline, cdecl .} = 
   template forLoop(ls): untyped =
-    when Py_SupHashBuffer:
-      Py_HashBuffer(ls.addr0, ls.len * self.itemSize)
-    else:
-      for i in ls:
-        result = result !& cast[int](i)
-      result = !$result
+    Py_HashBuffer(ls)
   if self.ascii:
     forLoop self.asciiStr
   else:

@@ -28,6 +28,8 @@ type PyHash_FuncDef* = object
   hash_bits*,
     seed_bits*: int
 
+const Py_SupHashBuffer* = not defined(js)  #XXX:NIM-BUG: js has bug to run hashData
+
 var PyHash_Func = PyHash_FuncDef(
     hash: hashData,
     name: ALGO,
@@ -35,9 +37,17 @@ var PyHash_Func = PyHash_FuncDef(
     seed_bits: 8*sizeof(int),
   )
 proc PyHash_GetFuncDef*: PyHash_FuncDef{.inline.} = PyHash_Func
-proc PyHash_SetFuncDef*(x: PyHash_FuncDef) = PyHash_Func = x
 
-proc Py_HashBuffer*(p: pointer, n: int): Hash{.raises: [].} = PyHash_Func.hash(p, n)
-proc Py_HashBuffer*[T](p: openArray[T]): Hash = Py_HashBuffer(p.addr0, p.len * sizeof T)
+when Py_SupHashBuffer:
+  proc PyHash_SetFuncDef*(x: PyHash_FuncDef) = PyHash_Func = x
+  proc Py_HashBuffer*(p: pointer, n: int): Hash{.raises: [].} = PyHash_Func.hash(p, n)
+  proc Py_HashBuffer*[T](p: openArray[T]): Hash = Py_HashBuffer(p.addr0, p.len * sizeof T)
+else:
+  const notSup = "set Py_HashBuffer is not supported in this platform"
+  proc PyHash_SetFuncDef*(x: PyHash_FuncDef){.error: notSup.}
+  proc Py_HashBuffer*(p: pointer, n: int): Hash{.raises: [], error: notSup.}
+  proc Py_HashBuffer*[T](p: openArray[T]): Hash =
+    for i in p:
+      result = result !& cast[int](i)
+    result = !$result
 
-const Py_SupHashBuffer* = not defined(js)
