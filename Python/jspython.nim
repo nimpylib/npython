@@ -16,5 +16,5 @@ else:
     import ./karaxpython
   elif isMainModule:
     import ./lifecycle
-    pyInit(@[])
+    Py_Initialize()
     mayWaitFor interactiveShell()

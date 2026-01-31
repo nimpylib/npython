@@ -17,6 +17,7 @@ import ../Objects/[
 import ../Objects/stringobject/codec
 from ./pylifecycle/utils import Py_FdIsInteractive
 import ./pythonrun/utils
+import ../Utils/nexportc
 impExp pythonrun,
   pyerr, pyerr_sysexit_keyinter
 
@@ -247,10 +248,9 @@ proc PyRun_StringFlagsWithName(str; name: PyStrObject, mode; globals; locals; fl
   retIfExc PyParser_ASTFromString(str, name, mode, flags, modu)
   result = run_mod(modu, name, globals, locals, flags, source, generate_new_source)
 
-proc PyRun_StringFlags*(str; mode; globals; locals; flags=initPyCompilerFlags()): PyObject{.pyCFuncPragma.} =
+proc PyRun_StringFlags*(str; mode; globals; locals; flags=initPyCompilerFlags()): PyObject{.pyCFuncPragma,npyexportc.} =
   PyRun_StringFlagsWithName(str, nil, mode, globals, locals, flags, false)
-template PyRun_String*(str; mode; globals; locals): PyObject =
-  bind PyRun_StringFlags
+proc PyRun_String*(str; mode; globals; locals): PyObject{.npyexportc.} =
   PyRun_StringFlags(str, mode, globals, locals)
 
 template errPrint(dict; call): bool{.dirty.} =
@@ -263,16 +263,16 @@ template errPrint(dict; call): bool{.dirty.} =
   else:
     true
 
-proc PyRun_SimpleStringFlagsWithName*(str; name: string, flags=initPyCompilerFlags()): bool{.pyCFuncPragma.} =
+proc PyRun_SimpleStringFlagsWithName*(str; name: string, flags=initPyCompilerFlags()): bool{.pyCFuncPragma,npyexportcSet(boolRetAsCInt).} =
   ## `_PyRun_SimpleStringFlagsWithName`
   errPrint dict:
     let the_name = newPyStr name
     PyRun_StringFlagsWithName(str, the_name, Mode.File, dict, dict, flags, false)
 
-proc PyRun_SimpleStringFlags*(str; flags=initPyCompilerFlags()): bool{.pyCFuncPragma.} =
+proc PyRun_SimpleStringFlags*(str; flags=initPyCompilerFlags()): bool{.pyCFuncPragma,npyexportcSet(boolRetAsCInt).} =
   #PyRun_SimpleStringFlagsWithName(str, nil, flags)
   errPrint dict:
     PyRun_StringFlags(str, Mode.File, dict, dict, flags)
 
-proc PyRun_SimpleString*(str): bool = PyRun_SimpleStringFlags(str, initPyCompilerFlags())
+proc PyRun_SimpleString*(str): bool{.npyexportcSet(boolRetAsCInt).} = PyRun_SimpleStringFlags(str, initPyCompilerFlags())
 

@@ -10,7 +10,7 @@ import ../Utils/[compat, fileio,]
 import ./lifecycle
 import ../Objects/[frameobject, stringobject,]
 import ../Parser/[lexer, parser]
-pyInit(@[])
+Py_Initialize()
 
 let info = getVersionString(verbose=true)
 const gitRepoUrl{.strdefine.} = ""

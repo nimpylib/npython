@@ -5,7 +5,7 @@ import ../Objects/[
   listobject,
   typeobject,
   ]
-import ../Utils/[utils, compat, trans_imp]
+import ../Utils/[utils, nexportc, compat, trans_imp]
 import ../Include/cpython/pyerrors
 import ../Include/internal/pycore_int
 import ./[
@@ -111,4 +111,5 @@ proc pyInit*(args: seq[string]) =
   when defined(debug):
     echo "sys.path: " & $sys.path
 
-  
+proc Py_Initialize*(){.npyexportc.} = pyInit @[]
+

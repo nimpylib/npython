@@ -145,7 +145,7 @@ proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
         pyConfig.run_command =
           if p.val != "": p.val
           else: p.remainingArgs()[0]
-        pyInit(@[])
+        Py_Initialize()
         PyRun_SimpleString(pyConfig.run_command).exit0or1
       of "":  # allow -
         discard
@@ -157,7 +157,7 @@ proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
   of 1: echoVersion()
   else: echoVersion(verbose=true)
 
-when isMainModule:
+when isMainModule and appType != "lib":
   when defined(js):
     {.error: "python.nim is for c target. Compile jspython.nim as js target" .}
 
