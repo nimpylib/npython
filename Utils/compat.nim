@@ -183,6 +183,8 @@ when defined(js):
     a.add b
 
 else:
+  when defined(nimPreviewSlimSystem):
+    import std/syncio
   when not defined(wasm):
     import std/rdstdin
     template readLineCompat*(prompt): string = 
@@ -191,6 +193,7 @@ else:
   else:
     template readLineCompat*(prompt): string = 
       stdout.write prompt
+      stdout.flushFile()
       stdin.readLine()
 
   template echoCompat*(content) = 

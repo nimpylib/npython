@@ -10,13 +10,13 @@ import ./private/runtime_singleton
 
 const Js = defined(js)
 when Js:
-  import ../../Utils/compat
   template withPUTS(body){.dirty.} =
     var tempPUTS: string
     body
-    errEchoCompat tempPUTS
+    errEchoCompatNoRaise tempPUTS
   template tPUTS(_; s: string) = tempPUTS.add s
 else:
+  import ../../Utils/fileio
   template withPUTS(body) =
     body
     stderr.write '\n'

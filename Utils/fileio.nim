@@ -3,6 +3,7 @@
 when defined(nimPreviewSlimSystem):
   import std/[syncio, assertions]
   export assertions
+  export syncio
 
 import ../Utils/[compat]
 when not declared(stdout):
@@ -63,8 +64,6 @@ when not declared(stdout):
 
 else:
   import ../Utils/utils
-  when defined(nimPreviewSlimSys):
-    import std/syncio
   when defined(wasm):
     proc readLineFromStdin*(prompt: string): string{.mayAsync.} =
       readLineCompat prompt
@@ -80,6 +79,7 @@ else:
   proc readLine*(stdinF, stdoutF: File, prompt: string): string{.mayAsync.} =
     when notSupLinenoise:
       stdoutF.write prompt
+      stdoutF.flushFile
       mayNewPromise stdinF.readLine()
     else:
       assert stdinF == stdin
