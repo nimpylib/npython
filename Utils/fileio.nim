@@ -64,12 +64,16 @@ else:
   import ../Utils/utils
   when defined(nimPreviewSlimSys):
     import std/syncio
-  import std/rdstdin
+  when defined(wasm):
+    proc readLineFromStdin*(prompt: string): string{.mayAsync.} =
+      readLineCompat prompt
+  else:
+    import std/rdstdin
+    export readLineFromStdin
   proc fileno*(f: File): cint = cint f.getFileHandle
-  export readLineFromStdin
 
   # condition copied from source code of rdstdin
-  const notSupLinenoise = defined(windows) or defined(genode)
+  const notSupLinenoise = defined(windows) or defined(genode) or defined(wasm)
   when not notSupLinenoise:
     import std/linenoise
   proc readLine*(stdinF, stdoutF: File, prompt: string): string{.mayAsync.} =

@@ -18,7 +18,7 @@ installFiles  = @["LICENSE", "Parser/Grammar"]
 skipDirs = @["tests"]
 binDir        = "bin"
 
-let srcName = "Python/python"
+let srcName = "Python/npython"
 namedBin[srcName] = "npython"
 
 requires  "nim > 2.0.8" # 2.0.8 will error: `/pyobjectBase.nim(342, 16) Error: undeclared field: 'pyType=' for type pyobjectBase.PyObject`
@@ -88,12 +88,24 @@ taskWithArgs testNodeJs, "test nodejs backend, assuming after build":
     pyExe = "node " & pyExeFile
   test "buildJs", pyExe, pyExeFile, args
 
+using args: openArray[string]
+proc selfExecWithSrcAdd(cmd: string; args) =
+  selfExec cmd & ' ' &
+    args.quoteShellCommand & ' '& srcDir & '/' & srcName
+proc selfExecBuildWithSrcAdd(cmd, outfile: string; args) =
+  selfExecWithSrcAdd(cmd & " -o:" & outfile, args)
+
+taskWithArgs buildDbg, "debug build, output product will be appended with a suffix `_d`":
+  selfExecBuildWithSrcAdd "c -g", (binPathWithoutExt & "_d").toExe, args
+
+taskWithArgs buildLib, "build shared library":
+  selfExecBuildWithSrcAdd "c --app:lib", (binDir / namedBin[srcName].toDll), args
+
 taskWithArgs buildJs, "build JS. supported backends: " &
     "-d:nodejs|-d:deno|-d:jsAlert":
-  selfExec "js -o:" & binPathWithoutExt & ".js " &
-    args.quoteShellCommand & ' '& srcDir & '/' & srcName
+  selfExecBuildWithSrcAdd "js", binPathWithoutExt & ".js", args
 
 taskRequires "buildKarax", "karax"
 taskWithArgs buildKarax, "build html page with karax":
-  selfExec "r --hints:off -d:release Tools/mykarun -d:karax " & " --appName=" & namedBin[srcName] & ' ' &
-    args.quoteShellCommand & ' '& srcDir & '/' & srcName
+  selfExecWithSrcAdd "r --hints:off -d:release Tools/mykarun -d:karax " & " --appName=" & namedBin[srcName],
+    args

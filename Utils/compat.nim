@@ -187,11 +187,15 @@ when defined(js):
     a.add b
 
 else:
-  import rdstdin
-
-
-  template readLineCompat*(prompt): string = 
-    readLineFromStdin(prompt)
+  when not defined(wasm):
+    import std/rdstdin
+    template readLineCompat*(prompt): string = 
+      bind readLineFromStdin
+      readLineFromStdin(prompt)
+  else:
+    template readLineCompat*(prompt): string = 
+      stdout.write prompt
+      stdin.readLine()
 
   template echoCompat*(content) = 
     echo content
