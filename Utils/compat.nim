@@ -175,10 +175,6 @@ when defined(js):
         bind denoStdoutWriteSync
         denoStdoutWriteSync encoder.encode s
       proc getCurrentDir*(): string = getCurrentDirCompat()
-      proc quitCompat*(e: string) =
-        bind errEchoCompat, quitCompat
-        errEchoCompat(e)
-        quitCompat QuitFailure
 
   # Years ago...
   # combining two seq directly leaded to a bug in the compiler when compiled to JS
@@ -206,8 +202,6 @@ else:
   template addCompat*[T](a, b: seq[T]) = 
     a.add b
   
-  template writeStdoutCompat*(s) =
-    stdout.write s
 
 when not declared(async):
   const NPythonAsyncReadline* = false
@@ -225,6 +219,10 @@ when not declared(getCurrentDir):
     export getCurrentDir
 when not declaredInScope(getAppFilenameCompat):
   export getAppFilenameCompat, quitCompat
+when not compiles(quitCompat("")):
+  proc quitCompat*(e: string) =
+    errEchoCompat(e)
+    quitCompat QuitFailure
 
 template errEchoCompatNoRaise*(s: string) =
   bind errEchoCompat

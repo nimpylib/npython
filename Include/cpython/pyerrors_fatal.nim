@@ -1,5 +1,5 @@
 
-import ../../Utils/clib
+import ../../Utils/[clib, compat]
 import ../internal/defines
 #[
 import ../internal/defines/[
@@ -52,7 +52,7 @@ proc fatal_error_exit(status: int){.noReturn, inline.} =
       DebugBreak()
     abort()
   else:
-    quit status
+    quitCompat status
 
 proc fatal_error*(header: static bool, prefix: cstring, msg: string, status: int){.noReturn, raises: [].} =
   ## XXX: CPython's arg0 is an fileno int, but all usages are using `fileno(stderr)`
