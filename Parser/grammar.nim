@@ -1,3 +1,6 @@
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+
 import strutils
 import algorithm
 import hashes
@@ -489,7 +492,7 @@ proc matchH(grammar: Grammar): GrammarNode =
 proc lexGrammar = 
   template lines: untyped = grammarLines
   template badGrammar(msg) =
-    quit(
+    quitCompat(
       &"lexerGrammer: Unknown syntax at {grammarFilepath}:{lineIdx}:{line}. " &
       msg
     )

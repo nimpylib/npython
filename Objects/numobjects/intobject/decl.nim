@@ -1,5 +1,9 @@
 
 
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+  export assertions
+
 # this is a **very slow** bigint lib.
 # Why reinvent such a bad wheel?
 # because we seriously need low level control on our modules

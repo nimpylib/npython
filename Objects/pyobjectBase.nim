@@ -1,3 +1,7 @@
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+  export assertions
+
 import strformat
 import strutils
 import macros

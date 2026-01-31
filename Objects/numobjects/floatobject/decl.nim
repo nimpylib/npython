@@ -1,3 +1,8 @@
+
+when defined(nimPreviewSlimSystem):
+  import std/formatfloat
+  export formatfloat
+
 import ../../pyobject
 declarePyType Float(tpToken):
   v: float

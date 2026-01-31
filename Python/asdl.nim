@@ -1,3 +1,6 @@
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+
 import macros
 import hashes
 import sequtils

@@ -1,4 +1,7 @@
 
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+
 from std/typeinfo import AnyKind
 export AnyKind
 import ../Utils/intflags

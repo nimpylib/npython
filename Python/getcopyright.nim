@@ -2,8 +2,8 @@
 import std/os
 const cprtFp = currentSourcePath() /../ "" /../ "LICENSE"
 import std/strutils
-proc Py_GetCopyrightImpl(): string =
-  let all = readFile $cprtFp
+proc Py_GetCopyrightImpl(): string{.compileTime.} =
+  let all = staticRead $cprtFp
   var start, stop = false
   template addl(L) =
     result.add L

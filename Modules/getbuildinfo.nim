@@ -1,4 +1,6 @@
 
+when defined(nimPreviewSlimSystem):
+  import std/assertions
 
 when NimMajor > 1 and not defined(nimscript) and not defined(js):
   from std/paths import `/../`, Path, parentDir

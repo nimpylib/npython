@@ -1,4 +1,8 @@
 
+when defined(nimPreviewSlimSystem):
+  import std/sysatomics
+  export sysatomics
+
 template FT*(x): untyped = addr x  ## for FT_xxxx
 
 const SingleThread* = defined(js) or not compileOption"threads"

@@ -1,5 +1,9 @@
 
 import std/macros
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+  export assertions
+
 import ./paramsMeta
 import ../../Objects/[
   pyobjectBase,

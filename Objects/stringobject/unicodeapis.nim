@@ -1,5 +1,9 @@
 
-include /common_h
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+  export assertions
+
+include ./common_h
 proc unicode_char(c: uint32): PyObject =
   assert c <= MAX_UNICODE
   newPyStr if c < 256: newAsciiUnicodeVariant cast[char](c)

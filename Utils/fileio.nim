@@ -1,7 +1,8 @@
 ## unified APIs for C and js backends,
 ## acting like std/syncio
-when defined(nimPreviewSlimSys):
-  import std/syncio
+when defined(nimPreviewSlimSystem):
+  import std/[syncio, assertions]
+  export assertions
 
 import ../Utils/[compat]
 when not declared(stdout):

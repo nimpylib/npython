@@ -1,3 +1,7 @@
+when defined(nimPreviewSlimSystem):
+  import std/[assertions]
+  export assertions
+
 type
   # exceptions used internally
   InternalError* = object of CatchableError

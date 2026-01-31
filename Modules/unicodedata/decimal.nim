@@ -1,4 +1,7 @@
 
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+
 from std/algorithm import upperBound
 import std/enumerate
 import ./rune_decl

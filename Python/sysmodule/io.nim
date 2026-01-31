@@ -1,4 +1,7 @@
 
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+
 import ../../Objects/[pyobjectBase, stringobject,]
 import ../../Utils/compat
 import ./attrs

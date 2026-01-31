@@ -1,5 +1,9 @@
 ## `pycore_long.h`
 
+when defined(nimPreviewSlimSystem):
+  import std/assertions
+  export assertions
+
 const
   PY_INT_MAX_STR_DIGITS_THRESHOLD*{.intdefine: "PY_LONG_MAX_STR_DIGITS_THRESHOLD".} = 640 ## `_PY_LONG_MAX_STR_DIGITS_THRESHOLD`
   PY_INT_DEFAULT_MAX_STR_DIGITS*{.intdefine: "PY_LONG_DEFAULT_MAX_STR_DIGITS".} = 4300  ## `_PY_LONG_DEFAULT_MAX_STR_DIGITS`\
