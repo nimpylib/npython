@@ -81,7 +81,7 @@ proc matchF(grammar: Grammar): GrammarNode
 proc matchG(grammar: Grammar): GrammarNode  
 proc matchH(grammar: Grammar): GrammarNode  
 
-proc newGrammarNode(name: string, tokenString=""): GrammarNode 
+proc newGrammarNode(name: char, tokenString=""): GrammarNode 
 proc hash(node: GrammarNode): Hash{.raises: [].}
 proc assignId(node: GrammarNode)
 proc nextInTree(node: GrammarNode): HashSet[GrammarNode]
@@ -92,12 +92,12 @@ proc genEpsilonSet(root: GrammarNode)
 proc genNextSet(root: GrammarNode)
 proc matchToken*(node: GrammarNode, token: Token): bool
 
-let successGrammarNode* = newGrammarNode("s") # sentinel
+let successGrammarNode* = newGrammarNode('s') # sentinel
 
-proc newGrammarNode(name: string, tokenString=""): GrammarNode = 
-  case name[0]
+proc newGrammarNode(name: char, tokenString=""): GrammarNode = 
+  case name
   of 'A'..'H', '+', '?', '*':
-    result = GrammarNode(kind: name[0])
+    result = GrammarNode(kind: name)
   of 'a':
     result = GrammarNode(
       kind: 'a',
@@ -354,7 +354,7 @@ proc exhausted(grammar: Grammar): bool =
 
 
 proc matchA(grammar: Grammar): GrammarNode = 
-  var
+  let
     b = matchB(grammar)
     e = matchE(grammar)
     h = matchH(grammar)
@@ -369,7 +369,7 @@ proc matchA(grammar: Grammar): GrammarNode =
     else:
       assert false
   if h != nil:
-    result = newGrammarNode("A")
+    result = newGrammarNode('A')
     result.addChild(b)
     if h.repeat != Repeat.None or h.kind == 'F' or h.isGrammarTerminator:
       result.addChild(h)
@@ -392,12 +392,12 @@ proc matchB(grammar: Grammar): GrammarNode =
     grammar.cursor.inc(grammar.grammarString.skipUntil('\'', grammar.cursor))
     inc(grammar.cursor)
     let substr = grammar.grammarString[prev..grammar.cursor-2]
-    result = newGrammarNode("a", substr)
+    result = newGrammarNode('a', substr)
   else:
     let first = grammar.cursor
     grammar.cursor.inc(grammar.grammarString.skipWhile(IdentStartChars, grammar.cursor))
     let substr = grammar.grammarString[first..<grammar.cursor]
-    result = newGrammarNode("a", substr)
+    result = newGrammarNode('a', substr)
 
 
 proc matchC(grammar: Grammar): GrammarNode =
@@ -434,11 +434,11 @@ proc matchE(grammar: Grammar): GrammarNode =
     return
   case grammar.getChar()
   of '+': 
-    result = newGrammarNode("+")
+    result = newGrammarNode('+')
     inc(grammar.cursor)
   of '*':
     
-    result = newGrammarNode("*")
+    result = newGrammarNode('*')
     inc(grammar.cursor)
   else:
     discard
@@ -448,14 +448,14 @@ proc matchF(grammar: Grammar): GrammarNode =
   let a = matchA(grammar)
   let g = matchG(grammar)
   if g != nil:
-    result = newGrammarNode("F")
+    result = newGrammarNode('F')
     result.addChild(a)
     for child in g.children:
       result.addChild(child)
   else:
     case a.kind
     of 'a':
-      result = newGrammarNode("A")
+      result = newGrammarNode('A')
       result.addChild(a)
     of 'A', 'F':
       result = a
@@ -469,12 +469,13 @@ proc matchG(grammar: Grammar): GrammarNode =
     return
   case grammar.getChar
   of '|':
-    result = newGrammarNode("G")
+    result = newGrammarNode('G')
     inc(grammar.cursor)
     result.addChild(matchA(grammar))
     let g = matchG(grammar)
     if g != nil:
-      result.children = result.children.concat(g.children)
+      for i in g.children:
+        result.addChild(i)
   else:
     discard
 
