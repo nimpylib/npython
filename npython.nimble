@@ -36,7 +36,7 @@ template pylib(x, ver) =
            else: pylibPre & x
 
 pylib "pyrepr", " ^= 0.1.1"
-pylib "jscompat", " ^= 0.1.3"
+pylib "jscompat", " ^= 0.1.4"
 pylib "translateEscape", " ^= 0.1.0"
 
 # copied from nimpylib.nimble
@@ -100,6 +100,16 @@ taskWithArgs buildDbg, "debug build, output product will be appended with a suff
 
 taskWithArgs buildLib, "build shared library":
   selfExecBuildWithSrcAdd "c --app:lib", (binDir / namedBin[srcName].toDll), args
+
+#taskRequires "buildWasm", "wasm_backend ^= 0.1.2"
+taskWithArgs buildWasm, "build .wasm(wasi) executable":
+  pylib "wasm_backend", " ^= 0.1.2"
+  let res = gorgeEx("nim-wasm-build-flags " & NimVersion, cache=NimVersion)
+  if res.exitCode != 0:
+    quit res.output
+  let cmd = "c " & res.output
+  selfExecBuildWithSrcAdd cmd,
+    binPathWithoutExt & ".wasm", args
 
 taskWithArgs buildJs, "build JS. supported backends: " &
     "-d:nodejs|-d:deno|-d:jsAlert":

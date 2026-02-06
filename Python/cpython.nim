@@ -8,7 +8,7 @@ import lifecycle
 import ./getversion
 import ../Parser/[lexer, parser, apis,]
 import ../Objects/bundle
-import ../Utils/[utils, compat, fileio,]
+import ../Utils/[utils, compat, fileio, compat_io_os]
 import ./pythonrun
 import ./pythonrun/utils
 import ./main as pymain
@@ -111,12 +111,12 @@ proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
   template noLongOption(p: OptParser) =
     if p.kind == cmdLongOption:
       p.unknownOption()
-  when defined(js) and cmdline is seq[string]:
+  when defined(js) or defined(wasm):
     # fix: initOptParser will call paramCount.
     #   which is only defined when -d:nodejs
     var cmdline =
       if cmdline.len == 0: @["-"]
-      else: cmdline
+      else: commandLineParamsCompat()
   var
     args: seq[string]
     versionVerbosity = 0
@@ -157,7 +157,7 @@ proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
   of 1: echoVersion()
   else: echoVersion(verbose=true)
 
-when isMainModule and appType != "lib":
+when isMainModule and appType != "lib" and not defined(npy_noMain):
   when defined(js):
     {.error: "python.nim is for c target. Compile jspython.nim as js target" .}
 

@@ -23,7 +23,7 @@ Python programming VM implemented in Nim.
 - Fun and practice. Learn both Python and Nim.
 - Serve as a altertive small version of CPython
   (as of 0.1.1, less than 2MB on release build mode)
-
+- Used as plugin for those using WASM
 
 ### How to use
 
@@ -60,6 +60,12 @@ see help message
 ```
 nimble build
 bin/npython
+```
+##### For a WASM executable (wasi-sdk backend)
+
+```
+nimble buildWasm
+wasmtime --invoke NimMain bin/npython.wasm
 ```
 
 ##### For JS backend

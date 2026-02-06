@@ -46,7 +46,19 @@ proc pycore_init_types =
   chk PyExc_InitTypes(): "failed to initialize an exception type"
   Py_Int_Float_InitTypes handle_PyStatus_ERR
 
+const
+  wasm = defined(wasm)
+  needCallMain = defined(npy_noMain)
+when needCallMain:
+  when wasm:
+    #XXX:NIM-BUG: bypass a new static INLINE was generated
+    {.emit: """void NimMain();""".}
+    proc NimMain() {.importc, nodecl.}
+  else:
+    proc NimMain() {.importc, cdecl.}
 proc pycore_interp_init =
+  when needCallMain:
+    NimMain()
   pycore_init_types()
 
   chk PySys_Create(sys): "can't initialize sys module"
@@ -88,7 +100,7 @@ proc pyInit*(args: seq[string]) =
   ]#
   pyConfig.program_name = getAppFilenameCompat()
   pyConfig.executable = pyConfig.program_name
-  when compiles(expandFilename""):
+  when not wasm and compiles(expandFilename""):
     pyConfig.executable = pyConfig.executable.expandFilename()
   pyConfig.argv = args
   #TODO:argv shall be filtered to remove `-X`,etc

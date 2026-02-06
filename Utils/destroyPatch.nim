@@ -1,7 +1,7 @@
 
 template sinceNim(ma, mi, pa): bool =
   (NimMajor, NimMinor, NimPatch) >= (ma, mi, pa)
-const Js = defined(js)
+const Js = defined(js) or defined(wasm)
 when not Js and sinceNim(2,1,1) or
     Js and sinceNim(2,3,2):
   template defdestroy*(self; Self; body){.dirty.} =
