@@ -37,3 +37,9 @@ jobs:
     - name: Test NodeJS backend
       run: nimble testNodeJs
 
+    - name: setup wasi sdk
+      uses: konsumer/install-wasi-sdk@v1
+    - name: BuildWasm
+      run: |
+        nimble install https://github.com/nimpylib/wasm_backend
+        nimble buildWasm --warning[Spacing]:off
