@@ -22,7 +22,7 @@ declarePyType List(reprLock, mutable, tpToken):
 proc newPyList*: PyListObject = 
   newPyListSimple()
 
-proc newPyList*(items: seq[PyObject]): PyListObject =
+proc newPyList*(items: sink seq[PyObject]): PyListObject =
   result = newPyList()
   result.items = items
 

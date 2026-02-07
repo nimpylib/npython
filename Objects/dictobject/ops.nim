@@ -1,4 +1,5 @@
 
+from std/sugar import collect
 import std/tables
 import ../[
   pyobject, exceptions,
@@ -14,11 +15,24 @@ export decl
 
 template len*(self: PyDictObject): int = self.table.len
 
-proc newPyDict*(table=initTable[PyObject, PyObject]()) : PyDictObject = 
+proc newPyDict*[K: PyObject, V: PyObject](table: sink Table[K, V]
+): PyDictObject =
   result = newPyDictSimple()
-  result.table = table
-proc newPyDict*(table: openArray[(PyObject, PyObject)]) : PyDictObject = 
+  result.table = cast[Table[PyObject, PyObject]](table)
+
+proc newPyDict*() : PyDictObject = newPyDict initTable[PyObject, PyObject]()
+
+proc newPyDict*[V: PyObject](table: openArray[(PyObject, V)]): PyDictObject{.
+    raises: [DictError].} =
   newPyDict table.toTable
+
+proc newPyDict*[V: PyObject](table: openArray[(PyStrObject, V)]): PyDictObject{.
+    raises: [].} =
+  DictError!(block:
+    newPyDict: collect:
+      for (k, v) in table:
+        {PyObject k: v}
+  )
 
 proc hasKey*(dict: PyDictObject, key: PyObject): bool =
   ## may raises DictError where Python raises TypeError
@@ -30,7 +44,9 @@ proc contains*(dict: PyDictObject, key: PyObject): bool =
 
 
 proc `[]`*(dict: PyDictObject, key: PyObject): PyObject = dict.table[key]
-proc `[]`*(dict: PyDictObject, key: PyStrObject): PyObject = DictError!dict[PyObject key]
+type PyDictUnderlyingType = typeof((var x: PyDictObject; x.table))
+proc `[]`*(dict: PyDictUnderlyingType, key: PyStrObject): PyObject = DictError!dict[PyObject key]
+proc `[]`*(dict: PyDictObject, key: PyStrObject): PyObject = dict.table[key]
 
 proc del*(dict: PyDictObject, key: PyObject) =
   ## do nothing if key not exists
@@ -39,7 +55,9 @@ proc del*(dict: PyDictObject, key: PyObject) =
 proc clear*(dict: PyDictObject) = dict.table.clear
 
 proc `[]=`*(dict: PyDictObject, key, value: PyObject) = dict.table[key] = value
-proc `[]=`*(dict: PyDictObject, key: PyStrObject, value: PyObject) = DictError!!(dict[PyObject key] = value)
+proc `[]=`*(dict: var PyDictUnderlyingType, key: PyStrObject, value: PyObject){.gcSafe, raises: [].} =
+  {.gcSafe.}: DictError!!(dict[PyObject key] = value)
+proc `[]=`*(dict: PyDictObject, key: PyStrObject, value: PyObject) = dict.table[key] = value
 
 # TODO: overload all bltin types and other functions?
 template withValue*(dict: PyDictObject, key: PyStrObject; value; body) =
