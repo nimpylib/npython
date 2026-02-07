@@ -77,7 +77,7 @@ implDictMagic hash: unhashable self
 implDictMagic eq:
   newPyBool(
     other.ofPyDictObject() and
-    DictError!(self.table == other.PyDictObject.table)
+    self == other.PyDictObject
   )
 implDictMagic Or(E: PyDictObject), [mutable: read]:
   let res = newPyDict self.table

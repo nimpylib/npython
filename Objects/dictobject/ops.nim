@@ -59,6 +59,8 @@ proc `[]=`*(dict: var PyDictUnderlyingType, key: PyStrObject, value: PyObject){.
   {.gcSafe.}: DictError!!(dict[PyObject key] = value)
 proc `[]=`*(dict: PyDictObject, key: PyStrObject, value: PyObject) = dict.table[key] = value
 
+proc `==`*(dict1, dict2: PyDictObject): bool{.pyCFuncPragma.} =
+  DictError!!(dict1.table == dict2.table)
 # TODO: overload all bltin types and other functions?
 template withValue*(dict: PyDictObject, key: PyStrObject; value; body) =
   ## we know `str.__eq__` and `str.__hash__` never raises
