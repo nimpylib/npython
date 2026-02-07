@@ -70,6 +70,10 @@ else:
   proc getCharPtr*(s: PyByteLike; i: int): ptr char = addr s.items[i]  ## unstable.
   ##  not available on JS
 
+type SingleChars = openArray[uint8|int8|char]|string ## \
+  ## unstable. exported just for clarity for reading.
+when defined(doc):
+  export SingleChars
 template impl(B, InitT, newTOfCap){.dirty.} =
   proc asString*(s: `Py B Object`): string = $s.items
   proc charsView*(s: `Py B Object`): CharsView =
@@ -77,13 +81,24 @@ template impl(B, InitT, newTOfCap){.dirty.} =
     else:
       return cast[cstring](s.items.addr0)
   method `$`*(s: `Py B Object`): string = s.asString
-  proc `newPy B`*(s: InitT): `Py B Object` =
+  proc `newPy B`*(s: sink InitT): `Py B Object` =
     result = `newPy B Simple`()
     result.items = s
+  proc `newPy B FromOpenArray`(s: SingleChars): `Py B Object` =
+    var items = newTOfCap s.len
+    for b in s: items.add char(b)
+    result = `newPy B` items
+  proc `newPy B`*(s: SingleChars): `Py B Object` =
+    `newPy B FromOpenArray` s
+  proc `newPy B`*(s: sink seq[byte]): `Py B Object` =
+    when not defined(js):
+      return `newPy B`(cast[seq[char]](s))
+    else:
+      `newPy B FromOpenArray`(s)
   proc `newPy B`*(size: int): `Py B Object` =
     `newPy B` newTOfCap size
 
-  let `empty B` = `newPy B` @[]
+  let `empty B` = `newPy B` newSeq[char]()
   proc `newPy B`*(): `Py B Object` = `empty B`
 
   proc `&`*(s1, s2: `Py B Object`): `Py B Object` =
@@ -100,8 +115,6 @@ proc finish*(self: sink PyBytesWriter): PyObject =
 proc finish*(self: sink PyBytesWriter, res: PyObject) =
   if self.use_bytearray: PyByteArrayObject(res).items = move self.s
   else: PyBytesObject(res).items = move self.s
-
-proc newPyBytes*(s: openArray[char]): PyBytesObject = newPyBytes @s
 
 proc repr*(b: PyBytesObject): string =
   pyreprb $b.items
