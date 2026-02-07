@@ -340,7 +340,7 @@ proc print_exception_cause_and_context(ctx; value): PyBaseErrorObject =
 
 proc print_exception_recursive(ctx; value): PyBaseErrorObject{. raises: [].} =
   withNoRecusiveCallOrRetE(" in print_exception_recursive"):
-    if ctx.seen != nil:
+    if not ctx.seen.isNil:
       # Exception chaining
       retIfExc print_exception_cause_and_context(ctx, value)  
     retIfExc print_exception(ctx, value)
@@ -349,7 +349,7 @@ proc print_exception_recursive(ctx; value): PyBaseErrorObject{. raises: [].} =
 using file: PyObject
 proc private_PyErr_Display(file; unused: PyObject; value; tb: PyObject){.raises: [].} =
   ## `_PyErr_Display`
-  assert(file != nil and not file.isPyNone)
+  assert(not file.isNil and not file.isPyNone)
   if ofPyExceptionInstance(value) and tb != nil and ofPyTraceBackObject(tb):
     let cur_tb = value.privateGetTracebackRef
     if cur_tb.isNil:

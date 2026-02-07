@@ -60,26 +60,40 @@ template borrowFunc1sVoid*(name; S; T: untyped = PyStrObject){.dirty.} =
   proc name*(self: `Py S Object`; other: T){.pyCFuncPragma.} =
     DictError!!name(self.items, other)
 
+template opBody(S, nop, otherAttr){.dirty.} =
+  let res = `newPy S Simple`()
+  res.items = DictError!(nop(self.items, other.otherAttr))
+  return res
+template declOpApiWith(Ret, S, name, body){.dirty.} =
+  proc name*(self: `Py S Object`, other: PySetObject|PyFrozenSetObject): Ret = body
+template declOpApi(S, name, body){.dirty.} =
+  declOpApiWith(`Py S Object`, S, name, body)
+template opBBody(nop, otherAttr): bool{.dirty.} =
+  bind `!`, DictError
+  typeof(DictError)!(nop(self.items, other.otherAttr))
+template declOpBApi(S, name){.dirty.} =
+  declOpApiWith(bool, S, name): opBBody(name, items)
+
 #NOTE: only getItem shall use `DictError!`,
 # for getItemsMayIter, use `handleHashExc`
 template genOp(S, mutRead, pyOp, nop){.dirty.} =
+  declOpApi(S, nop):
+    opBody S, nop, items
   `impl S Magic` pyOp, mutRead:
-    let res = `newPy S Simple`()
-    res.items = DictError!nop(self.items, other.getItems)
-    return res
+    opBody S, nop, getItems
 template genMe(S, mutRead, pyMethod, nop){.dirty.} =
+  declOpApi(S, pyMethod):
+    opBody S, nop, items
   `impl S Method` pyMethod(other: PyObject), mutRead:
-    let res = `newPy S Simple`()
-    res.items = DictError!nop(self.items, other.getItems)
-    return res
+    opBody S, nop, getItems
 template genBOp(S, mutRead, pyOp, nop){.dirty.} =
+  declOpBApi(S, nop)
   `impl S Magic` pyOp, mutRead:
-    if DictError!nop(self.items, other.getItems): pyTrueObj
-    else: pyFalseObj
+    newPyBool opBBody(nop, getItems)
 template genBMe(S, mutRead, pyMethod, nop){.dirty.} =
+  declOpBApi(S, nop)
   `impl S Method` pyMethod(other: PyObject), mutRead:
-    if DictError!nop(self.items, other.getItems): pyTrueObj
-    else: pyFalseObj
+    newPyBool opBBody(nop, getItems)
 
 template genSet(S, setSeqToStr, mutRead, mutReadRepr){.dirty.} =
   proc `newPy S`*: `Py S Object` =
