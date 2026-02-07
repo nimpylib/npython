@@ -36,9 +36,11 @@ macro castOther(code:untyped):untyped =
   )
   code
 
-template genBin(magic, op; ret: untyped=newPyFloat){.dirty.} =
-  implFloatMagic magic, [castOther]:
+template genBin(magic, op; ret:untyped=newPyFloat; retMagic: untyped=newPyFloat){.dirty.} =
+  template op*(self, casted: PyFloatObject): untyped =
     ret op(self.v, casted.v)
+  implFloatMagic magic, [castOther]:
+    retMagic op(self, casted)
 
 genBin add, `+`
 genBin sub, `-`
@@ -86,7 +88,8 @@ implFloatMagic negative: newPyFloat(-self.v)
 
 implFloatMagic bool: newPyBool self.v != 0
 
-template genBBin(magic, op){.dirty.} = genBin(magic, op, newPyBool)
+template asIs(x): untyped = x
+template genBBin(magic, op){.dirty.} = genBin(magic, op, asIs, newPyBool)
 
 genBBin lt, `<`
 genBBin eq, `==`
