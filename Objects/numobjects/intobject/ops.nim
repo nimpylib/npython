@@ -668,8 +668,12 @@ proc newPyInt*(dval: float): PyObject =
   let ndig = expo1s div PyLong_SHIFT + 1
   let res = newPyIntOfLenUninit(ndig)
 
+  when not declared(ldexp) and not defined(js):
+    proc ldexp(arg: cdouble, exp: cint): cdouble{.importc, header: "<math.h>".}
+    proc ldexp(arg: cdouble, exp: int): cdouble = ldexp(arg, cint(exp))
   when declared(ldexp):
     # NIMPYLIB:ldexp
+    {.define: npythonGoodIntFromBigFloat.}
     frac = ldexp(frac, expo1s mod PyLong_SHIFT + 1)
     for i in countdown(ndig-1, 0):
       let bits = Digit(frac)
