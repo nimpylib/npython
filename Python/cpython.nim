@@ -13,7 +13,7 @@ import ./pythonrun
 import ./pythonrun/utils
 import ./main as pymain
 from ./main/utils import getVersionString
-export getVersionString
+export getVersionString, Mode
 
 template echoVersion(verbose=false) =
   echoCompat getVersionString(verbose)

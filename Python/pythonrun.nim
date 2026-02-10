@@ -6,6 +6,7 @@ import ./[asdl,
 ]
 import ./pyimport/utils
 import ../Parser/[lexer, apis,]
+export Mode
 import ../Objects/bundle
 import ../Utils/[utils, compat, fileio, trans_imp]
 import ../Include/internal/pycore_global_strings
