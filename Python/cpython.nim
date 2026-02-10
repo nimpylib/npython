@@ -75,8 +75,9 @@ proc interactiveShell*{.mayAsync.} =
 template exit0or1(suc) = quitCompat(if suc: 0 else: 1)
 
 
-proc nPython(args: seq[string]){.mayAsync.} =
-  pyInit(args)
+proc nPython(args: seq[string]; init: static[bool]){.mayAsync.} =
+  when init:
+    pyInit(args)
   let filename = pyConfig.run_filename
   if filename == "":
     mayAwait interactiveShell()
@@ -100,7 +101,7 @@ proc echoHelp() =
   echoCompat "file   : program read from script file"
 
 
-proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
+proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsync.} =
   proc unknownOption(p: OptParser){.noReturn.} =
     var origKey = "-"
     if p.kind == cmdLongOption: origKey.add '-'
@@ -145,7 +146,8 @@ proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
         pyConfig.run_command =
           if p.val != "": p.val
           else: p.remainingArgs()[0]
-        Py_Initialize()
+        when init:
+          Py_Initialize()
         PyRun_SimpleString(pyConfig.run_command).exit0or1
       of "":  # allow -
         discard
@@ -153,7 +155,7 @@ proc main*(cmdline: string|seq[string] = ""){.mayAsync.} =
         p.unknownOption()
     of cmdEnd: break
   case versionVerbosity
-  of 0: mayAwait nPython args
+  of 0: mayAwait nPython(args, init=init)
   of 1: echoVersion()
   else: echoVersion(verbose=true)
 
