@@ -146,9 +146,16 @@ proc `&`*(a, b: UnicodeVariant): UnicodeVariant =
     newUnicodeUnicodeVariant(cat(it1, it2))
     newAsciiUnicodeVariant(it1 & it2)
 template add*(r: seq[Rune], c: char) = r.add Rune c
-proc `&`*(a: UnicodeVariant, c: char): UnicodeVariant =
+proc add*(a: UnicodeVariant, c: char): UnicodeVariant =
   if a.ascii: a.asciiStr.add c
   else: a.unicodeStr.add c
+
+proc `&`*(a: UnicodeVariant, c: char): UnicodeVariant =
+  if a.ascii: newAsciiUnicodeVariant a.asciiStr & c
+  else:
+    var res = a.unicodeStr
+    res.add c
+    newUnicodeUnicodeVariant res
 
 proc len*(str: UnicodeVariant): int {. cdecl .} =
   str.doBothKindOk(len)
