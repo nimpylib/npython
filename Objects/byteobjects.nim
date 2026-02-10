@@ -74,7 +74,7 @@ type SingleChars = openArray[uint8|int8|char]|string ## \
   ## unstable. exported just for clarity for reading.
 when defined(doc):
   export SingleChars
-template impl(B, InitT, newTOfCap){.dirty.} =
+template impl(B, InitT, newTOfLen, newTOfLenUninit){.dirty.} =
   proc asString*(s: `Py B Object`): string = $s.items
   proc charsView*(s: `Py B Object`): CharsView =
     when defined(js): s.items
@@ -85,8 +85,8 @@ template impl(B, InitT, newTOfCap){.dirty.} =
     result = `newPy B Simple`()
     result.items = s
   proc `newPy B FromOpenArray`(s: SingleChars): `Py B Object` =
-    var items = newTOfCap s.len
-    for b in s: items.add char(b)
+    var items = newTOfLenUninit s.len
+    for i, b in s: items[i] = char(b)
     result = `newPy B` items
   proc `newPy B`*(s: SingleChars): `Py B Object` =
     `newPy B FromOpenArray` s
@@ -96,7 +96,7 @@ template impl(B, InitT, newTOfCap){.dirty.} =
     else:
       `newPy B FromOpenArray`(s)
   proc `newPy B`*(size: int): `Py B Object` =
-    `newPy B` newTOfCap size
+    `newPy B` newTOfLen size
 
   let `empty B` = `newPy B` newSeq[char]()
   proc `newPy B`*(): `Py B Object` = `empty B`
@@ -104,8 +104,13 @@ template impl(B, InitT, newTOfCap){.dirty.} =
   proc `&`*(s1, s2: `Py B Object`): `Py B Object` =
     `newPy B`(s1.items & s2.items)
 
-impl Bytes, seq[char], newSeq[char]
-impl ByteArray, seq[char], newSeq[char]
+when declared(newSeqUninit):
+  template newCharsUninit(size: int): seq[char] = newSeqUninit[char](size)
+else:
+  template newCharsUninit(size: int): seq[char] = newSeq[char](size)
+
+impl Bytes, seq[char], newSeq[char], newCharsUninit
+impl ByteArray, seq[char], newSeq[char], newCharsUninit
 
 
 proc finish*(self: sink PyBytesWriter): PyObject =
