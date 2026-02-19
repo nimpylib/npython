@@ -70,10 +70,10 @@ else:
   proc getCharPtr*(s: PyByteLike; i: int): ptr char = addr s.items[i]  ## unstable.
   ##  not available on JS
 
-type SingleChars = openArray[uint8|int8|char]|string ## \
+type SingleChar = uint8|char|byte ## \
   ## unstable. exported just for clarity for reading.
 when defined(doc):
-  export SingleChars
+  export SingleChar
 template impl(B, InitT, newTOfLen, newTOfLenUninit){.dirty.} =
   proc asString*(s: `Py B Object`): string = $s.items
   proc charsView*(s: `Py B Object`): CharsView =
@@ -84,17 +84,12 @@ template impl(B, InitT, newTOfLen, newTOfLenUninit){.dirty.} =
   proc `newPy B`*(s: sink InitT): `Py B Object` =
     result = `newPy B Simple`()
     result.items = s
-  proc `newPy B FromOpenArray`(s: SingleChars): `Py B Object` =
+  proc `newPy B FromOpenArray`[T: SingleChar](s: openArray[T]): `Py B Object` =
     var items = newTOfLenUninit s.len
     for i, b in s: items[i] = char(b)
     result = `newPy B` items
-  proc `newPy B`*(s: SingleChars): `Py B Object` =
+  proc `newPy B`*[T: SingleChar](s: openArray[T]): `Py B Object` =
     `newPy B FromOpenArray` s
-  proc `newPy B`*(s: sink seq[byte]): `Py B Object` =
-    when not defined(js):
-      return `newPy B`(cast[seq[char]](s))
-    else:
-      `newPy B FromOpenArray`(s)
   proc `newPy B`*(size: int): `Py B Object` =
     `newPy B` newTOfLen size
 
