@@ -27,22 +27,31 @@ export pyIntZero, pyIntOne, pyIntTen
 let pyIntTwo = newPyInt(2)
 
 using self: PyIntObject
+func fastExtract1(a: PyIntObject): SDigit =
+  # assert a.digits.len == 1
+  result = SDigit a.digits[0]
+  if a.negative:
+    result = -result
+
 template fastExtract(a, b){.dirty.} =
   let
-    left = SDigit a.digits[0]
-    right = SDigit b.digits[0]
+    left = a.fastExtract1
+    right = b.fastExtract1
   when check:
     assert a.digits.len == 1
     assert b.digits.len == 1
 
-proc fast_floor_div(a, b: PyIntObject; check: static[bool] = true): PyIntObject =
-  fastExtract a, b
-  newPyInt floorDiv(left, right)
+template genFast(op){.dirty.} =
+  proc `fast op`(a, b: PyIntObject; check: static[bool] = true): PyIntObject =
+    fastExtract a, b
+    newPyInt op(left, right)
 
-proc fast_mod(a, b: PyIntObject; check: static[bool] = true): PyIntObject =
+proc fast_div(a, b: PyIntObject; check: static[bool] = true): PyIntObject =
   fastExtract a, b
-  #let sign = b.compatSign
-  newPyInt floorMod(left, right)  
+  newPyInt `div`(left, right)
+
+genFast floordiv
+genFast floormod
 
 proc inplaceDivRem1(pout: var openArray[Digit], pin: openArray[Digit], size: int, n: Digit): Digit =
   ## Perform in-place division with remainder for a single digit
@@ -69,32 +78,45 @@ proc divRem1(a: PyIntObject, n: Digit, remainder: var Digit): PyIntObject =
   quotient.normalize()
   return quotient
 
-proc inplaceRem1(pin: var seq[Digit], size: int, n: Digit): Digit =
+proc inplaceRem1(pin: openArray[Digit], size: int, n: TwoDigits): Digit =
   ## Compute the remainder of a multi-digit integer divided by a single digit.
   ## `pin` points to the least significant digit (LSD).
   var rem: TwoDigits = 0
   assert n > 0 and n <= maxValue - 1
 
   for i in countdown(size - 1, 0):
-    rem = ((rem shl digitBits) or TwoDigits(pin[i])) mod TwoDigits(n)
+    rem = ((rem shl digitBits) or TwoDigits(pin[i])) mod n
 
   return Digit(rem)
 
-proc rem1(a: PyIntObject, n: Digit): PyIntObject =
+proc `mod`*(a: PyIntObject, n: TwoDigits): PyIntObject =
+  ## `rem1`
   ## Get the remainder of an integer divided by a single digit.
   ## The sign of `a` is ignored; `n` should not be zero.
+  ## 
+  ## .. hint::
+  ##   Other mixin ops against fixed-width integer are implemented in
+  ##   `ops_mix_nim.nim`<./ops_mix_nim.html>_
   assert n > 0 and n <= maxValue - 1
   let size = a.digits.len
   let remainder = inplaceRem1(a.digits, size, n)
   return newPyInt(remainder)
 
+template genMod(T){.dirty.} =
+  proc `mod`*(a: PyIntObject, n: T): PyIntObject = a mod Digit(n)
+when digitBits > 16:
+  genMod uint8|uint16|Digit
+else:
+  genMod uint8|Digit
+
 proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool{.pyCFuncPragma.}
-proc lMod(v, w: PyIntObject, modRes: var PyIntObject): bool{.pyCFuncPragma.} =
+proc tryFloorMod(v, w: PyIntObject, modRes: var PyIntObject): bool{.pyCFuncPragma.} =
+  ## `l_mod`
   ## Compute modulus: *modRes = v % w
   ## returns w != 0
   #assert modRes != nil
   if v.digits.len == 1 and w.digits.len == 1:
-    modRes = fast_mod(v, w)
+    modRes = fast_floor_mod(v, w, off)
     return not modRes.isNil
 
   if not tryRem(v, w, modRes):
@@ -106,48 +128,66 @@ proc lMod(v, w: PyIntObject, modRes: var PyIntObject): bool{.pyCFuncPragma.} =
     modRes = modRes + w
 
 
-proc `%`*(a, b: PyIntObject): PyObject{.pyCFuncPragma.} =
-  var res: PyIntObject
-  if lMod(a, b, res):
-    retZeroDiv
-  result = res
+template chkRaiseDivByZero(cond) =
+  if not cond:
+    raise newException(DivByZeroDefect, "division by zero")
 
-proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool {.pyCFuncPragma.}
+proc tryDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool {.pyCFuncPragma.}
+  ## `l_divmod`
+proc tryDivrem(a, b: PyIntObject, pdiv, prem: var PyIntObject): bool{.pyCFuncPragma.}
 
-template fastDivIf1len(a, b: PyIntObject) =
+template tryDiv(a, b: PyIntObject; result): bool =
   if a.digits.len == 1 and b.digits.len == 1:
-    return fast_floor_div(a, b)
-
-template lDiv(a, b: PyIntObject; result): bool =
+    return fast_div(a, b, off)
   var unused: PyIntObject
-  lDivmod(a, b, result, unused)
+  tryDivrem(a, b, result, unused)
 
-proc floorDivNonZero*(a, b: PyIntObject): PyIntObject =
-  ## `long_div`
-  ## Integer division
-  ## 
-  ## assuming b is non-zero
-  fastDivIf1len a, b
-  assert lDiv(a, b, result)
+template tryFloorDiv(a, b: PyIntObject; result): bool =
+  ## `l_div`
+  if a.digits.len == 1 and b.digits.len == 1:
+    return fast_floor_div(a, b, off)
+  var unused: PyIntObject
+  tryDivmod(a, b, result, unused)
 
-proc `//`*(a, b: PyIntObject): PyObject{.pyCFuncPragma.} =
-  ## `long_div`
-  ## Integer division
-  ## 
-  ## .. note:: this may returns ZeroDivisionError
-  fastDivIf1len a, b
-  var res: PyIntObject
-  if lDiv(a, b, res):
-    return res
-  retZeroDiv
+# `long_div`
+template genDivOrMod(floorOp, pyFloorOp, op, pyOp){.dirty.} =
+  proc `floorOp NonZero`*(a, b: PyIntObject): PyIntObject =
+    ## Integer division
+    ## 
+    ## assuming b is non-zero
+    let ret = `try floorOp`(a, b, result)
+    assert ret
+
+  proc `floorOp`*(a, b: PyIntObject): PyIntObject{.pyCFuncPragma.} =
+    ## .. note:: this raises ZeroDivisionDefect when b is zero
+    chkRaiseDivByZero `try floorOp`(a, b, result)
+
+  proc pyFloorOp*(a, b: PyIntObject): PyObject{.pyCFuncPragma.} =
+    ## .. note:: this may returns ZeroDivisionError
+    var res: PyIntObject
+    if `try floorOp`(a, b, res):
+      return res
+    retZeroDiv
+  
+  proc pyOp*(a, b: PyIntObject): PyIntObject =
+    ## .. note:: this raises ZeroDivisionDefect when b is zero
+    chkRaiseDivByZero op(a, b, result)
+
+genDivOrMod floordiv, `//`,  tryDiv, `div`
+genDivOrMod floormod, `%` ,  tryRem, `mod`
 
 proc divmodNonZero*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
   ## export for builtins.divmod
-  assert lDivmod(a, b, result.d, result.m)
+  let ret = tryDivmod(a, b, result.d, result.m)
+  assert ret
 
 proc divmod*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
-  if not lDivmod(a, b, result.d, result.m):
-    raise newException(ValueError, "division by zero")
+  ## .. note::
+  ##   this is Python's `divmod`(get division and modulo),
+  ##   ref `divrem`_ for Nim's std/math divmod
+  ##
+  ## .. hint:: this raises ZeroDivisionDefect when b is zero
+  chkRaiseDivByZero tryDivmod(a, b, result.d, result.m)
 
 proc xDivRem(v1, w1: PyIntObject, prem: var PyIntObject): PyIntObject =
   ## `x_divrem`
@@ -245,7 +285,7 @@ proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool{.pyCFuncPragma.} =
     return
 
   if sizeB == 1:
-    prem = rem1(a, b.digits[0])
+    prem = a mod b.digits[0]  # `rem1`, get reminder
   else:
     discard xDivRem(a, b, prem)
 
@@ -253,7 +293,7 @@ proc tryRem(a, b: PyIntObject, prem: var PyIntObject): bool{.pyCFuncPragma.} =
   if (a.sign == Negative) and not prem.zero():
     prem.setSignNegative()
 
-proc tryDivrem(a, b: PyIntObject, pdiv, prem: var PyIntObject): bool =
+proc tryDivrem(a, b: PyIntObject, pdiv, prem: var PyIntObject): bool{.pyCFuncPragma.} =
   ## `long_divrem`
   ## Integer division with remainder
   ## 
@@ -289,8 +329,10 @@ proc tryDivrem(a, b: PyIntObject, pdiv, prem: var PyIntObject): bool =
   if (a.sign == Negative) and not prem.zero():
     prem.setSignNegative()
 
+proc divrem*(a, b: PyIntObject): tuple[d, r: PyIntObject] =
+  chkRaiseDivByZero tryDivrem(a, b, result.d, result.r)
 
-proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool{.pyCFuncPragma.} =
+proc tryDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool{.pyCFuncPragma.} =
   ## Python's returns -1 on failure, which is only to be Memory Alloc failure
   ## where nim will just `SIGSEGV`
   ## 
@@ -300,7 +342,7 @@ proc lDivmod(v, w: PyIntObject, divRes, modRes: var PyIntObject): bool{.pyCFuncP
   # Fast path for single-digit longs
   if v.digits.len == 1 and w.digits.len == 1:
     divRes = fast_floor_div(v, w, off)
-    modRes = fast_mod(v, w, off)
+    modRes = fast_floor_mod(v, w, off)
     return
 
   # Perform long division and remainder

@@ -109,24 +109,6 @@ proc `<`*(a, b: PyIntObject): bool =
     of Positive:
       return doCompare(a, b) == Negative
 
-proc `<`*(aa: int, b: PyIntObject): bool =
-  let a = newPyInt(aa)
-  case a.sign
-  of Negative:
-    case b.sign
-    of Negative:
-      return doCompare(a, b) == Positive
-    of Zero, Positive:
-      return true
-  of Zero:
-    return b.sign == Positive
-  of Positive:
-    case b.sign
-    of Negative, Zero:
-      return false
-    of Positive:
-      return doCompare(a, b) == Negative
-
 proc `==`*(a, b: PyIntObject): bool =
   if a.sign != b.sign:
     return false
