@@ -10,6 +10,7 @@ impExp floatobject,
   decl, toval, fromx
 
 from ./intobject/ops import newPyInt
+from ./intobject/ops_mix_nim import private_mixOpPyWithNim, private_gen_mix
 import ./numobjects_comm
 export floatobject_decl
 
@@ -53,8 +54,16 @@ proc floorDivNonZero(a, b: PyFloatObject): PyFloatObject =
 proc floorModNonZero(a, b: PyFloatObject): PyFloatObject =
   newPyFloat(floorMod(a.v, b.v))
 
-template genDivOrMod(dm, mag){.dirty.} =
-  proc `floor dm`(a, b: PyFloatObject): PyObject =
+template raiseDivByZero =
+  raise newException(DivByZeroDefect, "division by zero")
+
+template genDivOrMod(pyOp, dm, mag){.dirty.} =
+  proc `floor dm`*(a, b: PyFloatObject): PyFloatObject =
+    if b.v == 0:
+      raiseDivByZero
+    `floor dm NonZero` a, b
+
+  proc pyOp*(a, b: PyFloatObject): PyObject =
     if b.v == 0:
       retZeroDiv
     `floor dm NonZero` a, b
@@ -62,8 +71,8 @@ template genDivOrMod(dm, mag){.dirty.} =
   implFloatMagic mag, [castOther]:
     `floor dm` self, casted
 
-genDivOrMod Div, floorDiv
-genDivOrMod Mod, Mod
+genDivOrMod `//`, Div, floorDiv
+genDivOrMod `%` , Mod, Mod
 
 proc divmodNonZero*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
   ## export for builtins.divmod
@@ -72,7 +81,7 @@ proc divmodNonZero*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
 
 proc divmod*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
   if b.v == 0.0:
-    raise newException(ValueError, "division by zero")
+    raiseDivByZero
   divmodNonZero(a, b)
 
 
@@ -95,6 +104,22 @@ genBBin lt, `<`
 genBBin eq, `==`
 genBBin gt, `>`
 
+private_gen_mix mixb, SomeFloat, PyFloatObject:
+  bind op
+  op(a.v, b)
+do:
+  bind op
+  op(a, b.v)
+
+private_gen_mix mix, SomeFloat, PyFloatObject:
+  bind op, newPyFloat
+  newPyFloat op(a.v, b)
+do:
+  bind op, newPyFloat
+  newPyFloat op(a, b.v)
+
+mix `/`
+private_mixOpPyWithNim mixb, mix
 
 implFloatMagic str:
   newPyAscii($self)
