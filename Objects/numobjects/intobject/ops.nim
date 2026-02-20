@@ -24,7 +24,6 @@ type STwoDigit = SDigit
 const maxValue = TwoDigits(high(Digit)) + 1
 
 export pyIntZero, pyIntOne, pyIntTen
-let pyIntTwo = newPyInt(2)
 
 using self: PyIntObject
 func fastExtract1(a: PyIntObject): SDigit =

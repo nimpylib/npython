@@ -23,6 +23,7 @@ proc PyBuiltin_Init*(config: PyConfig): PyObject =
   let modu = PyBuiltinsModuleObject moduObj
   let dict = PyEval_GetBuiltins()
   modu.dict = dict
+  register_bltins()
   let debug = newPyInt int config.optimization_level == 0
   dict[newPyAscii"__debug__"] = debug
   modu

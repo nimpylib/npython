@@ -1,5 +1,6 @@
+
+import std/[macros, macrocache]
 import strformat
-{.used.}  # this module contains toplevel code, so never `importButNotUsed`
 import neval
 import builtindict
 
@@ -29,12 +30,26 @@ proc registerBltinObject(name: string, obj: PyObject) =
   assert (not bltinDict.hasKey(nameStr))
   bltinDict[nameStr] = obj
 
-register_io
-register_iterops
-register_compile_eval_exec
-register_globals_locals_vars
-register_unarys
-registerBltinFunction "sum", builtin_sum
+template register_bltin_funcs1{.dirty.} =
+  register_io
+  register_iterops
+  register_compile_eval_exec
+  register_globals_locals_vars
+  register_unarys
+  registerBltinFunction "sum", builtin_sum
+
+const bltinFuncs = CacheSeq"bltinFuncs"
+macro registerBltinFunctionMacro(name: string, fun: typed) = 
+  let res = newCall(
+    bindSym"registerBltinFunction",
+    name, fun
+  )
+  bltinFuncs.add res
+
+macro register_bltin_funcs =
+  result = newStmtList newCall bindSym"register_bltin_funcs1"
+  for f in bltinFuncs:
+    result.add f
 
 # make it public so that neval.nim can use it
 macro implBltinFunc*(prototype, pyName, body: untyped): untyped = 
@@ -67,14 +82,13 @@ macro implBltinFunc*(prototype, pyName, body: untyped): untyped =
     registerName = methodName.strVal
   else:
     registerName = pyName.strVal
-  result = newStmtList(
-    procNode,
-    nnkCall.newTree(
+  result = newStmtList procNode
+  let res = nnkCall.newTree(
       ident("registerBltinFunction"),
       newLit(registerName),
       name
     )
-  )
+  bltinFuncs.add res
 
 macro implBltinFunc(prototype, body:untyped): untyped = 
   getAst(implBltinFunc(prototype, newLit(""), body))
@@ -117,7 +131,7 @@ template genBltWithKeyAndMayDef(blt; tk; N, call){.dirty.} =
     PyArg_NoKw `blt name`, kwargs
     template callNext(obj): PyObject = call
     callWithKeyAndMayDefault callNext, tk, N
-  registerBltinFunction(`blt name`, `builtin blt`)
+  registerBltinFunctionMacro(`blt name`, `builtin blt`)
 
 genBltWithKeyAndMayDef next, StopIter, 1: obj.callMagic(iternext)
 genBltWithKeyAndMayDef getattr, Attribute, 2: PyObject_GetAttr(args[0], obj)
@@ -128,7 +142,7 @@ template genBltOfNArg(blt; N, call){.dirty.} =
     PyArg_NoKw `blt name`, kwargs
     checkArgNum N
     call
-  registerBltinFunction(`blt name`, `builtin blt`)
+  registerBltinFunctionMacro(`blt name`, `builtin blt`)
 
 genBltOfNArg setattr, 3: PyObject_Setattr(args[0], args[1], args[2])
 genBltOfNArg delattr, 2: PyObject_Delattr(args[0], args[1])
@@ -151,50 +165,52 @@ implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject, *bases), 
     return retObj
   tpMagic(Type, new)(@[pyTypeObjectType, name, newPyTuple(bases), f.toPyDict()])
 
+proc register_bltins* =
+  register_bltin_funcs()
 
-registerBltinObject("NotImplemented", pyNotImplemented)
-registerBltinObject("Ellipsis", pyEllipsis)
-registerBltinObject("None", pyNone)
+  registerBltinObject("NotImplemented", pyNotImplemented)
+  registerBltinObject("Ellipsis", pyEllipsis)
+  registerBltinObject("None", pyNone)
 
-register_iter_objects
-registerBltinObject("bool", pyBoolObjectType)
-registerBltinObject("bytearray", pyByteArrayObjectType)
-registerBltinObject("bytes", pyBytesObjectType)
-registerBltinObject("dict", pyDictObjectType)
-registerBltinObject("enumerate", pyEnumerateObjectType)
-registerBltinObject("float", pyFloatObjectType)
-registerBltinObject("frozenset", pyFrozenSetObjectType)
-registerBltinObject("int", pyIntObjectType)
-registerBltinObject("list", pyListObjectType)
-registerBltinObject("object", pyObjectType)
-registerBltinObject("property", pyPropertyObjectType)
-registerBltinObject("range", pyRangeObjectType)
-registerBltinObject("reversed", pyReversedObjectType)
-registerBltinObject("set", pySetObjectType)
-registerBltinObject("str", pyStrObjectType)
-registerBltinObject("slice", pySliceObjectType)
-registerBltinObject("type", pyTypeObjectType)
-registerBltinObject("tuple", pyTupleObjectType)
-# not ready to use because no setup code is done when init new types
-# registerBltinObject("staticmethod", pyStaticMethodObjectType)
+  register_iter_objects
+  registerBltinObject("bool", pyBoolObjectType)
+  registerBltinObject("bytearray", pyByteArrayObjectType)
+  registerBltinObject("bytes", pyBytesObjectType)
+  registerBltinObject("dict", pyDictObjectType)
+  registerBltinObject("enumerate", pyEnumerateObjectType)
+  registerBltinObject("float", pyFloatObjectType)
+  registerBltinObject("frozenset", pyFrozenSetObjectType)
+  registerBltinObject("int", pyIntObjectType)
+  registerBltinObject("list", pyListObjectType)
+  registerBltinObject("object", pyObjectType)
+  registerBltinObject("property", pyPropertyObjectType)
+  registerBltinObject("range", pyRangeObjectType)
+  registerBltinObject("reversed", pyReversedObjectType)
+  registerBltinObject("set", pySetObjectType)
+  registerBltinObject("str", pyStrObjectType)
+  registerBltinObject("slice", pySliceObjectType)
+  registerBltinObject("type", pyTypeObjectType)
+  registerBltinObject("tuple", pyTupleObjectType)
+  # not ready to use because no setup code is done when init new types
+  # registerBltinObject("staticmethod", pyStaticMethodObjectType)
 
 
-macro registerErrors: untyped = 
-  result = newStmtList()
-  template registerTmpl(name:string, tp:PyTypeObject) = 
-    registerBltinObject(name, tp)
-  template reg(excpName, typeName: string){.dirty.} =
-    result.add getAst(registerTmpl(excpName, ident(typeName)))
-  
-  for tok in BaseExceptionToken:
-    let tokenStr = tok.getTokenName
-    let excpName = tok.getBltinName
-    reg excpName, "py" & tokenStr & "ObjectType"
-  for tok in ExceptionToken:
-    let tokenStr = tok.getTokenName
-    let excpName = tok.getBltinName
-    reg excpName, "py" & tokenStr & "ErrorObjectType"
-  for s in subErrs:
-    reg s, "py" & s & "ObjectType"
+  macro registerErrors: untyped = 
+    result = newStmtList()
+    template registerTmpl(name:string, tp:PyTypeObject) = 
+      registerBltinObject(name, tp)
+    template reg(excpName, typeName: string){.dirty.} =
+      result.add getAst(registerTmpl(excpName, ident(typeName)))
+    
+    for tok in BaseExceptionToken:
+      let tokenStr = tok.getTokenName
+      let excpName = tok.getBltinName
+      reg excpName, "py" & tokenStr & "ObjectType"
+    for tok in ExceptionToken:
+      let tokenStr = tok.getTokenName
+      let excpName = tok.getBltinName
+      reg excpName, "py" & tokenStr & "ErrorObjectType"
+    for s in subErrs:
+      reg s, "py" & s & "ObjectType"
 
-registerErrors
+  registerErrors

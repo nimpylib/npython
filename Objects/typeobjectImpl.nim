@@ -50,8 +50,6 @@ proc object_format(self: PyObject, format_spec_obj: PyObject): PyObject {.clinic
 pyObjectType.bltinMethods["__format__"] = (blt_obj_fmt, false)
 
 methodMacroTmpl(Type)
-# this must be after properties import
-pyTypeObjectType.typeReadyImpl(true)
 
 # type_new_init:type_new_alloc
 

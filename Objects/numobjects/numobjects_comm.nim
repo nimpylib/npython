@@ -14,9 +14,18 @@ export null_error
 export intobject_decl, floatobject_decl,
   pyobject, exceptions, boolobject, stringobject, notimplementedobject
 
-let pyIntZero* = newPyInt(0)
-let pyIntOne* = newPyInt(1)
-let pyIntTen* = newPyInt(10)
+
+when defined(wasm):
+  template genIntConst(name; value: int){.dirty.} =
+    template name*: PyIntObject = newPyInt(value)
+else:
+  template genIntConst(name; value: int) =
+    let name*: PyIntObject = newPyInt(value)
+
+genIntConst pyIntZero, 0
+genIntConst pyIntOne, 1
+genIntConst pyIntTwo, 2
+genIntConst pyIntTen, 10
 
 let divZeroError = newPyAscii"division by zero"
 template retZeroDiv* =
