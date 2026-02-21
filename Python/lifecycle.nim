@@ -41,6 +41,10 @@ template chk(e: PyBaseErrorObject, msg: string) =
 
 {.push inline.}
 proc pycore_init_types =
+  # The two most important base types: must be initialized first
+  pyObjectType.typeReady
+  pyTypeObjectType.typeReady
+
   for t in bltinTypes:
     t.typeReady
   chk PyExc_InitTypes(): "failed to initialize an exception type"
