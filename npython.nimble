@@ -37,6 +37,7 @@ template pylib(x, ver) =
 
 pylib "pyrepr", " ^= 0.1.1"
 pylib "jscompat", " ^= 0.1.4"
+pylib "nimpatch", " ^= 0.1.0"
 pylib "translateEscape", " ^= 0.1.0"
 
 # copied from nimpylib.nimble
