@@ -5,12 +5,13 @@ import ../../Objects/stringobject
 template pyIdImpl(s: string): PyStrObject =
   bind newPyAscii
   newPyAscii s
-template pyId*(id: untyped{~nkRStrLit}): PyStrObject =
+template pyId*(id: untyped{nkStrLit|nkRStrLit}): PyStrObject =
   ## `_Py_ID` in CPython
-  ## 
-  ## .. note:: this forbids nkRStrLit as
-  ##   `nim pyId"abc"` would become `pyId("r\"abc")`,
-  ##   which is an implicit bug that's not desired but easy to make.
+  bind pyIdImpl
+  pyIdImpl id
+
+template pyId*(id: untyped{~(nkRStrLit|nkStrLit)}): PyStrObject =
+  ## `_Py_ID` in CPython
   bind pyIdImpl
   pyIdImpl astToStr id
 
