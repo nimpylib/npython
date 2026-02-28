@@ -5,10 +5,11 @@ export tovalsBase
 import ../../Objects/[
   pyobject,
   exceptions,
-  numobjects,
   stringobject,
   boolobjectImpl,
 ]
+import ../../Objects/numobjects/intobject/ops_imp_warn
+import ../../Objects/numobjects/floatobject
 
 genToValGeneric(int, Ssize_t, Number)
 genToValGeneric(float, double, Float)
