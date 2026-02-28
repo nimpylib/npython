@@ -19,9 +19,11 @@ when HasImportLib:
 
 template import_add_moduleImpl(alreadyInAsgn): untyped{.dirty.} =
   var modu = sys.modules.getOptionalItem(name)
-  if not modu.isNil and modu.ofPyModuleObject:
-    alreadyInAsgn true
-    return PyModuleObject modu
+  if not modu.isNil:
+    assert not modu.isThrownException
+    if modu.ofPyModuleObject:
+      alreadyInAsgn true
+      return PyModuleObject modu
   alreadyInAsgn false
   modu = newPyModule(name)
   sys.modules[name] = modu
