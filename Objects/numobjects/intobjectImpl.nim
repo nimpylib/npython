@@ -3,8 +3,12 @@ import ../stringobject/fstring
 import ./floatobject/toval
 import ./numobjects_comm
 import ./intobject/magicNew
+import ./intobject/ops
 import ./intobject
+import ../byteobjects
 import ../../Python/getargs
+import ../../Python/getargs/va_and_kw
+import ../../Include/internal/pycore_global_strings
 
 methodMacroTmpl(Int)
 
@@ -112,6 +116,34 @@ implIntMagic float:
 implIntMethod bit_length(): self.bit_length()
 implIntMethod bit_count(): self.bit_count()
 implIntMethod is_integer(): pyTrueObj
+
+template recatchValueError(body: untyped): untyped =
+  try:
+    body
+  except ValueError as e:
+    return newValueError newPyAscii e.msg
+
+proc to_bytes*(self: PyIntObject; length: PyIntObject, byteorder = pyId "big", signed=pyFalseObj): PyObject =
+  let length = length.toIntOrRetOF
+  let endianness = recatchValueError parseByteOrder $byteorder.str
+  newPyBytes self.to_bytes(length, endianness, signed=signed.b)
+
+template asStr(byteorder: PyObject): string =
+  let sbyteorder = byteorder.castTypeOrRetTE(PyStrObject)
+  $sbyteorder.str
+
+implIntMethod to_bytes(length=1, byteorder = PyObject pyId "big", signed=false):
+  newPyBytes recatchValueError self.to_bytes(length, byteorder.asStr, signed)
+
+implIntMethod from_bytes(bytes: PyObject, byteorder = PyObject pyId "big", signed=false), [classmethod]:
+  let endianness = recatchValueError parseByteOrder byteorder.asStr
+  let t = if bytes.ofPyBytesObject:
+    PyBytesObject(bytes).items
+  elif bytes.ofPyByteArrayObject:
+    PyByteArrayObject(bytes).items
+  else:
+    return bufferNotImpl()
+  newPyInt(t, endianness, signed)
 
 proc formatValueInt(res: var string; self: PyIntObject, format_spec: string, spec: StandardFormatSpecifier){.raises: [FormatPyObjectError].} =
   var str: PyStrObject
