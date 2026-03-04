@@ -4,119 +4,51 @@ when defined(nimPreviewSlimSystem):
   import std/assertions
   export assertions
 
-# this is a **very slow** bigint lib.
-# Why reinvent such a bad wheel?
+# Why not uses bigints and so on
 # because we seriously need low level control on our modules
-# todo: make it a decent bigint module
-#
 import ../../pyobject
-
-# js can't process 64-bit int although nim has this type for js
-when defined(js):
-  type
-    Digit = uint16
-    TwoDigits = uint32
-    SDigit = int32
-
-  const
-    digitBits = 16
-    PyLong_DECIMAL_SHIFT = 5
-    PyLong_DECIMAL_BASE = TwoDigits 100_000
-    
-  template truncate(x: TwoDigits): Digit =
-    const mask = 0x0000FFFF
-    Digit(x and mask)
-
-else:
-  type
-    Digit = uint32
-    TwoDigits = uint64
-    SDigit = int64
-
-  const
-    digitBits = 32
-    PyLong_DECIMAL_SHIFT = 10
-    PyLong_DECIMAL_BASE = TwoDigits 10_000_000_000
-
-  template truncate(x: TwoDigits): Digit =
-    Digit(x)
-
-type IntSign = enum
-  Negative = -1
-  Zero = 0
-  Positive = 1
-
-const
-  PyLong_SHIFT = digitBits
-
+import pkg/intobject/decl
 # only export for ./intobject
 export Digit, TwoDigits, SDigit, digitBits, truncate,
- IntSign, PyLong_SHIFT, PyLong_DECIMAL_SHIFT, PyLong_DECIMAL_BASE
+  IntSign, PyLong_SHIFT, PyLong_DECIMAL_SHIFT, PyLong_DECIMAL_BASE
 const digitPyLong_DECIMAL_BASE* = Digit PyLong_DECIMAL_BASE
 
 declarePyType Int(tpToken):
   #v: BigInt
   #v: int
-  sign: IntSign
-  digits: seq[Digit]
+  v: IntObject
+
+template sign*(self: PyIntObject): IntSign = self.v.sign
 
 #proc compatSign(op: PyIntObject): SDigit{.inline.} = cast[SDigit](op.sign)
 # NOTE: CPython uses 0,1,2 for IntSign, so its `_PyLong_CompactSign` is `1 - sign`
 
+template newBodyUse(x, newInt){.dirty.} =
+  result = newPyIntSimple()
+  result.v = newInt(x)
+template newBody(x){.dirty.} = newBodyUse(x, newInt)
+template genNew(T){.dirty.} =
+  proc newPyInt*(i: T): PyIntObject = newBody(i)
+template genNewGeneric(TT){.dirty.} =
+  proc newPyInt*[T: TT](i: T): PyIntObject = newBody(i)
+
 #proc newPyInt(i: Digit): PyIntObject
-proc newPyInt*(o: PyIntObject): PyIntObject =
+
+proc newPyInt*(o: IntObject): PyIntObject =
   ## deep copy, returning a new object
-  result = newPyIntSimple()
-  result.sign = o.sign
-  result.digits = o.digits
+  newBody(o)
 
-proc newPyInt*(i: Digit): PyIntObject =
-  result = newPyIntSimple()
-  if i != 0:
-    result.digits.add i
-    result.sign = Positive
-  # can't be negative
-  else:
-    result.sign = Zero
+proc newPyInt*(o: PyIntObject): PyIntObject{.inline.} =
+  ## deep copy, returning a new object
+  newPyInt(o.v)
 
-const sMaxValue = SDigit(high(Digit)) + 1
-func fill[I: SomeInteger](digits: var typeof(PyIntObject.digits), ui: I){.cdecl.} =
-  var ui = ui
-  while ui != 0:
-    digits.add Digit(
-      when sizeof(I) <= sizeof(SDigit): ui
-      else: ui mod I(sMaxValue)
-    )
-    ui = ui shr digitBits
-
-proc newPyInt*[I: SomeSignedInt](i: I): PyIntObject =
-  result = newPyIntSimple()
-  result.digits.fill abs(i)
-
-  if i < 0:
-    result.sign = Negative
-  elif i == 0:
-    result.sign = Zero
-  else:
-    result.sign = Positive
-
-proc newPyInt*[I: SomeUnsignedInt and not Digit](i: I): PyIntObject =
-  result = newPyIntSimple()
-  if i == 0:
-    result.sign = Zero
-    return
-  result.sign = Positive
-  result.digits.fill i
-
-const bigintErr = defined(js) and compileOption("jsBigInt64")
-when bigintErr:
-  import std/hashes
+genNew Digit
+genNewGeneric SomeSignedInt
+genNewGeneric SomeUnsignedInt and not Digit
 
 proc newPyIntFromPtr*(p: pointer): PyIntObject =
   ## `PyLong_FromVoidPtr`
-  newPyInt(
-    when bigintErr: hash(p)
-    else: cast[int](p)
-  )
+  newBodyUse(p, newIntFromPtr)
+
 proc newPyIntFromPtr*[I: ref | ptr](i: I): PyIntObject =
   newPyIntFromPtr cast[pointer](i)

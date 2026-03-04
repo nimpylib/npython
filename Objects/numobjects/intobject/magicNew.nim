@@ -29,8 +29,7 @@ proc long_subtype_new(typ: PyTypeObject, x: PyObject, obase: PyObject): PyObject
   retIfExc result
   let newobj = PyIntObject result
   #newobj->long_value.lv_tag = tmp->long_value.lv_tag & ~IMMORTALITY_BIT_MASK;
-  newobj.sign = itmp.sign
-  newobj.digits = itmp.digits
+  newobj.v = itmp.v
   return newobj
 
 proc long_new_impl*(typ: PyTypeObject, x: PyObject, obase: PyObject): PyObject{.pyCFuncPragma.} =

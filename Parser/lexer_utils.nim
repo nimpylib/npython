@@ -1,7 +1,7 @@
 
 import std/parseutils
 from std/strutils import Digits, IdentChars
-from ../Objects/numobjects/intobject/fromStrUtils import isDigitOfBase
+from pkg/intobject/fromStrUtils import isDigitOfBase
 
 template parseName*(s: string, res: var string, idx: var int; msg: var string): bool =
   bind parseIdent

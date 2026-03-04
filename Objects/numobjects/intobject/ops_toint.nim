@@ -1,57 +1,29 @@
 
-import std/hashes
-import std/typetraits
+from std/hashes import Hash
 import ../numobjects_comm
 export intobject_decl except Digit, TwoDigits, SDigit, digitBits, truncate,
  IntSign
 import ./[
   decl, bit_length,
 ]
+import pkg/intobject/ops_toint
 export bit_length, signbit, decl
 import ../../../Include/internal/pycore_int
 export PY_INT_MAX_STR_DIGITS_THRESHOLD, PY_INT_DEFAULT_MAX_STR_DIGITS
 
-proc hash*(self: PyIntObject): Hash {. inline, cdecl .} = 
-  result = hash(self.sign)
-  for digit in self.digits:
-    result = result xor hash(digit)
+proc hash*(self: PyIntObject): Hash {. inline, cdecl .} = hash(self.v)
 
 proc toSomeSignedIntUnsafe*[T: SomeSignedInt](pyInt: PyIntObject): T =
   ## XXX: the caller should take care of overflow
   ##  It raises `OverflowDefect` on non-danger build
-  for i in countdown(pyInt.digits.high, 0):
-    result = result shl digitBits
-    result += T(pyInt.digits[i])
-  if pyInt.sign == Negative:
-    result *= -1
+  pyInt.v.toSomeSignedIntUnsafe[:T]()
 
-template PY_ABS_INT_MIN(T): untyped = cast[T.toUnsigned](T.low) ## \
-## we cannot use `0u - cast[BiggestUInt](BiggestInt.low)` unless with rangeChecks:off
-
-type PossibleBiggestDigit = uint32
-static: assert digitBits <= 8 * sizeof PossibleBiggestDigit
-func absToUInt*[U: uint32|uint64|BiggestUInt](pyInt: PyIntObject, x: var U): bool{.cdecl.} =
+func absToUInt*(pyInt: PyIntObject, x: var SomeUnsignedInt): bool{.inline.} =
   ## EXT. unstable.
   ##
   ## ignore signbit.
   ## returns false on overflow
-
-  #TODO:opt-long apply python/cpython@d754f75f42f040267d818ab804ada340f55e5925
-  x = U 0
-  var prev{.noInit.}: U
-  for i in countdown(pyInt.digits.high, 0):
-    prev = x
-    x = (x shl digitBits) or U(pyInt.digits[i])
-    if x shr digitBits != prev:
-      return
-  return true
-
-func absToUInt*[U: uint|uint8|uint16](pyInt: PyIntObject, x: var U): bool{.cdecl.} =
-  var t: PossibleBiggestDigit
-  if not absToUInt(pyInt, t): return
-  if t > PossibleBiggestDigit U.high: return
-  x = cast[U](t)
-  true
+  pyInt.v.absToUInt(x)
 
 # can be used as `PyLong_AsInt64`, `PyLong_AsInt32`, etc
 proc toSomeSignedInt*[I: SomeSignedInt](pyInt: PyIntObject, overflow: var IntSign): I =
@@ -60,46 +32,26 @@ proc toSomeSignedInt*[I: SomeSignedInt](pyInt: PyIntObject, overflow: var IntSig
   ##   and result be `-1`
   ##
   ## Otherwise, `overflow` will be `IntSign.Zero`
-  overflow = Zero
-
-  result = -1
-  let sign = pyInt.sign
-
-  var x{.noInit.}: BiggestUInt
-  if not pyInt.absToUInt(x):
-    overflow = sign
-    return
-  #[ Haven't lost any bits, but casting to long requires extra
-    care (see comment above).]#
-  if x <= BiggestUInt I.high:
-    result = cast[I](x) * cast[I](sign)
-  elif sign == Negative and x == PY_ABS_INT_MIN(I):
-    result = I.low
-  else:
-    overflow = sign
+  pyInt.v.toSomeSignedInt[:I](overflow)
 
 proc toInt*(pyInt: PyIntObject, overflow: var IntSign): int =
   toSomeSignedInt[int] pyInt, overflow
 
 proc toSomeUnsignedInt*[U: SomeUnsignedInt](pyInt: PyIntObject, overflow: var IntSign): U =
   ## like `toSomeSignedInt`<#toInt,PyIntObject,IntSign>`_ but for `uint`
-  overflow = if pyInt.negative: Negative
-  elif pyInt.absToUInt(result): Zero
-  else: Positive
+  pyInt.v.toSomeUnsignedInt[:U](overflow)
+
 proc toUInt*(pyInt: PyIntObject, overflow: var IntSign): uint =
   ## like `toInt`<#toInt,PyIntObject,IntSign>`_ but for `uint`
   toSomeUnsignedInt[uint](pyInt, overflow)
 
 proc toInt*(pyInt: PyIntObject, res: var int): bool =
   ## returns false on overflow (`x not_in int.low..int.high`)
-  var ovf: IntSign
-  res = pyInt.toInt(ovf)
-  result = ovf == IntSign.Zero
+  pyInt.v.toInt(res)
 
 proc toUInt*(pyInt: PyIntObject, res: var uint): bool =
   ## like `toInt`<#toInt,PyIntObject,int>`_ but for `uint`
-  if pyInt.negative: false
-  else: pyInt.absToUInt(res)
+  pyInt.v.toUInt(res)
 
 proc PyInt_OverflowCType*(ctypeName: string): PyOverflowErrorObject =
   ## EXT.
