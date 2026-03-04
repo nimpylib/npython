@@ -7,7 +7,7 @@ import std/math
 import std/hashes
 import ../../Utils/trans_imp
 impExp floatobject,
-  decl, toval, fromx
+  decl, toval, fromx, pow
 
 from ./intobject/ops import newPyInt
 from ./intobject/ops_mix_nim import private_mixOpPyWithNim, private_gen_mix
@@ -86,7 +86,7 @@ proc divmod*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
 
 
 implFloatMagic pow, [castOther]:
-  newPyFloat(self.v.pow(casted.v))
+  self.pow(casted)
 
 proc abs*(self: PyFloatObject): PyFloatObject = newPyFloat(abs(self.v))
 implFloatMagic abs: abs self
