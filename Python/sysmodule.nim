@@ -16,9 +16,9 @@ import ../Objects/bltcommon; export bltcommon
 import ../Utils/trans_imp
 from ./neval_frame import privateGetframeNoAudit
 import ./getargs/[vargs, va_and_kw, dispatch]
-impExp sysmodule,
-  decl, init, audit, hooks, attrs, int_max_str_digits
-
+impExpCwd sysmodule, [
+  decl, init, audit, hooks, attrs, int_max_str_digits,
+]
 
 methodMacroTmpl(SysModule)
 

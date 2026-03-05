@@ -6,8 +6,9 @@ import std/parseutils
 import std/math
 import std/hashes
 import ../../Utils/trans_imp
-impExp floatobject,
-  decl, toval, fromx, pow
+impExpCwd floatobject, [
+  decl, toval, fromx, pow,
+]
 
 from ./intobject/ops import newPyInt
 from ./intobject/ops_mix_nim import private_mixOpPyWithNim, private_gen_mix

@@ -6,8 +6,9 @@ import ./[
 ]
 import ./numobjects/intobject/decl
 import ../Utils/trans_imp
-impExp tupleobject,
-  decl
+impExpCwd tupleobject, [
+  decl,
+]
 
 proc isPyTrueObj*(obj: PyObject): bool = system.`==`(obj, pyTrueObj)  ## inner
 proc tupleSeqToString*(ss: openArray[UnicodeVariant]): UnicodeVariant =

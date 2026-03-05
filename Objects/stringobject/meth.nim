@@ -9,8 +9,9 @@ import ../numobjects/intobject/[decl, ops, idxHelpers]
 import ../../Utils/[sequtils, sequtils2, trans_imp]
 from ../abstract/args import clampedIndexOptArgAt
 import ../bltcommon; export bltcommon
-impExp meth,
-  join
+impExpCwd meth, [
+  join,
+]
 
 # redeclare this for these are "private" macros
 methodMacroTmpl(Str)

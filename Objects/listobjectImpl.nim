@@ -6,8 +6,9 @@ import ./[
 export listobject
 
 import ../Utils/trans_imp
-impExp listobject,
+impExpCwd listobject, [
   bltin_sort
+]
 
 methodMacroTmpl(List)
 registerBltinMethod pyListObjectType, "sort", builtin_sort

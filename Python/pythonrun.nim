@@ -19,9 +19,9 @@ import ../Objects/stringobject/codec
 from ./pylifecycle/utils import Py_FdIsInteractive
 import ./pythonrun/utils
 import ../Utils/nexportc
-impExp pythonrun,
-  pyerr, pyerr_sysexit_keyinter
-
+impExpCwd pythonrun, [
+  pyerr, pyerr_sysexit_keyinter,
+]
 using flags: PyCompilerFlags
 using fp: fileio.File
 using filename: PyStrObject

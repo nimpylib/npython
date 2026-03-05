@@ -15,9 +15,10 @@ import ../Utils/[utils, macroutils,]
 import ./getargs
 
 import ../Utils/trans_imp
-impExp bltinmodule,
+impExpCwd bltinmodule, [
   compile_eval_exec, globals_locals_vars,
-  iterobjects, io, sums, iterops, unarys
+  iterobjects, io, sums, iterops, unarys,
+]
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
   let nameStr = newPyAscii(name)

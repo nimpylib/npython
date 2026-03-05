@@ -13,9 +13,9 @@ import ./[
   sysmodule_instance,
   sysmodule,
 ]
-impExp pylifecycle,
-  builtins
-
+impExpCwd pylifecycle, [
+  builtins,
+]
 import std/os except getCurrentDir
 
 when declared(system.outOfMemHook):

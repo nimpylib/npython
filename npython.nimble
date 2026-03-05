@@ -40,6 +40,7 @@ pylib "pyrepr", " ^= 0.1.1"
 pylib "jscompat", " ^= 0.1.4"
 pylib "nimpatch", " ^= 0.1.0"
 pylib "translateEscape", " ^= 0.1.0"
+pylib "handy_sugars", " ^= 0.1.0"
 
 # copied from nimpylib.nimble
 #   at 43378424222610f8ce4a10593bd719691fbb634b
