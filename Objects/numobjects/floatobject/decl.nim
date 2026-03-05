@@ -1,14 +1,12 @@
 
-when defined(nimPreviewSlimSystem):
-  import std/formatfloat
-  export formatfloat
+import pkg/nimpatch/floatdollar
 
 import ../../pyobject
 declarePyType Float(tpToken):
   v: float
 
 method `$`*(f: PyFloatObject): string{.raises: [].} = 
-  $f.v
+  floatdollar.`$` f.v
 
 
 proc newPyFloat*(v: float): PyFloatObject =
