@@ -1,7 +1,7 @@
 
 
 from std/strutils import isSpaceAscii
-from std/parseutils import parseFloat
+from pkg/nimpatch/parsefloat import parseFloat
 
 import ./[decl, toval]
 import ../[numobjects_comm, helpers]
