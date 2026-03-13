@@ -12,7 +12,7 @@ import ../Include/internal/pycore_global_strings
 import ../Objects/typeobject/apis/attrs
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
-                   setobject, notimplementedobject, boolobjectImpl,
+                   setobject, noneobject, notimplementedobject, boolobjectImpl,
                    exceptionsImpl, stringobjectImpl, interpolationobject,
                    ]
 import ../Objects/abstract/[dunder, number, format]
@@ -60,13 +60,21 @@ macro tryCallInplaceMagic(op1, opName, op2): untyped =
   quote do:
     `op1`.callInplaceMagic(`iMagic`, `op2`, handleExcp=false)
 
+macro callFallbackMagic(op1, opName, op2): untyped =
+  if opName.strVal == "pow":
+    quote do:
+      `op1`.callMagic(`opName`, `op2`, pyNone, handleExcp=true)
+  else:
+    quote do:
+      `op1`.callMagic(`opName`, `op2`, handleExcp=true)
+
 template doInplace(opName: untyped) =
   bind callInplaceMagic
   let op2 = sPop()
   let op1 = sTop()
   let res = op1.tryCallInplaceMagic(opName, op2)
   if res.isNotImplemented:
-    var nres = op1.callMagic(opName, op2, handleExcp=true)
+    var nres = op1.callFallbackMagic(opName, op2)
     if nres.isNotImplemented:
       let
         opStr{.inject.} = "i" & astToStr(opName)
@@ -356,7 +364,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               doBinary(sub)
 
             of OpCode.BinaryPower:
-              doBinary(pow)
+              doBinary(powerNoMod)
 
             of OpCode.BinaryMultiply:
               doBinary(mul)
@@ -1020,7 +1028,7 @@ template TODO_locals*(locals) =
 
 # interfaces to upper level
 proc runCode*(co: PyCodeObject, globals = newPyDict(), locals: PyObject = nil): PyObject = 
-  when defined(debug):
+  when defined(debug_code):
     echo co
   let fun = newPyFunc(co.codeName, co, globals)
   let f = newPyFrame(fun)

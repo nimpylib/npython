@@ -87,7 +87,7 @@ type
     # backquoting is a less clear solution
     Mod: BinaryMethod
     divmod: BinaryMethod
-    pow: BinaryMethod
+    pow: TernaryMethod
 
     matmul: BinaryMethod
     

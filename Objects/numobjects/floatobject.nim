@@ -9,6 +9,7 @@ import ../../Utils/trans_imp
 impExpCwd floatobject, [
   decl, toval, fromx, pow,
 ]
+import ../noneobject
 
 from ./intobject/ops import newPyInt
 from ./intobject/ops_mix_nim import private_mixOpPyWithNim, private_gen_mix
@@ -86,7 +87,9 @@ proc divmod*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
   divmodNonZero(a, b)
 
 
-implFloatMagic pow, [castOther]:
+implFloatMagic pow:
+  pow3rdArgMustBeNone
+  castOtherTypeTmpl("pow")
   self.pow(casted)
 
 proc abs*(self: PyFloatObject): PyFloatObject = newPyFloat(abs(self.v))
@@ -107,10 +110,10 @@ genBBin gt, `>`
 
 private_gen_mix mixb, SomeFloat, PyFloatObject:
   bind op
-  op(a.v, b)
+  newPyFloat op(a.v, b)
 do:
   bind op
-  op(a, b.v)
+  newPyFloat op(a, b.v)
 
 private_gen_mix mix, SomeFloat, PyFloatObject:
   bind op, newPyFloat

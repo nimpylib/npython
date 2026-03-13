@@ -92,6 +92,12 @@ proc pow*(a, b: PyIntObject): PyObject =
   of Positive: powPos(a, b)
   of Zero: pyIntOne
 
+proc pow*(a, b, c: PyIntObject): PyObject =
+  ## returns ValueError if c == 0, otherwise returns int
+  try: newPyInt powMod(a.v, b.v, c.v)
+  except ValueError as e:
+    return newValueError newPyAscii e.msg
+
 proc parseInt*[C: char|Rune](s: openArray[C]; res: var PyIntObject): int =
   ## with `base = 0` (a.k.a. support prefix like 0b)
   ## and ignore `sys.flags.int_max_str_digits`

@@ -5,6 +5,7 @@ import ../[
   exceptions,
   stringobject,
   numobjects,
+  noneobject,
 ]
 import ../../Include/cpython/pyerrors
 export PyNumber_Index, PyNumber_AsSsize_t, PyNumber_AsClampedSsize_t
@@ -39,7 +40,11 @@ genBOp sub, "-"
 genBOp mul, "*"
 genBOp truediv, "/"  ## PyNumber_TrueDivide
 genBOp floorDiv, "//"  ## PyNumber_FloorDivide
-genBOp pow, "** or pow()"  ## PyNumber_PowerNoMod
+
+ternary_func PyNumber_Power, pow, "** or pow()"
+proc PyNumber_PowerNoMod*(lhs, rhs: PyObject): PyObject = ## `_PyNumber_Power` without 3rd arg, returns NotImplemented when 3rd arg is not None
+  PyNumber_Power(lhs, rhs, pyNone)
+
 genBOp Mod, "%"  ## PyNumber_Remainder
 
 

@@ -6,15 +6,17 @@ import ./intobject/magicNew
 import ./intobject/ops
 import ./intobject
 import pkg/intobject/[decl, ops_strformat]
-import ../byteobjects
+import ../[byteobjects, noneobject]
 import ../../Python/getargs
 import ../../Python/getargs/va_and_kw
 import ../../Include/internal/pycore_global_strings
 
 methodMacroTmpl(Int)
 
-template check_binop: untyped{.dirty.} = 
+template check_binop_noSelfCast: untyped{.dirty.} = 
   if not selfNoCast.ofPyIntObject or not other.ofPyIntObject: return pyNotImplemented
+template check_binop: untyped{.dirty.} = 
+  check_binop_noSelfCast
   let self = PyIntObject selfNoCast
 template check_binop_do(op): untyped =
   check_binop
@@ -45,8 +47,15 @@ implIntMagic floorDiv, [noSelfCast]: check_binop_do(`//`)
 implIntMagic Mod, [noSelfCast]:
   intBinaryTemplate(`%`, Mod, "%")
 
-implIntMagic pow, [noSelfCast]:
-  intBinaryTemplate(pow, pow, "**")
+implIntMagic pow(selfNoCast, other: PyObject, modu = PyObject pyNone):
+  check_binop_noSelfCast
+  let self1 = PyIntObject selfNoCast
+  if modu.isPyNone:
+    pow(self1, PyIntObject(other))
+  elif modu.ofPyIntObject:
+    pow(self1, PyIntObject(other), PyIntObject(modu))
+  else:
+    return pyNotImplemented
 
 implIntMagic abs: abs self
 implIntMagic And, [noSelfCast]: check_binop_do(`and`)

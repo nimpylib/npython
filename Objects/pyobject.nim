@@ -21,6 +21,12 @@ export pyobjectBase
 
 # some helper templates for internal object magics or methods call
 
+template pow3rdArgMustBeNone*(){.dirty.} =
+  ## mainly used by pow magic
+  if not arg2.isPyNone:
+    return newTypeError newPyAscii"pow() 3rd argument not allowed unless all arguments are integers"
+  let other = arg1
+
 template getMagic*(obj: PyObject, methodName): untyped = 
   obj.pyType.magicMethods.methodName
 
