@@ -46,7 +46,7 @@ proc PyNumber_PowerNoMod*(lhs, rhs: PyObject): PyObject = ## `_PyNumber_Power` w
   PyNumber_Power(lhs, rhs, pyNone)
 
 genBOp Mod, "%"  ## PyNumber_Remainder
-
+genBOp divmod, "divmod()"
 
 genBOp lshift, "<<"
 genBOp rshift, ">>"

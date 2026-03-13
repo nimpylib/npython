@@ -47,6 +47,8 @@ implIntMagic floorDiv, [noSelfCast]: check_binop_do(`//`)
 implIntMagic Mod, [noSelfCast]:
   intBinaryTemplate(`%`, Mod, "%")
 
+implIntMagic divmod, [noSelfCast]: check_binop_do(divmod)
+
 implIntMagic pow(selfNoCast, other: PyObject, modu = PyObject pyNone):
   check_binop_noSelfCast
   let self1 = PyIntObject selfNoCast

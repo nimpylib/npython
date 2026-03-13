@@ -13,6 +13,7 @@ import ./private/dispatch
 
 export bit_length, signbit, ops_basic_arith, ops_toint
 import ../../stringobject/strformat
+import ../../tupleobject
 import ../floatobject/pow
 import ../../../Include/internal/pycore_int
 export PY_INT_MAX_STR_DIGITS_THRESHOLD, PY_INT_DEFAULT_MAX_STR_DIGITS
@@ -64,13 +65,19 @@ proc divmodNonZero*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
   ## export for builtins.divmod
   retTupBody(divmodNonZero, a, b)
 
-proc divmod*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
+proc n_divmod*(a, b: PyIntObject): tuple[d, m: PyIntObject] =
   ## .. note::
   ##   this is Python's `divmod`(get division and modulo),
   ##   ref `divrem`_ for Nim's std/math divmod
   ##
   ## .. hint:: this raises DivByZeroDefect when b is zero
   retTupBody(divmod, a, b)
+
+proc divmod*(x, y: PyIntObject): PyObject =
+  ## `long_divmod`. which returns ZeroDivisionError when y is zero
+  chkRaiseDivByZero:
+    let tup = divmod(x.v, y.v)
+    newPyTuple [PyObject newPyInt tup[0], PyObject newPyInt tup[1]]
 
 proc divrem*(a, b: PyIntObject): tuple[d, r: PyIntObject] =
   ## .. hint:: this raises DivByZeroDefect when b is zero
