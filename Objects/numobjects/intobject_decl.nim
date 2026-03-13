@@ -13,6 +13,9 @@ proc toFloat*(pyInt: PyIntObject; overflow: var PyOverflowErrorObject): float{.p
   overflow = if pyInt.v.toFloat(result): nil
   else: newOverflowError newPyAscii"int too large to convert to float"
 
+proc toFloat*(pyInt: PyIntObject; overflow: var bool): float{.pyCFuncPragma.} =
+  pyInt.v.toFloat(overflow)
+
 proc toFloat*(pyInt: PyIntObject): float{.pyCFuncPragma.} =
   ## `PyLong_AsDouble` but never OverflowError, just returns `+-Inf`
   pyInt.v.toFloat
