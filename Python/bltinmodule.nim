@@ -17,7 +17,7 @@ import ./getargs
 import ../Utils/trans_imp
 impExpCwd bltinmodule, [
   compile_eval_exec, globals_locals_vars,
-  iterobjects, io, sums, iterops, unarys,
+  iterobjects, io, sums, iterops, unarys, ops,
 ]
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
@@ -37,6 +37,7 @@ template register_bltin_funcs1{.dirty.} =
   register_compile_eval_exec
   register_globals_locals_vars
   register_unarys
+  register_ops
   registerBltinFunction "sum", builtin_sum
 
 const bltinFuncs = CacheSeq"bltinFuncs"
