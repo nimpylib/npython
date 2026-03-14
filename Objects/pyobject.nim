@@ -442,7 +442,7 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
               else:
                 `outRng`
           stmtInBlk.add tmp  # the last expr is the value
-          body.add newLetStmt(name, newBlockStmt(stmtInBlk))
+          body.add newLetStmt(name, stmtInBlk)
   body.add code.body
   code.body = body
   code
