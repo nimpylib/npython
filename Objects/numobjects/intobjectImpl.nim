@@ -125,6 +125,12 @@ implIntMagic float:
     ovf
 
 
+implIntMethod "__round__"(ndigits = PyObject pyNone):
+  if ndigits.isPyNone: return self
+  let rei = PyNumber_Index(ndigits)
+  retIfExc rei
+  round(self, PyIntObject(rei))
+
 implIntMethod bit_length(): self.bit_length()
 implIntMethod bit_count(): self.bit_count()
 implIntMethod is_integer(): pyTrueObj

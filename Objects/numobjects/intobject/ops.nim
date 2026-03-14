@@ -83,6 +83,10 @@ proc divrem*(a, b: PyIntObject): tuple[d, r: PyIntObject] =
   ## .. hint:: this raises DivByZeroDefect when b is zero
   retTupBody(divmodNonZero, a, b)
 
+proc round*(x: PyIntObject; n: PyIntObject): PyIntObject{.raises: [].} =
+  ## `long_round`
+  newPyInt round(x.v, n.v)
+
 # a**b
 dispatchBin powPos
 proc powNeg*(a, b: PyIntObject): PyObject =
