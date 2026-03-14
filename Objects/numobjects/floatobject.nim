@@ -3,16 +3,19 @@
 import std/strformat
 import std/macros
 import std/parseutils
-import std/math
+import std/math except round
 import std/hashes
 import ../../Utils/trans_imp
 impExpCwd floatobject, [
   decl, toval, fromx, pow,
 ]
+import ./floatobject/round
 import ../noneobject
+import ../../Python/getargs
 
 from ./intobject/ops import newPyInt
 from ./intobject/ops_mix_nim import private_mixOpPyWithNim, private_gen_mix
+from ./intobject/ops_imp_warn import PyNumber_AsClampedSsize_t
 import ./numobjects_comm
 export floatobject_decl
 
@@ -144,6 +147,18 @@ implFloatMagic float:
     self
   else:
     newPyFloat self
+
+implFloatMethod "__round__"(ndigits = PyObject pyNone):
+  newPyFloat if ndigits.isPyNone:
+    try: round(self.v)
+    except ValueError as e: return newValueError newPyAscii e.msg
+  else:
+    var i: int
+    let err = PyNumber_AsClampedSsize_t(ndigits, i)
+    retIfExc err
+    try: round(self.v, i)
+    except ValueError as e: return newValueError newPyAscii e.msg
+    except round.OverflowError as e: return newOverflowError newPyAscii e.msg
 
 proc float_subtype_new(typ: PyTypeObject, x: PyObject): PyObject{.pyCFuncPragma.}
 proc float_new_impl(typ: PyTypeObject, x: PyObject = nil): PyObject{.pyCFuncPragma.} =
