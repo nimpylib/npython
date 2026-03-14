@@ -727,10 +727,10 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   ##   - base: BASE
   ##   - typeName: TYPE_NAME;
   ##     TYPE_NAME defaults to lowerAscii of `prototype[0]`
-  ##   - tpToken, dict, mutable, reprLock
+  ##   - tpToken, singleton, mutable, dict, reprLock
   prototype.expectKind(nnkCall)
   fields.expectKind(nnkStmtList)
-  var tpToken, mutable, dict, reprLock: bool
+  var tpToken, singleton, mutable, dict, reprLock: bool
   var baseStr = ""
   var typeName: string
   # parse options the silly way
@@ -747,13 +747,16 @@ macro declarePyType*(prototype, fields: untyped): untyped =
 
     option.expectKind(nnkIdent)
     let property = option.strVal
-    if property == "tpToken":
+    case property
+    of "tpToken":
       tpToken = true
-    elif property == "mutable":
+    of "singleton":
+      singleton = true
+    of "mutable":
       mutable = true
-    elif property == "dict":
+    of "dict":
       dict = true
-    elif property == "reprLock":
+    of "reprLock":
       reprLock = true
     else:
       error("unexpected property: " & property)
@@ -883,7 +886,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   result.add(decObjNode)
 
   # boilerplates for pyobject type
-  template initTypeTmpl(tbase, pyObjType, fullNameIdent, name, nameStr, hasTpToken, hasDict) = 
+  template initTypeTmpl(tbase, pyObjType, fullNameIdent, name, nameStr, hasTpToken, hasDict, isSingleton) = 
     let `pyObjType`* {. inject .} = newBltinPyType[`fullNameIdent`](nameStr, tbase)
 
     proc `ofExactPy name Object`*(obj: PyObject): bool {. cdecl, inline .} = 
@@ -901,7 +904,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
           cur = cur.base
         return false
 
-    proc `newPy name Simple`*: `Py name Object` {. cdecl .}= 
+    proc `newPy name Simple`: `Py name Object` {. cdecl .}= 
       # use `result` here seems to be buggy
       let obj = `Py name Object` `pyObjType`.tp_alloc(`pyObjType`, 0)
       when defined(js):
@@ -909,6 +912,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
       when hasDict:
         obj.dict = newPyDict()
       obj
+    when not isSingleton:
+      export `newPy name Simple`
 
     # default for __new__ hook, could be overrided at any time
     proc `newPy name Default`(args: openArray[PyObject]; kwargs: PyObject = nil): PyObject {. cdecl .} = 
@@ -920,7 +925,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   result.add(getAst(initTypeTmpl(ident(baseTypeObjStr), pyObjType, fullNameIdent, nameIdent,
     typeName, 
     newLit(tpToken), 
-    newLit(dict)
+    newLit(dict),
+    newLit(singleton),
     )))
 
   if members.len > 0:
@@ -932,7 +938,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
 
   result.add(getAst(methodMacroTmpl(nameIdent)))
 
-declarePyType NotImplemented():
+declarePyType NotImplemented(singleton):
   discard
 
 let pyNotImplemented* = newPyNotImplementedSimple()  ## singleton

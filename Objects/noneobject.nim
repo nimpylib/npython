@@ -1,7 +1,7 @@
 import pyobject
 import ./stringobject
 
-declarePyType None(tpToken):
+declarePyType None(tpToken, singleton):
   discard
 
 let pyNone* = newPyNoneSimple()  ## singleton
