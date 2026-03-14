@@ -7,7 +7,7 @@ import ../../Utils/trans_imp
 impExpCwd floatobject, [
   decl, toval, fromx, pow,
 ]
-import ./floatobject/[round, utils]
+import ./floatobject/[round, utils, aritherr]
 import ../noneobject
 import ../../Python/getargs
 
@@ -52,7 +52,7 @@ proc floorModNonZero(a, b: PyFloatObject): PyFloatObject =
   newPyFloat(floorMod(a.v, b.v))
 
 template raiseDivByZero =
-  raise newException(DivByZeroDefect, "division by zero")
+  raise newException(ZeroDivisionError, "division by zero")
 
 template genDivOrMod(pyOp, dm, mag){.dirty.} =
   proc `floor dm`*(a, b: PyFloatObject): PyFloatObject =
@@ -66,7 +66,7 @@ template genDivOrMod(pyOp, dm, mag){.dirty.} =
     `floor dm NonZero` a, b
 
   implFloatMagic mag, [noSelfCast, CONVERT_TO_DOUBLE2]:
-    `floor dm`(newPyFloat self, newPyFloat casted)
+    pyOp(newPyFloat self, newPyFloat casted)
 
 genDivOrMod `//`, Div, floorDiv
 genDivOrMod `%` , Mod, Mod
