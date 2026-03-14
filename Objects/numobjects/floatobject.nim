@@ -1,15 +1,13 @@
 
 
-import std/strformat
 import std/macros
-import std/parseutils
 import std/math except round
 import std/hashes
 import ../../Utils/trans_imp
 impExpCwd floatobject, [
   decl, toval, fromx, pow,
 ]
-import ./floatobject/round
+import ./floatobject/[round, utils]
 import ../noneobject
 import ../../Python/getargs
 
@@ -21,23 +19,17 @@ export floatobject_decl
 
 methodMacroTmpl(Float)
 
+template CONVERT_TO_DOUBLE2_Tmpl(){.dirty.} =
+  var self, casted: float
+  var
+    selfNoCast1 = selfNoCast
+    other1 = other
+  CONVERT_TO_DOUBLE(selfNoCast1, self)
+  CONVERT_TO_DOUBLE(other1, casted)
 
-template castOtherTypeTmpl(methodName) = 
-  var casted {. inject .} : PyFloatObject
-  if other.ofPyFloatObject:
-    casted = PyFloatObject(other)
-  elif other.ofPyIntObject:
-    casted = newPyFloat(PyIntObject(other))
-  else:
-    let msg = methodName & fmt" not supported by float and {other.typeName}"
-    return newTypeError(newPyStr msg)
-
-macro castOther(code:untyped):untyped = 
-  let fullName = code.name.strVal
-  let d = fullName.skipUntil('P') # add'P'yFloatObj, luckily there's no 'P' in magics
-  let methodName = fullName[0..<d]
+macro CONVERT_TO_DOUBLE2(code):untyped = 
   code.body = newStmtList(
-    getAst(castOtherTypeTmpl(methodName)),
+    getAst(CONVERT_TO_DOUBLE2_Tmpl()),
     code.body
   )
   code
@@ -45,7 +37,7 @@ macro castOther(code:untyped):untyped =
 template genBin(magic, op; ret:untyped=newPyFloat; retMagic: untyped=newPyFloat){.dirty.} =
   template op*(self, casted: PyFloatObject): untyped =
     ret op(self.v, casted.v)
-  implFloatMagic magic, [castOther]:
+  implFloatMagic magic, [noSelfCast, CONVERT_TO_DOUBLE2]:
     retMagic op(self, casted)
 
 genBin add, `+`
@@ -73,8 +65,8 @@ template genDivOrMod(pyOp, dm, mag){.dirty.} =
       retZeroDiv
     `floor dm NonZero` a, b
 
-  implFloatMagic mag, [castOther]:
-    `floor dm` self, casted
+  implFloatMagic mag, [noSelfCast, CONVERT_TO_DOUBLE2]:
+    `floor dm`(newPyFloat self, newPyFloat casted)
 
 genDivOrMod `//`, Div, floorDiv
 genDivOrMod `%` , Mod, Mod
@@ -90,10 +82,10 @@ proc divmod*(a, b: PyFloatObject): tuple[d, m: PyFloatObject] =
   divmodNonZero(a, b)
 
 
-implFloatMagic pow:
+implFloatMagic pow, [noSelfCast]:
   pow3rdArgMustBeNone
-  castOtherTypeTmpl("pow")
-  self.pow(casted)
+  CONVERT_TO_DOUBLE2_Tmpl
+  newPyFloat(self).pow(casted)
 
 proc abs*(self: PyFloatObject): PyFloatObject = newPyFloat(abs(self.v))
 implFloatMagic abs: abs self
