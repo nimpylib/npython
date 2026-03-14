@@ -13,6 +13,7 @@ import ../Objects/[pyobject, noneobject,
   sliceobject  # pyEllipsis
   ]
 import ../Utils/[utils, compat]
+import pkg/float_utils/parsefloat
 
 var filename{.threadVar.}: string
 
@@ -1405,11 +1406,18 @@ ast atom, [AsdlExpr]:
     result = newAstName(child1.tokenNode)
 
   of Token.NUMBER:
+    # complex (imaginary part)
+    if child1.tokenNode.content[^1] in ImageSuffixes:
+      var im: float
+      discard parsePyFloat(
+        child1.tokenNode.content.toOpenArray(0, child1.tokenNode.content.high-1), im)
+      result = newAstConstant newPyComplex(0.0, im)
     # float
-    if not child1.tokenNode.content.allCharsInSet({'+', '-',
+    elif not child1.tokenNode.content.allCharsInSet({'+', '-',
         '_', '0'..'9',
         'x', 'X', 'b', 'B', 'o', 'O'}):
-      let f = ValueError!parseFloat(child1.tokenNode.content)
+      var f: float
+      discard parsePyFloat(child1.tokenNode.content, f)
       let pyFloat = newPyFloat(f)
       result = newAstConstant(pyFloat)
     # int

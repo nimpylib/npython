@@ -22,8 +22,10 @@ proc verify_end_of_number(c: char, kind: string, msg: var string): bool =
     return false
   return true
 
+const ImageSuffixes* = {'j', 'J'}
+
 proc parseNumber*(s: string, res: var string, idx: var int, msg: var string): bool =
-  ## Rough equal to re"\b(0[XxOoBb])?[\d_]*\.?\d+([eE][-+]?[\d_]+)?\b"
+  ## Rough equal to re"\b(0[XxOoBb])?[\d_]*\.?\d+([eE][-+]?[\d_]+)?[Jj]?\b"
   ##
   {.push boundChecks: off.}
   let start = idx
@@ -79,15 +81,33 @@ proc parseNumber*(s: string, res: var string, idx: var int, msg: var string): bo
       eatDigits
   else:
     eatDigits
+  const Exp = {'e', 'E'}
+
   result = true
-  if cur != '.': ret
-  idx.inc
+  case cur
+  of '.', Exp:
+    idx.inc
+  of ImageSuffixes:
+    idx.inc
+    ret
+  else: ret
   eatDigits
-  if cur not_in {'e', 'E'}: ret
-  idx.inc
+
+  case cur
+  of Exp:
+    idx.inc
+  of ImageSuffixes:
+    idx.inc
+    ret
+  of IdentChars - ImageSuffixes - Exp: retVal false
+  else: ret
+
   if cur in {'+', '-'}: idx.inc
   eatDigits
-  if idx < hi and s[idx+1] in IdentChars:
-    result = false
-  ret
+  case cur
+  of ImageSuffixes:
+    idx.inc
+    ret
+  of IdentChars - ImageSuffixes: retVal false
+  else: ret
   {.pop.}

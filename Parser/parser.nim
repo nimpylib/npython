@@ -17,7 +17,7 @@ type
     Finished
     Error
 
-  ParseNode* = ref object
+  ParseNode*{.acyclic.} = ref object
     tokenNode*: TokenNode
     children*: seq[ParseNode] # children in the CST
     grammarNodeSeq: seq[GrammarNode]  # current state in NFA
@@ -163,7 +163,7 @@ proc parseWithState*(input: string,
       parseNode = parseNodeArg
     for token in tokenSeq[start..^1]:
       let status = parseNode.applyToken(token)
-      when defined(debug):
+      when defined(debug_parse):
         echo fmt"{status}, {token}"
       case status
       of ParseStatus.Normal:

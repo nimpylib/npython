@@ -1,4 +1,5 @@
 import ./lexer_utils
+export ImageSuffixes
 import deques
 import sets
 import strformat
