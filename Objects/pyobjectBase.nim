@@ -20,6 +20,7 @@ type
     BaseException, # BaseException
     Int,
     Float,
+    Complex,
     Bool,
     Type,
     Tuple,

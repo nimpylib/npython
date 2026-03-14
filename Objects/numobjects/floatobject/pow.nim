@@ -5,6 +5,7 @@ import ../../[
   pyobjectBase,
   exceptions, stringobject,
 ]
+import ../complexobject/[decl, pow]
 
 proc isOddInteger(f: float): bool =
   ## DOUBLE_IS_ODD_INTEGER
@@ -54,10 +55,7 @@ proc pow*(self: PyFloatObject, iw: float): PyObject =
   var negative_result = false
   if iv < 0:
     if iw != floor(iw):
-      when declared(newPyComplex):
-        return newPyComplexFromFloat(self).pow iw
-      else:
-        return newNotImplementedError newPyAscii"pow with negative base and non-integer exponent is not supported (shall return complex)"
+      return complex_pow(newPyComplex(self.v), newPyFloat(iw))
     iv = -iv
     negative_result = isOddInteger(iw)
   if iv == 1:

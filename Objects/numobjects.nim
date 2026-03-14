@@ -1,8 +1,8 @@
 
 import ./numobjects/[
-  intobject, intobjectImpl, floatobject, numobjects_comm_with_warn,
+  intobject, intobjectImpl, floatobject, complexobject_decl, numobjects_comm_with_warn,
 ]
-export intobject, intobjectImpl, floatobject,
+export intobject, intobjectImpl, floatobject, complexobject_decl,
   numobjects_comm.newPyFloat, PyNumber_Index
 
 

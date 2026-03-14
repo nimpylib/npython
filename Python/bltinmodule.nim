@@ -9,6 +9,7 @@ import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
   listobjectImpl, enumobject,
   ]
+import ../Objects/numobjects/complexobjectImpl
 import ../Objects/stringobject/strformat
 
 import ../Utils/[utils, macroutils,]
@@ -181,6 +182,7 @@ proc register_bltins* =
   registerBltinObject("dict", pyDictObjectType)
   registerBltinObject("enumerate", pyEnumerateObjectType)
   registerBltinObject("float", pyFloatObjectType)
+  registerBltinObject("complex", pyComplexObjectType)
   registerBltinObject("frozenset", pyFrozenSetObjectType)
   registerBltinObject("int", pyIntObjectType)
   registerBltinObject("list", pyListObjectType)
