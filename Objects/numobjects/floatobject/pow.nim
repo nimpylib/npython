@@ -1,5 +1,6 @@
 
 from std/math import isNaN, classify, FloatClass, pow, `mod`, copySign, floor
+from pkg/float_utils/isX import isinf
 import ./decl
 import ../../[
   pyobjectBase,
@@ -10,12 +11,6 @@ import ../complexobject/[decl, pow]
 proc isOddInteger(f: float): bool =
   ## DOUBLE_IS_ODD_INTEGER
   f mod 2 == 1
-
-when defined(c) or defined(cpp) or defined(objc):
-  proc isinf(f: float): bool{.importc, header: "<math.h>", cdecl.}
-else:
-  proc isinf(f: float): bool =
-    f == Inf or f == NegInf
 
 proc pow*(self: PyFloatObject, iw: float): PyObject =
   template retf(f) =
