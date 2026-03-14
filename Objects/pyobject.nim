@@ -145,14 +145,10 @@ macro castSelf*(ObjectType: untyped, code: untyped): untyped =
   let selfNoCastId = code.params[1][0]
   selfNoCastId.expectIdent "selfNoCast"
   code.body = newStmtList(
-    nnkCommand.newTree(
-      ident("assert"),
-      nnkInfix.newTree(
-        ident("of"),
-        selfNoCastId,
-        ObjectType
-      )
-    ),
+    quote do:
+      if not (`selfNoCastId` of `ObjectType`):
+        return pyNotImplemented
+    ,
     newLetStmt(
       ident("self"),
       newCall(ObjectType, selfNoCastId)
@@ -935,3 +931,8 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     result.add mem_asgn
 
   result.add(getAst(methodMacroTmpl(nameIdent)))
+
+declarePyType NotImplemented():
+  discard
+
+let pyNotImplemented* = newPyNotImplementedSimple()  ## singleton

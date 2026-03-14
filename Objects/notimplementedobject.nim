@@ -1,12 +1,9 @@
 import ./pyobject
-import ./stringobject
-import ./exceptions
+export pyNotImplemented
+
 import ./bltcommon; export bltcommon
-
-declarePyType NotImplemented():
-  discard
-
-let pyNotImplemented* = newPyNotImplementedSimple()  ## singleton
+import ./exceptions
+import ./stringobject
 
 proc isNotImplemented*(obj: PyObject): bool =
   obj.id == pyNotImplemented.id
@@ -15,6 +12,7 @@ proc dollar(self: PyNotImplementedObject): string = "NotImplemented"
 method `$`*(self: PyNotImplementedObject): string =
   self.dollar
 
+methodMacroTmpl(NotImplemented)
 implNotImplementedMagic repr:
   newPyAscii self.dollar
 
