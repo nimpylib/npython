@@ -14,7 +14,7 @@ template asDouble*(op: PyFloatObject; v: var float): PyBaseErrorObject =
 proc PyFloat_AsDouble*(op: PyObject; v: var float): PyBaseErrorObject =
   if op.ofPyFloatObject:
     return op.PyFloatObject.asDouble v
-  var fun = op.pyType.magicMethods.float
+  let fun = op.pyType.magicMethods.float
   if fun.isNil:
     var res: PyIntObject
     let exc = PyNumber_Index(op, res)
@@ -22,6 +22,7 @@ proc PyFloat_AsDouble*(op: PyObject; v: var float): PyBaseErrorObject =
       retIfExc res.toFloat v
   else:
     let res = fun(op)
+    retIfExc res
     errorIfNot Float, "float", res, (op.typeName & ".__float__")
     return res.PyFloatObject.asDouble v
 
