@@ -16,11 +16,16 @@ proc Py_HashPointerRaw(x: uint): Hash =
   # to avoid excessive hash collisions for dicts and sets.
   Hash: (x shr 4) or (x shl (8 * sizeof(uint) - 4))
 
+proc Py_HashPointer*(p: pointer|int): Hash =
+  result = Py_HashPointerRaw cast[uint](p)
+  if result == -1:
+    result = -2
+
 proc rawHash*(obj: PyObject): Hash =
+  ## PyObject_GenericHash
   ## for type.__hash__
   #hash(obj.id)
-  let x = cast[uint](obj.id) 
-  Py_HashPointerRaw x
+  Py_HashPointer obj.id
 
 var curHashExc{.threadvar.}: PyBaseErrorObject
 proc popCurHashExc(): PyBaseErrorObject =
