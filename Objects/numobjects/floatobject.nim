@@ -2,12 +2,12 @@
 
 import std/macros
 import std/math except round
-import std/hashes
 import ../../Utils/trans_imp
 impExpCwd floatobject, [
   decl, toval, fromx, pow,
 ]
-import ./floatobject/[round, utils, aritherr]
+import ./floatobject/[round, utils, aritherr, hashes]
+export hashes
 import ../noneobject
 import ../../Python/getargs
 
@@ -127,9 +127,7 @@ implFloatMagic str:
 implFloatMagic repr:
   newPyAscii($self)
 
-implFloatMagic hash:
-  newPyInt(hash(self.v))
-
+implFloatMagic hash: newPyInt hash self
 
 # long_long
 implFloatMagic int: newPyInt self.v

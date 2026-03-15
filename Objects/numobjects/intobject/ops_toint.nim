@@ -11,7 +11,6 @@ export bit_length, signbit, decl
 import ../../../Include/internal/pycore_int
 export PY_INT_MAX_STR_DIGITS_THRESHOLD, PY_INT_DEFAULT_MAX_STR_DIGITS
 
-proc hash*(self: PyIntObject): Hash {. inline, cdecl .} = hash(self.v)
 
 proc toSomeSignedIntUnsafe*[T: SomeSignedInt](pyInt: PyIntObject): T =
   ## XXX: the caller should take care of overflow
@@ -82,6 +81,15 @@ template toIntOrRetOF*(vv: PyIntObject): int =
   let ret = PyLong_AsSsize_t(vv, i)
   if not ret.isNil: return ret
   i
+
+proc hash*(self: PyIntObject): Hash =
+  var i: int
+  if self.toInt(i):
+    result = i
+    if result == -1:
+      result = -2
+    return
+  hash self.v
 
 template genLongAs(c, n){.dirty.} =
   proc `PyLong_As c`*(v: PyObject, res: var n): PyBaseErrorObject =

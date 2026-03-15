@@ -106,8 +106,7 @@ implIntMagic repr:
   retIfExc self.toStringCheckThreshold s
   newPyAscii(s)
 
-
-implIntMagic hash: self
+implIntMagic hash: newPyInt hash self
 
 # long_long
 implIntMagic int:
