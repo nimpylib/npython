@@ -13,6 +13,7 @@ import pkg/pycomplex
 
 from ./floatobject/toval import PyFloat_AsDouble
 from ./floatobject/fromx import PyNumber_Float
+import ./floatobject/hashes
 import ../noneobject
 import ../typeobject/apis/attrs
 import ../../Include/internal/pycore_global_strings
@@ -114,7 +115,10 @@ implComplexMethod "__format__"(arg: PyStrObject):
 
 implComplexMagic repr: newPyAscii pycomplex.repr(self.v)
 
+proc hash*(self: PyComplexObject): Hash =
+  complex_hash_impl(self, Py_HashDouble)
 
+implComplexMagic hash: newPyInt hash self
 
 template genBop(op){.dirty.} =
   proc op*(self, other: PyComplexObject): `PyComplexObject` =
