@@ -1,7 +1,7 @@
 
 
 import std/strformat
-import ../[pyobject, pyobject_apis]
+import ../[pyobject, pyobject_apis, noneobject,]
 import ../[stringobject,
   sliceobject, boolobject, exceptions,
 ]
@@ -9,9 +9,11 @@ import ../numobjects/intobject/[decl, ops, idxHelpers]
 import ../../Utils/[sequtils, sequtils2, trans_imp]
 from ../abstract/args import clampedIndexOptArgAt
 import ../bltcommon; export bltcommon
+import ../../Python/getargs/va_and_kw
 impExpCwd meth, [
-  join,
+  join, pkgs,
 ]
+from ./private/utils import retValueErrorAscii
 
 # redeclare this for these are "private" macros
 methodMacroTmpl(Str)
@@ -234,3 +236,16 @@ template gen_find(find){.dirty.} =
 
 gen_find find
 gen_find rfind
+
+implStrMethod split(sep = PyObject pyNone, maxsplit = -1): self.split(sep, maxsplit)
+implStrMethod rsplit(sep = PyObject pyNone, maxsplit = -1): self.rsplit(sep, maxsplit)
+implStrMethod  strip(chars = PyObject pyNone):  self.strip(chars)
+implStrMethod lstrip(chars = PyObject pyNone): self.lstrip(chars)
+implStrMethod rstrip(chars = PyObject pyNone): self.rstrip(chars)
+
+implStrMethod partition(sep: PyStrObject): retValueErrorAscii self.partition(sep)
+implStrMethod rpartition(sep: PyStrObject): retValueErrorAscii self.rpartition(sep)
+
+implStrMethod splitlines(keepends = false): self.splitlines(keepends)
+
+implStrMethod replace(old: PyStrObject, `new`: PyStrObject, count = -1): self.replace(old, `new`, count)
