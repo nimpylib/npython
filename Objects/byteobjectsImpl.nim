@@ -45,11 +45,12 @@ macro addVars(call; vargs: varargs[untyped]): untyped =
     result.add arg
 
 template doCorS(Res; doSth; o; args: varargs[untyped]): untyped{.dirty.} =
+  const hasRes = Res is_not void
+  when hasRes:
+    var `res doSth`{.genSym.}: Res
   block binDoSth:
-    const hasRes = Res is_not void
     when hasRes:
-      var res: Res
-      template doRes(x) = res = x
+      template doRes(x) = `res doSth` = x
     else:
       template doRes(x) = x
     doRes addVars(doSth(self.items,
@@ -67,8 +68,8 @@ template doCorS(Res; doSth; o; args: varargs[untyped]): untyped{.dirty.} =
           return bufferNotImpl()
         # return self.doSth s
     ), args)
-    when hasRes:
-      res
+  when hasRes:
+    `res doSth`
 
 template binDoCorS(doSth, o): untyped{.dirty.} = 
   type Res = typeof(self.items.doSth('\0'))
@@ -160,6 +161,10 @@ template implCommons(B, mutRead){.dirty.} =
       for it in tup:
         `newPy B`(it)
   `impl B Method` partition(sep):
+    # try:
+    #   let ssssss{.exportc.} = self.items.partition(sep.PyBytesObject.items)
+    #   retValueErrorAscii `pack B Tuple`(ssssss)
+    # except ValueError: doAssert false
     retValueErrorAscii `pack B Tuple`(binDoCorS(partition, sep))
   `impl B Method` rpartition(sep):
     retValueErrorAscii `pack B Tuple`(binDoCorS(rpartition, sep))
