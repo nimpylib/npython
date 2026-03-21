@@ -1,5 +1,7 @@
 
+import std/macros
 import std/strformat
+from std/algorithm import reverse
 import ../Utils/[sequtils, destroyPatch, addr0]
 import ./byteobjects
 import ./pyobject
@@ -7,8 +9,11 @@ import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
   iterobject, hash, abstract,
 ]
 import ./tupleobjectImpl
+import ./stringobject/private/utils
 import ./stringlib/join
-from ./listobject import genMutableSequenceMethods
+import pkg/pystrutils
+from ./listobject import genMutableSequenceMethods, newPyList, PyListObject, add
+import ../Python/getargs/va_and_kw
 
 export byteobjects
 
@@ -21,36 +26,72 @@ proc `&`(s: string, se: seq[char]): string =
     for i in se: result.add i
 template `&`(se: seq[char], s: string): seq[char] = se & @s
 
-template binDoCorS(doSth, o): untyped{.dirty.} =
+#TODO:buffer
+# workaround:
+type Py_buffer = object
+  buf: CharsView
+  len: int
+  obj: PyObject
+defdestroy Py_buffer: discard
+#proc PyBuffer_Release(b: Py_buffer) = discard
+
+proc init_Py_buffer(buf: CharsView, len: int, obj: PyObject, ): Py_buffer = Py_buffer(buf: buf, len: len, obj: obj)
+
+proc to_py_buffer(b: PyBytesObject|PyByteArrayObject): CharsView = b.charsView
+
+macro addVars(call; vargs: varargs[untyped]): untyped =
+  result = call
+  for arg in vargs:
+    result.add arg
+
+template doCorS(Res; doSth; o; args: varargs[untyped]): untyped{.dirty.} =
   block binDoSth:
-    type Res = typeof(self.items.doSth('\0'))
     const hasRes = Res is_not void
     when hasRes:
       var res: Res
       template doRes(x) = res = x
     else:
       template doRes(x) = x
-    doRes doSth(self.items,
+    doRes addVars(doSth(self.items,
       o.PyNumber_AsCharOr("bytes") do:
         if o.ofPyBytesObject:
           let ob = o.PyBytesObject
-          doRes self.items.doSth(ob.items)
+          doRes addVars(self.items.doSth(ob.items), args)
           break binDoSth
         elif o.ofPyByteArrayObject:
           let ob = o.PyByteArrayObject
-          doRes self.items.doSth(ob.items)
+          doRes addVars(self.items.doSth(ob.items), args)
           break binDoSth
         else:
           # TODO:buffer
           return bufferNotImpl()
         # return self.doSth s
-    )
+    ), args)
     when hasRes:
       res
+
+template binDoCorS(doSth, o): untyped{.dirty.} = 
+  type Res = typeof(self.items.doSth('\0'))
+  doCorS(Res, doSth, o)
+
 
 template doFind(self, target): untyped =
   ## helper to avoid too much `...it2, start, stop)` code snippet
   find(self, target, start, stop)
+
+template gen_split(split, B){.dirty.} =
+  `impl B Method` split(sep = PyObject pyNone, maxsplit = -1):
+    retValueErrorAscii:
+      if sep.isPyNone: `pack B List` self.items.split(maxsplit)
+      else: `pack B List` doCorS(seq[seq[char]], split, sep, maxsplit)
+
+
+template gen_strip(strip, B){.dirty.} =
+  `impl B Method` strip(chars = PyObject pyNone):
+    retValueErrorAscii:
+      if chars.isPyNone: `newPy B` self.items.strip()
+      else: `newPy B` binDoCorS(strip, chars)
+
 
 template implCommons(B, mutRead){.dirty.} =
   methodMacroTmpl(B)
@@ -99,6 +140,39 @@ template implCommons(B, mutRead){.dirty.} =
     binDoCorS(cntAll, target)
     newPyInt(count)
 
+  #TODO:bytes: always returns tuple of 3 empty bytes
+  template `pack B List`(itor): PyListObject =
+    let res = newPyList()
+    for it in itor:
+      res.add `newPy B`(it)
+    res
+
+  gen_split split, B
+  gen_split rsplit, B
+
+  gen_strip strip, B
+  gen_strip lstrip, B
+  gen_strip rstrip, B
+
+  #TODO:bytes: always returns tuple of 3 empty bytes
+  template `pack B Tuple`(tup): PyTupleObject =
+    PyTuple_Collect:
+      for it in tup:
+        `newPy B`(it)
+  `impl B Method` partition(sep):
+    retValueErrorAscii `pack B Tuple`(binDoCorS(partition, sep))
+  `impl B Method` rpartition(sep):
+    retValueErrorAscii `pack B Tuple`(binDoCorS(rpartition, sep))
+  `impl B Method` splitlines(keepends = false): `pack B List` self.items.splitLines(keepends)
+
+  `impl B Method` replace(old: PyObject, `new`: PyObject, count = -1):
+    #TODO:buffer
+    if old.ofPyBytesObject and `new`.ofPyBytesObject:
+      `newPy B`(self.items.replace(PyBytesObject(old).items, PyBytesObject(`new`).items, count))
+    elif old.ofPyByteArrayObject and `new`.ofPyByteArrayObject:
+      `newPy B`(self.items.replace(PyByteArrayObject(old).items, PyByteArrayObject(`new`).items, count))
+    else:
+      bufferNotImpl()
 
 implCommons bytes, []
 implCommons bytearray, [mutable: read]
@@ -114,19 +188,6 @@ genMutableSequenceMethods PyNumber_AsCharOrRet, newPyInt, ByteArray, char:
   when compileOption"boundChecks":
     if self.len == high int:
       return newOverflowError newPyAscii"cannot add more objects to bytearray"
-
-#TODO:buffer
-# workaround:
-type Py_buffer = object
-  buf: CharsView
-  len: int
-  obj: PyObject
-defdestroy Py_buffer: discard
-#proc PyBuffer_Release(b: Py_buffer) = discard
-
-proc init_Py_buffer(buf: CharsView, len: int, obj: PyObject, ): Py_buffer = Py_buffer(buf: buf, len: len, obj: obj)
-
-proc to_py_buffer(b: PyBytesObject|PyByteArrayObject): CharsView = b.charsView
 
 template genJoin(B; mut: bool){.dirty.} =
   proc join*(b: `Py B Object`, iterable: PyObject): PyObject{.pyCFuncPragma.} =
