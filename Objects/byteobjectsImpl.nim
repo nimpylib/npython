@@ -94,6 +94,32 @@ template gen_strip(strip, B){.dirty.} =
       else: `newPy B` binDoCorS(strip, chars)
 
 
+template gen_startswith(startswith, prefix, B){.dirty.} =
+  proc startswith*(self: `Py B Object`, prefix: PyBytesObject|PyByteArrayObject, start = 0, `end` = self.len): bool =
+    self.items.startswith(prefix.items, start, `end`)
+
+  proc startswith*(self: `Py B Object`, prefix: PyTupleObject, start = 0, `end` = self.len): bool =
+    template typeErr =
+      raise newException(TypeError, fmt"tuple for {astToStr(startswith)} must only contain {astToStr(B)}, not {i.typeName:.100s}")
+    for i in prefix:
+      #TODO:buffer
+      if not i.`ofPy B Object`: typeErr
+      let si = `Py B Object`(i)
+      if self.items.startswith(si.items, start, `end`): return true
+
+  proc startswith*(self: `Py B Object`, prefix: PyObject, start = 0, `end` = self.len): bool =
+    if prefix.`ofPy B Object`:
+      self.startswith(`Py B Object`(prefix), start, `end`)
+    elif prefix.ofPyTupleObject:
+      self.startswith(PyTupleObject prefix, start, `end`)
+    else:
+      let n = prefix.typeName
+      raise newException(TypeError,
+        strformat.fmt"{astToStr(startswith)} first arg must be str or a tuple of {astToStr(B)}, not {n:.100s}")
+  
+  `impl B Method` startswith(prefix: PyObject, start = 0, `end` = int.high):
+    retTypeError newPyBool self.startswith(prefix, start, self.cap_stop `end`)
+
 template implCommons(B, mutRead){.dirty.} =
   methodMacroTmpl(B)
   type `T B` = `Py B Object`
@@ -154,6 +180,9 @@ template implCommons(B, mutRead){.dirty.} =
   gen_strip strip, B
   gen_strip lstrip, B
   gen_strip rstrip, B
+
+  gen_startswith startswith, prefix, B
+  gen_startswith endswith, suffix, B
 
   #TODO:bytes: always returns tuple of 3 empty bytes
   template `pack B Tuple`(tup): PyTupleObject =

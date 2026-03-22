@@ -17,6 +17,44 @@ proc extendToRuneSeq(self: openArray[char]): seq[Rune] =
   result = newSeqUninit[Rune](self.len)
   for i, c in self: result[i] = Rune c
 
+template gen_startswith(startswith){.dirty.} =
+  proc startswith*(self: PyStrObject, prefix: PyStrObject, start = 0, `end` = self.len): bool =
+    doKindsWith2It(self.str, prefix.str):
+      it1.startswith(it2, start, `end`)
+      it1.startswith(it2.extendToRuneSeq, start, `end`)
+      return
+      it1.startswith(it2, start, `end`)
+
+  proc startswith*(self: PyStrObject, prefix: PyTupleObject, start = 0, `end` = self.len): bool =
+    template typeErr =
+      raise newException(TypeError, fmt"tuple for {astToStr(startswith)} must only contain str, not {i.typeName:.100s}")
+    if self.isAscii:
+      for i in prefix:
+        if not i.ofPyStrObject: typeErr
+        let si = PyStrObject i
+        if not si.isAscii: continue
+        if self.str.asciiStr.startswith(si.str.asciiStr, start, `end`): return true
+    else:
+      for i in prefix:
+        if not i.ofPyStrObject: typeErr
+        let si = PyStrObject i
+        if self.str.unicodeStr.startswith(
+          if si.isAscii: si.str.asciiStr.extendToRuneSeq
+          else: si.str.unicodeStr
+          , start, `end`
+        ): return true
+
+  proc startswith*(self: PyStrObject, prefix: PyObject, start = 0, `end` = self.len): bool =
+    if prefix.ofPyStrObject:
+      self.startswith(PyStrObject prefix, start, `end`)
+    elif prefix.ofPyTupleObject:
+      self.startswith(PyTupleObject prefix, start, `end`)
+    else:
+      raise newException(TypeError, fmt"{astToStr(startswith)} first arg must be str or a tuple of str, not {prefix.typeName:.100s}")
+
+gen_startswith startswith
+gen_startswith endswith
+
 template forAdd(iter, itExpr) =
   for it{.inject.} in iter:
     result.add itExpr

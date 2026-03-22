@@ -13,7 +13,7 @@ import ../../Python/getargs/va_and_kw
 impExpCwd meth, [
   join, pkgs,
 ]
-from ./private/utils import retValueErrorAscii
+from ./private/utils import retValueErrorAscii, retTypeError, cap_stop
 
 # redeclare this for these are "private" macros
 methodMacroTmpl(Str)
@@ -236,6 +236,14 @@ template gen_find(find){.dirty.} =
 
 gen_find find
 gen_find rfind
+
+
+template gen_startswith(startswith, prefix){.dirty.} =
+  implStrMethod startswith(prefix: PyObject, start = 0, `end` = int.high):
+    retTypeError newPyBool self.startswith(prefix, start, self.cap_stop `end`)
+
+gen_startswith startswith, prefix
+gen_startswith endswith, suffix
 
 implStrMethod split(sep = PyObject pyNone, maxsplit = -1): self.split(sep, maxsplit)
 implStrMethod rsplit(sep = PyObject pyNone, maxsplit = -1): self.rsplit(sep, maxsplit)
