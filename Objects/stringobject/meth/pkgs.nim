@@ -1,6 +1,8 @@
 
 import std/strformat
+from std/strutils import nil
 import pkg/pystrutils
+import pkg/unicode_case
 import std/unicode
 
 import ../../[
@@ -12,6 +14,19 @@ import ../../[
 ]
 import ../private/utils
 import pkg/nimpatch/[newUninit, castChar]
+
+
+proc capitalize*(self: PyStrObject): PyStrObject =
+  if self.isAscii:
+    newPyAscii strutils.capitalizeAscii(self.str.asciiStr)
+  else:
+    newPyStr unicode_case.capitalize(self.str.unicodeStr)
+
+proc casefold*(self: PyStrObject): PyStrObject =
+  if self.isAscii:
+    newPyAscii strutils.toLowerAscii(self.str.asciiStr)
+  else:
+    newPyStr unicode_case.casefold(self.str.unicodeStr)
 
 proc extendToRuneSeq(self: openArray[char]): seq[Rune] =
   result = newSeqUninit[Rune](self.len)

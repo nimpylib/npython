@@ -261,7 +261,7 @@ proc newPyString*(str: PyStrObject): PyStrObject{.cdecl, inline.} =
   ## helper for handle type of `string|PyStrObject`
   str
 
-proc newPyAscii*(str: string|cstring|char|int): PyStrObject =
+proc newPyAscii*(str: seq[char]|string|cstring|char|int): PyStrObject =
   newPyString newAsciiUnicodeVariant(str)
 let empty = newPyAscii""
 proc newPyAscii*(): PyStrObject = empty  ## empty string
