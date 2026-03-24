@@ -183,17 +183,21 @@ when true:
         return newObj
 
 
-  implStrMethod index:
-    implMethodGenStrTargetAndStartStop
-    let res = doKindsWith2It(self.str, target.str):
-      doFind find
-      doFind findExpanded
-      doFind findExpanded
-      doFind find
-    if res >= 0:
-      return newPyInt(res)
-    let msg = "substring not found"
-    newValueError(newPyAscii msg)
+  template genIndex(index, find){.dirty.} =
+    implStrMethod index:
+      implMethodGenStrTargetAndStartStop
+      let res = doKindsWith2It(self.str, target.str):
+        doFind find
+        doFind `find Expanded`
+        doFind `find Expanded`
+        doFind find
+      if res >= 0:
+        return newPyInt(res)
+      let msg = "substring not found"
+      newValueError(newPyAscii msg)
+  
+  genIndex index, find
+  genIndex rindex, rfind
 
   implStrMethod count:
     implMethodGenStrTargetAndStartStop
@@ -257,3 +261,5 @@ implStrMethod rpartition(sep: PyStrObject): retValueErrorAscii self.rpartition(s
 implStrMethod splitlines(keepends = false): self.splitlines(keepends)
 
 implStrMethod replace(old: PyStrObject, `new`: PyStrObject, count = -1): self.replace(old, `new`, count)
+
+implStrMethod isascii(): newPyBool self.isascii

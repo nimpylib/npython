@@ -3,7 +3,8 @@ import std/strformat
 from std/strutils import nil
 import pkg/pystrutils
 import pkg/unicode_case
-import std/unicode
+import std/unicode except toLower, toUpper, toTitle,
+  isAlpha, isDigit, isSpace, isLower, isUpper, isTitle
 
 import ../../[
   pyobject,
@@ -11,18 +12,26 @@ import ../../[
   stringobject,
   listobject, tupleobject,
   noneobject,
+  boolobject,
+  bltcommon,
 ]
 import ../private/utils
+import ../../../Python/getargs/dispatch
 import pkg/nimpatch/[newUninit, castChar]
 
+proc toval(obj: PyObject, val: var PyStrObject): PyBaseErrorObject =
+  if obj.ofPyStrObject:
+    val = PyStrObject obj
+    return
+  errorIfNotString(obj, "argument must be str")
 
-proc capitalize*(self: PyStrObject): PyStrObject =
+proc capitalize*(self: PyStrObject): PyStrObject{.clinicGenMethod(str).} =
   if self.isAscii:
     newPyAscii strutils.capitalizeAscii(self.str.asciiStr)
   else:
     newPyStr unicode_case.capitalize(self.str.unicodeStr)
 
-proc casefold*(self: PyStrObject): PyStrObject =
+proc casefold*(self: PyStrObject): PyStrObject{.clinicGenMethod(str).} =
   if self.isAscii:
     newPyAscii strutils.toLowerAscii(self.str.asciiStr)
   else:
@@ -31,6 +40,85 @@ proc casefold*(self: PyStrObject): PyStrObject =
 proc extendToRuneSeq(self: openArray[char]): seq[Rune] =
   result = newSeqUninit[Rune](self.len)
   for i, c in self: result[i] = Rune c
+
+
+template gen_adjust(center){.dirty.} =
+  proc center*(self: PyStrObject, width: int, fillchar = newPyAscii ' '): PyStrObject{.clinicGenMethodRaises(str, [TypeError]).} =
+    doKindsWith2It(self.str, fillchar.str):
+      newPyStr it1.center(width, it2)
+      newPyStr it1.center(width, it2.extendToRuneSeq)
+      newPyStr it1.extendToRuneSeq.center(width, it2)
+      newPyAscii it1.center(width, it2)
+
+gen_adjust center
+gen_adjust ljust
+gen_adjust rjust
+
+proc zfill*(self: PyStrObject, width: int): PyStrObject{.clinicGenMethod(str).} =
+  if self.isAscii:
+    newPyAscii self.str.asciiStr.zfill(width)
+  else:
+    newPyStr self.str.unicodeStr.zfill(width)
+
+
+proc expandtabs[C](a: openArray[C], tabsize=8): seq[C] =
+  expandtabsImpl(a, tabsize, a.len, items, newSeqOfCap[C])
+
+proc expandtabs*(self: PyStrObject, tabsize = 8): PyStrObject{.clinicGenMethod(str).} =
+  if self.isAscii:
+    newPyAscii self.str.asciiStr.expandTabs(tabsize)
+  else:
+    newPyStr self.str.unicodeStr.expandTabs(tabsize)
+
+#TODO:str
+#proc format*(self: PyStrObject, args: varargs[PyObject]): PyStrObject = pyformat
+#proc isalnum*(self: PyStrObject): bool{.clinicGenMethod(str).} =
+
+template toval(obj: bool, val: var PyObject): PyBaseErrorObject =
+  val = newPyBool obj
+  nil
+
+template genPredict(name){.dirty.} =
+  proc name*(self: PyStrObject): bool{.clinicGenMethod(str).} =
+    if self.isAscii:
+      self.str.asciiStr.name()
+    else:
+      self.str.unicodeStr.name()
+
+genPredict isalpha
+#  genPredict isascii  # ref ./meth
+#genPredict isdigit
+genPredict isdecimal
+#genPredict isidentifier
+genPredict islower
+#genPredict isnumeric
+#genPredict isprintable
+genPredict isspace
+genPredict istitle
+genPredict isupper
+
+template genMapper(name; nName: untyped = name){.dirty.} =
+  proc name*(self: PyStrObject): PyStrObject{.clinicGenMethod(str).} =
+    if self.isAscii:
+      newPyAscii self.str.asciiStr.nName()
+    else:
+      newPyStr self.str.unicodeStr.nName()
+
+genMapper lower, toLower
+genMapper upper, toUpper
+#genMapper swapcase
+genMapper title, toTitle
+
+template gen_removesuffix(removesuffix){.dirty.} =
+  proc removesuffix*(self: PyStrObject, suffix: PyStrObject): PyStrObject{.clinicGenMethod(str).} =
+    doKindsWith2It(self.str, suffix.str):
+      newPyStr it1.removesuffix(it2)
+      newPyStr it1.removesuffix(it2.extendToRuneSeq)
+      newPyStr it1.extendToRuneSeq.removesuffix(it2)
+      newPyAscii it1.removesuffix(it2)
+
+gen_removesuffix removesuffix
+gen_removesuffix removeprefix
 
 template gen_startswith(startswith){.dirty.} =
   proc startswith*(self: PyStrObject, prefix: PyStrObject, start = 0, `end` = self.len): bool =

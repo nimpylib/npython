@@ -7,13 +7,15 @@ import ./byteobjects
 import ./pyobject
 import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
   iterobject, hash, abstract,
+  bltcommon,
 ]
 import ./tupleobjectImpl
 import ./stringobject/private/utils
 import ./stringlib/join
 import pkg/pystrutils
 from ./listobject import genMutableSequenceMethods, newPyList, PyListObject, add
-import ../Python/getargs/va_and_kw
+import ../Python/getargs/[va_and_kw, dispatch]
+import ../Utils/[sequtils2]
 
 export byteobjects
 
@@ -39,10 +41,31 @@ proc init_Py_buffer(buf: CharsView, len: int, obj: PyObject, ): Py_buffer = Py_b
 
 proc to_py_buffer(b: PyBytesObject|PyByteArrayObject): CharsView = b.charsView
 
+proc init_Py_buffer(buf: PyBytesObject|PyByteArrayObject): Py_buffer{.raises: [].} =
+  init_Py_buffer(buf.to_py_buffer, buf.len, buf)
+
 macro addVars(call; vargs: varargs[untyped]): untyped =
   result = call
   for arg in vargs:
     result.add arg
+
+proc toval(o: PyObject, val: var Py_buffer): PyBaseErrorObject =
+  let c = o.PyNumber_AsCharOr("bytes") do:
+    if o.ofPyBytesObject:
+      let ob = o.PyBytesObject
+      val = init_Py_buffer ob
+      return
+    elif o.ofPyByteArrayObject:
+      let ob = o.PyByteArrayObject
+      val = init_Py_buffer ob
+      return
+    else:
+      # TODO:buffer
+      return bufferNotImpl()
+    # return self.doSth s
+  let obj = newPyBytes [c]
+  val = init_Py_buffer obj
+
 
 template doCorS(Res; doSth; o; args: varargs[untyped]): untyped{.dirty.} =
   const hasRes = Res is_not void
@@ -75,23 +98,33 @@ template binDoCorS(doSth, o): untyped{.dirty.} =
   type Res = typeof(self.items.doSth('\0'))
   doCorS(Res, doSth, o)
 
+template genMapper(B, name; nName: untyped = name){.dirty.} =
+  proc name*(self: `Py B Object`): `Py B Object`{.clinicGenMethod(B).} =
+    `newPy B` self.items.nName()
+
+template gen_removesuffix(B, removesuffix){.dirty.} =
+  proc removesuffix*(self: `Py B Object`, suffix: Py_buffer): `Py B Object`{.clinicGenMethod(B).} =
+    `newPy B` self.items.removesuffix(suffix.buf.toOpenArray(0, suffix.buf.high))
+  # proc removesuffix*(self: `Py B Object`, suffix: `Py B Object`): `Py B Object`{.clinicGenMethod(B).} =
+  #   `newPy B` self.items.removesuffix(suffix.items)
 
 template doFind(self, target): untyped =
   ## helper to avoid too much `...it2, start, stop)` code snippet
   find(self, target, start, stop)
+template doRFind(self, target): untyped =
+  ## helper to avoid too much `...it2, start, stop)` code snippet
+  rfind(self, target, start, stop)
 
 template gen_split(split, B){.dirty.} =
-  `impl B Method` split(sep = PyObject pyNone, maxsplit = -1):
-    retValueErrorAscii:
-      if sep.isPyNone: `pack B List` self.items.split(maxsplit)
-      else: `pack B List` doCorS(seq[seq[char]], split, sep, maxsplit)
+  proc split*(self: `Py B Object`; sep = PyObject pyNone, maxsplit = -1): PyObject{.clinicGenMethodRaises(B, [ValueError]).} =
+    if sep.isPyNone: `pack B List` self.items.split(maxsplit)
+    else: `pack B List` doCorS(seq[seq[char]], split, sep, maxsplit)
 
 
 template gen_strip(strip, B){.dirty.} =
-  `impl B Method` strip(chars = PyObject pyNone):
-    retValueErrorAscii:
-      if chars.isPyNone: `newPy B` self.items.strip()
-      else: `newPy B` binDoCorS(strip, chars)
+  proc strip*(self: `Py B Object`; chars = PyObject pyNone): PyObject{.clinicGenMethodRaises(B, [ValueError]).} =
+    if chars.isPyNone: `newPy B` self.items.strip()
+    else: `newPy B` binDoCorS(strip, chars)
 
 
 template gen_startswith(startswith, prefix, B){.dirty.} =
@@ -119,6 +152,33 @@ template gen_startswith(startswith, prefix, B){.dirty.} =
   
   `impl B Method` startswith(prefix: PyObject, start = 0, `end` = int.high):
     retTypeError newPyBool self.startswith(prefix, start, self.cap_stop `end`)
+
+template genFindIndex(index, find, doFind, mutRead, B){.dirty.} =
+  `impl B Method` find, mutRead:
+    implMethodGenTargetAndStartStop()
+    newPyInt binDoCorS(doFind, target)
+  `impl B Method` index, mutRead:
+    implMethodGenTargetAndStartStop()
+    let res = binDoCorS(doFind, target)
+    if res >= 0:
+      return newPyInt(res)
+    newValueError(newPyAscii"subsection not found")
+
+template gen_adjust(adjust, B){.dirty.} =
+  proc adjust*(self: `Py B Object`, width: int, fillchar = init_Py_buffer `newPy B` [' ']
+  ): `Py B Object`{.clinicGenMethodRaises(B, [TypeError]).} =
+    `newPy B` self.items.adjust(width, fillchar.buf.toOpenArray(0, fillchar.buf.high))
+
+
+template genPredict(name, B){.dirty.} =
+  proc name*(self: `Py B Object`): bool{.clinicGenMethod(B).} = self.items.name()
+
+proc expandtabs[C](a: openArray[C], tabsize=8): seq[C] =
+  expandtabsImpl(a, tabsize, a.len, items, newSeqOfCap[C])
+
+template toval(obj: bool, val: var PyObject): PyBaseErrorObject =
+  val = newPyBool obj
+  nil
 
 template implCommons(B, mutRead){.dirty.} =
   methodMacroTmpl(B)
@@ -148,16 +208,8 @@ template implCommons(B, mutRead){.dirty.} =
         fmt"can't concat {self.pyType.name:.100s} to {other.pyType.name:.100s}"
       )
 
-  `impl B Method` find, mutRead:
-    implMethodGenTargetAndStartStop()
-    newPyInt binDoCorS(doFind, target)
-
-  `impl B Method` index, mutRead:
-    implMethodGenTargetAndStartStop()
-    let res = binDoCorS(doFind, target)
-    if res >= 0:
-      return newPyInt(res)
-    newValueError(newPyAscii"subsection not found")
+  genFindIndex index, find, doFind, mutRead, B
+  genFindIndex rindex, rfind, doRFind, mutRead, B
 
   `impl B Method` count:
     implMethodGenTargetAndStartStop()
@@ -174,6 +226,7 @@ template implCommons(B, mutRead){.dirty.} =
       res.add `newPy B`(it)
     res
 
+  
   gen_split split, B
   gen_split rsplit, B
 
@@ -183,6 +236,38 @@ template implCommons(B, mutRead){.dirty.} =
 
   gen_startswith startswith, prefix, B
   gen_startswith endswith, suffix, B
+
+  gen_adjust center, B
+  gen_adjust ljust, B
+  gen_adjust rjust, B
+
+  proc zfill*(self: `Py B Object`, width: int): `Py B Object`{.clinicGenMethod(B).} =
+    `newPy B` self.items.zfill(width)
+
+  proc expandtabs*(self: `Py B Object`, tabsize = 8): `Py B Object`{.clinicGenMethod(B).} =
+    `newPy B` self.items.expandTabs(tabsize)
+
+  genPredict isalnum, B
+  genPredict isalpha, B
+  genPredict isascii, B
+  genPredict isdigit, B
+
+  genPredict islower, B
+
+
+  genPredict isspace, B
+  genPredict istitle, B
+  genPredict isupper, B
+
+  genMapper B, capitalize
+
+  genMapper B, lower, toLower
+  genMapper B, upper, toUpper
+  #genMapper B,  swapcase
+  genMapper B, title, toTitle
+
+  gen_removesuffix B, removesuffix
+  gen_removesuffix B, removeprefix
 
   #TODO:bytes: always returns tuple of 3 empty bytes
   template `pack B Tuple`(tup): PyTupleObject =
