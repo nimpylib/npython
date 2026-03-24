@@ -230,12 +230,16 @@ proc objName2tpObjName(objName: string): string {. compileTime .} =
 
 template checkTypeTmplImpl(obj: PyObject{atom}, tp, tpObjName; msgInner="") {.dirty.} = 
   # should use a more sophisticated way to judge type
-  if not (obj of tp):
-    let expected = tpObjName
-    let got = obj.typeName
-    let tmsgInner = msgInner
-    let msg = fmt"{expected} is requred{tmsgInner} (got {got})"
-    return newTypeError newPyStr(msg)
+  bind formatValue, fmt
+  when tp is PyObject:
+    if not (obj of tp):
+      let expected = tpObjName
+      let got = obj.typeName
+      let tmsgInner = msgInner
+      let msg = fmt"{expected} is requred{tmsgInner} (got {got})"
+      return newTypeError newPyStr(msg)
+  # else we will check by toval
+
 template checkTypeTmplImpl(obj: PyObject, tp, tpObjName; msgInner="") = 
   bind checkTypeTmplImpl
   let tobj = obj
@@ -293,8 +297,30 @@ template noKw(name){.dirty.} =
 
 proc countDefval(argTypes: NimNode): int =
   for child in argTypes:
-    if child.kind == nnkExprEqExpr:
+    case child.kind
+    of nnkExprEqExpr:
       result.inc
+    of nnkIdentDefs:
+      assert child.len == 3, "params notation like a, b: int is not allowed, please write as a: int, b: int"
+      if child[2].kind != nnkEmpty:
+        result.inc
+    else: discard
+
+const atomAllowAsImplHead = {nnkIdent, nnkSym, nnkStrLit}
+
+proc reduceAccQuoted(id: NimNode): NimNode =
+  let methodName = id
+  case methodName.kind
+  of nnkAccQuoted:  # for reversed keyword
+    var ls = methodName
+    var res: string
+    for i in ls:
+      res.add i.strVal
+    result = ident res
+  of {nnkClosedSymChoice}+atomAllowAsImplHead:
+    result = methodName
+  else:
+    error("invalid ident name: " & methodName.treeRepr)
 
 macro checkArgTypes*(nameAndArg, code: untyped): untyped = 
   let methodName = nameAndArg[0]
@@ -388,23 +414,36 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
       var tp: NimNode
       var defval: NimNode
       var hasDefVal = false
-      if child.kind == nnkExprColonExpr:
+      case child.kind
+      of nnkExprColonExpr:
         tp = child[1]
-      else:
+      of nnkExprEqExpr:
         #TODO: handle startPosOnly, startKwOnly
-        expectKind child, nnkExprEqExpr
         hasDefVal = true
         defval = child[1]
+      of nnkIdentDefs:
+        # when used by getargs/dispatch (clinicGenMethod)
+        assert child.len == 3, "params notation like a, b: int is not allowed, please write as a: int, b: int"
+        tp = child[1]
+        if tp.kind == nnkEmpty: tp = default NimNode
+        if child[2].kind != nnkEmpty:
+          hasDefVal = true
+          defval = child[2]
+      else:
+        error "invalid arg type definition", child
       if hasDefVal:
         posArgNum.dec
-      if not hasDefVal and tp.strVal == "PyObject":  # won't bother checking 
+      var tpName: string
+      if not tp.isNil:
+        tpName = tp.reduceAccQuoted.strVal
+      if not hasDefVal and tpName == "PyObject":  # won't bother checking 
         addLetDecl(name, obj)
       else:
         let methodNameStrNode = newStrLitNode(methodName.strVal)
-        if not hasDefVal and tp.strVal[0] == 'P':
+        if not hasDefVal and tpName.startsWith"Py" and tpName.endsWith"Object":
           # if is a PyObject subtype
           #XXX: very hacky way to detect PyObject subtype
-          let tpObj = ident(objName2tpObjName(tp.strVal))
+          let tpObj = ident(objName2tpObjName(tpName))
           body.add(getAst(checkTypeTmpl(obj, tp, tpObj, methodNameStrNode)))
           body.add(quote do:
             let `name` = `tp`(`obj`)
@@ -443,7 +482,6 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
   code.body = body
   code
 
-const atomAllowAsImplHead = {nnkIdent, nnkSym, nnkStrLit}
 
 # works with thingks like `append(obj: PyObject)`
 # if no parenthesis, then return nil as argTypes, means do not check arg type
@@ -470,7 +508,7 @@ proc getNameAndArgTypes*(prototype: NimNode): (NimNode, NimNode) =
 
 # kinds of methods for python objects.
 type
-  MethodKind {. pure .} = enum
+  NPyMethodKind* {. pure .} = enum
     Common,
     Magic,
     Getter,
@@ -517,32 +555,26 @@ proc toIdentStr(n: NimNode): string =
   else: # shall be valid already
     ($n).toLowerAscii
 
-proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind): NimNode = 
+proc implMethod*(methodName, argTypes: NimNode, ObjectType, pragmas, body: NimNode, kind: NPyMethodKind): NimNode = 
   # transforms user implementation code
   # prototype: function defination, contains argumetns to check
   # ObjectType: the code belongs to which object
   # pragmas: custom pragmas
   # body: function body
-  var (methodName, argTypes) = getNameAndArgTypes(prototype)
-  if methodName.kind == nnkAccQuoted:  # for reversed keyword
-    var ls = methodName
-    var name = "" 
-    for i in ls:
-      name.add i.strVal
-    methodName = ident name
+  let methodName = methodName.reduceAccQuoted
   methodName.expectKind({nnkClosedSymChoice}+atomAllowAsImplHead)
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)
-  pragmas.expectKind(nnkBracket)
+  pragmas.expectKind({nnkBracket, nnkPragma})
   var tail: string
   case kind
-  of MethodKind.Common:
+  of NPyMethodKind.Common:
     tail = "Method"
-  of MethodKind.Magic:
+  of NPyMethodKind.Magic:
     tail = "Magic"
-  of MethodKind.Getter:
+  of NPyMethodKind.Getter:
     tail = "Getter"
-  of MethodKind.Setter:
+  of NPyMethodKind.Setter:
     tail = "Setter"
   # use `toLowerAscii` because we used uppercase in declaration to prevent conflict with
   # Nim keywords. Now it's not necessary as we append lots of things
@@ -556,13 +588,13 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
 
   var params: seq[NimNode]
   case kind
-  of MethodKind.Common:
+  of NPyMethodKind.Common:
     params = bltinMethodParams
-  of MethodKind.Magic:
+  of NPyMethodKind.Magic:
     params = getParams(methodName)
-  of MethodKind.Getter:
+  of NPyMethodKind.Getter:
     params = unaryMethodParams
-  of MethodKind.Setter:
+  of NPyMethodKind.Setter:
     params = binaryMethodParams
 
   let procNode = newProc(
@@ -616,7 +648,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
   result.add procNode
 
   case kind
-  of MethodKind.Common:
+  of NPyMethodKind.Common:
     result.add nnkCall.newTree(
         nnkDotExpr.newTree(
           typeObjNode,
@@ -626,7 +658,7 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
         quote do:
           (`name`, `classmethod`)
       )
-  of MethodKind.Magic:
+  of NPyMethodKind.Magic:
     result.add newAssignment(
         newDotExpr(
           newDotExpr(
@@ -640,6 +672,9 @@ proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: MethodKind
   else: # registered manually
     discard
 
+proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: NPyMethodKind): NimNode = 
+  let (methodName, argTypes) = getNameAndArgTypes(prototype)
+  implMethod(methodName, argTypes, ObjectType, pragmas, body, kind)
 
 proc reprLockImpl(s, code: NimNode): NimNode =
   let reprEnter = quote do:
@@ -694,25 +729,25 @@ template methodMacroTmpl(name: untyped, nameStr: string) =
 
   # default args won't work here, so use overloading
   macro `impl name Magic`(methodName, pragmas, code:untyped): untyped {. used .} = 
-    implMethod(methodName, ident(objNameStr), pragmas, code, MethodKind.Magic)
+    implMethod(methodName, ident(objNameStr), pragmas, code, NPyMethodKind.Magic)
 
   macro `impl name Magic`(methodName, code:untyped): untyped {. used .} = 
     getAst(`impl name Magic`(methodName, nnkBracket.newTree(), code))
 
   macro `impl name Method`(prototype, pragmas, code:untyped): untyped {. used .}= 
-    implMethod(prototype, ident(objNameStr), pragmas, code, MethodKind.Common)
+    implMethod(prototype, ident(objNameStr), pragmas, code, NPyMethodKind.Common)
 
   macro `impl name Method`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Method`(prototype, nnkBracket.newTree(), code))
 
   macro `impl name Getter`(prototype, pragmas, code:untyped): untyped {. used .}= 
-    implMethod(prototype, ident(objNameStr), pragmas, code, MethodKind.Getter)
+    implMethod(prototype, ident(objNameStr), pragmas, code, NPyMethodKind.Getter)
 
   macro `impl name Getter`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Getter`(prototype, nnkBracket.newTree(), code))
 
   macro `impl name Setter`(prototype, pragmas, code:untyped): untyped {. used .}= 
-    implMethod(prototype, ident(objNameStr), pragmas, code, MethodKind.Setter)
+    implMethod(prototype, ident(objNameStr), pragmas, code, NPyMethodKind.Setter)
 
   macro `impl name Setter`(prototype, code:untyped): untyped {. used .}= 
     getAst(`impl name Setter`(prototype, nnkBracket.newTree(), code))
