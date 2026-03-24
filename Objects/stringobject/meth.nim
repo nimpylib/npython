@@ -10,6 +10,7 @@ import ../../Utils/[sequtils, sequtils2, trans_imp]
 from ../abstract/args import clampedIndexOptArgAt
 import ../bltcommon; export bltcommon
 import ../../Python/getargs/va_and_kw
+import ../../Python/version
 impExpCwd meth, [
   join, pkgs,
 ]
@@ -262,4 +263,4 @@ implStrMethod splitlines(keepends = false): self.splitlines(keepends)
 
 implStrMethod replace(old: PyStrObject, `new`: PyStrObject, count = -1): self.replace(old, `new`, count)
 
-implStrMethod isascii(): newPyBool self.isascii
+implStrMethod isascii(), [pysince(3,7)]: newPyBool self.isascii

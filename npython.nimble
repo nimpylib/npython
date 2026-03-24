@@ -46,6 +46,7 @@ pylib "unicode_space_decimal", " ^= 0.1.0"
 pylib "float_utils", " ^= 0.1.0"
 pylib "pycomplex", " ^= 0.1.0"
 pylib "pystrutils", " ^= 0.1.0"
+pylib "since_version", " ^= 0.1.0"
 
 # copied from nimpylib.nimble
 #   at 43378424222610f8ce4a10593bd719691fbb634b
