@@ -6,9 +6,15 @@ import ../../Utils/trans_imp
 impExpCwd floatobject, [
   decl, toval, fromx, pow,
 ]
+import pkg/float_utils/[floathex, integer_ratio]
 import ./floatobject/[round, utils, aritherr, hashes]
 export hashes
-import ../noneobject
+import ../stringobject/private/utils
+import ../[
+  noneobject,
+  tupleobject,
+  bltcommon,
+]
 import ../../Python/getargs
 
 from ./intobject/ops import newPyInt
@@ -33,6 +39,23 @@ macro CONVERT_TO_DOUBLE2(code):untyped =
     code.body
   )
   code
+
+proc hex*(self: PyFloatObject): PyStrObject = newPyAscii hex self.v
+implFloatMethod hex: self.hex
+
+proc newPyFloatFromhex*(s: PyStrObject): PyFloatObject = newPyFloat floatfromhex s.str.asUTF8
+
+implFloatMethod fromhex(s: PyStrObject), [classmethod]:
+  retValueErrorAscii newPyFloatFromhex s
+
+proc as_integer_ratio*(self: PyFloatObject): tuple[num, den: int] = self.v.as_integer_ratio
+implFloatMethod as_integer_ratio():
+  retValueErrorAscii:
+    let tup = self.as_integer_ratio()
+    PyTuple_Pack(newPyInt tup.num, newPyInt tup.den)
+
+proc is_integer*(self: PyFloatObject): bool = self.v.is_integer
+implFloatMethod is_integer(): newPyBool self.is_integer
 
 template genBin(magic, op; ret:untyped=newPyFloat; retMagic: untyped=newPyFloat){.dirty.} =
   template op*(self, casted: PyFloatObject): untyped =
