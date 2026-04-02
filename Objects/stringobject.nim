@@ -55,7 +55,7 @@ proc newUnicodeUnicodeVariantOfCap*(cap: int): UnicodeVariant =
 proc newUnicodeOrAsciiUnicodeVariant*(s: string|cstring): UnicodeVariant =
   var ascii = true
   for r in s.toFullOpenArrayChar.runes:
-    if Rune(high char) <% r:
+    if Rune(0x7F) <% r:
       ascii = false
       break
   if ascii: newAsciiUnicodeVariant(s)
