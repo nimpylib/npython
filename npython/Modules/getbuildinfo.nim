@@ -32,7 +32,7 @@ If you have git installed but not in PATH,
 """.}
   template execEx(git: typeof(git); sub: string): untyped = (output: "", exitCode: 0)
 else:
-  const srcdir_git = currentSourcePath().parentDir /../ ".git"
+  const srcdir_git = currentSourcePath().parentDir.parentDir /../ ".git"
   template execEx(git: typeof(git); sub: string): untyped =
     bind git
     gorgeEx(git.exe & " --git-dir " & srcdir_git & " " & sub)

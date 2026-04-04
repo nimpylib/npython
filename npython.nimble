@@ -1,8 +1,8 @@
-from "Python/versionInfo" import Version
+from "npython/Python/versionInfo" import Version
 
-from "Modules/getbuildinfo" import BuildInfoCacheFile, genBuildCacheContent
+from "npython/Modules/getbuildinfo" import BuildInfoCacheFile, genBuildCacheContent
 before install:
-  writeFile "Modules/" & BuildInfoCacheFile, genBuildCacheContent()
+  writeFile "npython/Modules/" & BuildInfoCacheFile, genBuildCacheContent()
 
 import std/macros; macro asgnVer = quote do: version = `Version`
 asgnVer()  # declarative parser of nimble requires version to be literals
@@ -14,11 +14,11 @@ description   = "Python interpreter implemented in Nim, supporting JS backends"
 license       = "MIT"
 srcDir        = "."
 installExt   = @["nim", "nims"]
-installFiles  = @["LICENSE", "Parser/Grammar"]
+installFiles  = @["LICENSE", "npython/Parser/Grammar"]
 skipDirs = @["tests"]
 binDir        = "bin"
 
-let srcName = "Python/npython"
+let srcName = "npython"
 namedBin[srcName] = "npython"
 
 requires  "nim > 2.0.8" # 2.0.8 will error: `/pyobjectBase.nim(342, 16) Error: undeclared field: 'pyType=' for type pyobjectBase.PyObject`
