@@ -10,7 +10,7 @@ import ../../Utils/[sequtils, sequtils2, trans_imp]
 from ../abstract/args import clampedIndexOptArgAt
 import ../bltcommon; export bltcommon
 import ../../Python/getargs/va_and_kw
-import ../../Python/version
+import ../../version
 impExpCwd meth, [
   join, pkgs,
 ]

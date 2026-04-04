@@ -1,6 +1,6 @@
 
 import std/strformat
-import ./versionInfo
+import ../versionInfo
 export versionInfo
 
 import ../Modules/getbuildinfo

@@ -1,4 +1,4 @@
-from "npython/Python/versionInfo" import Version
+from "npython/versionInfo" import Version
 
 from "npython/Modules/getbuildinfo" import BuildInfoCacheFile, genBuildCacheContent
 before install:

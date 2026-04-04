@@ -1,5 +1,5 @@
 
-import ../../Python/versionInfo
+import ../../versionInfo
 import ../../Utils/intflags
 
 declareIntFlag CO:
