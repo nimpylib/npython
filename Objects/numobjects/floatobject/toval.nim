@@ -1,4 +1,7 @@
 
+when defined(nimPreviewSlimSystem):
+  import std/formatfloat
+
 import ./decl
 import ../numobjects_comm_with_warn
 import ../../[
