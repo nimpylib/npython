@@ -17,6 +17,6 @@ jobs:
     - uses: nimpylib/doc-deploy@v0.1.3
       with:
         homepage: https://npython.nimpylib.org
-        src-dir: Python
+        src-dir: . 
         proj-name: npython
 

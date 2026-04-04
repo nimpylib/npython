@@ -3,6 +3,6 @@
 ## An JavaScript-targeted online demo is available at <https://play.nimpylib.org>
 
 when defined(js):
-  include jspython
+  include npython/Python/jspython
 else:
-  include cpython
+  include npython/Python/cpython
