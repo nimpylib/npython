@@ -1,8 +1,8 @@
 
 const
   Major* = 0
-  Minor* = 1
-  Patch* = 2
+  Minor* = 2
+  Patch* = 0
 
   PyMajor*{.intdefine.} = 3
   PyMinor*{.intdefine.} = 13
