@@ -1,8 +1,9 @@
 
 
 import pkg/translateEscape
+import ../versionInfo
 import ../Python/[
-  warnings, versionInfo,
+  warnings,
 ]
 import ../Objects/[
   pyobject, exceptions
