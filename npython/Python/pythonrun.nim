@@ -99,11 +99,28 @@ proc PyRun_InteractiveOneObjectEx(fp; filename; flags; main_dict: PyDictObject; 
   flush_io()
   mayNewPromise PyBaseErrorObject nil
 
-template getMainDict(excRes: untyped = true): PyDictObject =
-  let res = PyImport_AddModuleRef("__main__")
-  priRetIfExc(res, excRes)
-  let main_module = PyModuleObject res
-  main_module.getDict()
+template getMainDictToIt(excDo): PyDictObject =
+  block:
+    let it{.inject.} = PyImport_AddModuleRef("__main__")
+    excDo
+    let main_module = PyModuleObject it
+    main_module.getDict()
+
+template getMainDictOrPriAndRet(excRes: untyped = true): PyDictObject =
+  getMainDictToIt:
+    priRetIfExc(it, excRes)
+
+proc getMainDict*(res: var PyDictObject): PyBaseErrorObject =
+  ## unstable.
+  res = getMainDictToIt:
+    retIfExc it
+
+proc getMainDict*(): PyObject{.npyexportc: "_PyEval_GetMainDict".} =
+  ## unstable.
+  ## like `PyEval_GetFrameGlobals`,
+  ##   but even outside py frame, it can still return `__main__.__dict__`.
+  getMainDictToIt:
+    retIfExc it
 
 export PyRun_InteractiveLoopPre
 
@@ -118,7 +135,7 @@ template runIteractOneAndhandleExc =
 #[
 proc KaraxRun_InteractiveOneObjectEx*(fp; filename; flags): bool{.mayAsync, pyCFuncPragma.} =
   ## unstable. export for karax backend
-  let main_dict = getMainDict(mayNewPromise true)
+  let main_dict = getMainDictOrPriAndRet(mayNewPromise true)
   runIteractOneAndhandleExc
   false
 ]#
@@ -128,7 +145,7 @@ proc PyRun_InteractiveLoopObjectImpl(fp; filename; flags): bool {.mayAsync.} =
   PyRun_InteractiveLoopPre()
 
   var interactive_src = newPyInteractiveSrc()
-  let main_dict = getMainDict(mayNewPromise true)
+  let main_dict = getMainDictOrPriAndRet(mayNewPromise true)
 
   while true:
     runIteractOneAndhandleExc
@@ -163,7 +180,7 @@ proc pyrun_file(fp; filename; mode; globals; locals; closeit: bool; flags): PyOb
 
 proc PyRun_SimpleFileObject*(fp; filename; closeit=false; flags=initPyCompilerFlags()): bool{.mayAsync, pyCFuncPragma.} =
   ## `_PyRun_SimpleFileObject`
-  let dict = getMainDict(mayNewPromise true)
+  let dict = getMainDictOrPriAndRet(mayNewPromise true)
   var res: PyObject
   let
     file = newPyAscii"__file__"
@@ -228,7 +245,7 @@ proc PyRun_AnyFileExFlags*(fp; filename: string; closeit=false, flags=initPyComp
 
 #[
 proc PyRun_InteractiveOneObject*(fp; filename; flags): PyBaseErrorObject{.mayAsync, pyCFuncPragma.} =
-  let main_dict = getMainDict(nil)
+  let main_dict = getMainDictOrPriAndRet(nil)
   var errcode: ParseErrorcode
   var res = mayAwait PyRun_InteractiveOneObjectEx(fp, filename, flags, main_dict, errcode)
   interactiveHandleErrcode
@@ -254,8 +271,13 @@ proc PyRun_StringFlags*(str; mode; globals; locals; flags=initPyCompilerFlags())
 proc PyRun_String*(str; mode; globals; locals): PyObject{.npyexportc.} =
   PyRun_StringFlags(str, mode, globals, locals)
 
+proc PyRun_String*(str; mode = Mode.Eval): PyObject{.npyexportc: "PyMain_RunString".} =
+  let d = getMainDict()
+  retIfExc d
+  PyRun_String(str, mode, PyDictObject d, d)
+
 template errPrint(dict; call): bool{.dirty.} =
-  let dict = getMainDict()
+  let dict = getMainDictOrPriAndRet()
   let res = call
   if res.isThrownException:
     let exc = PyBaseErrorObject(res)
