@@ -18,3 +18,4 @@ else:
     import ./lifecycle
     Py_Initialize()
     mayWaitFor interactiveShell()
+    Py_Finalize()

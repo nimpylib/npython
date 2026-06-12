@@ -126,6 +126,16 @@ proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsyn
     # Python can be considered not to allow: -c:CODE -c=code
     longNoVal = @["help", "version"],
   )
+  template expectFinalStrArg(body) =
+    p.noLongOption()
+    #let argv = @["-c"] & p.remainingArgs()
+    pyConfig.run_command =
+      if p.val != "": p.val
+      else: p.remainingArgs()[0]
+    when init:
+      Py_Initialize()
+      defer: Py_Finalize()
+    body
   while true:
     p.next()
     case p.kind
@@ -141,14 +151,8 @@ proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsyn
       of "q": pyConfig.quiet = true
       of "v": pyConfig.verbose = true
       of "c":
-        p.noLongOption()
-        #let argv = @["-c"] & p.remainingArgs()
-        pyConfig.run_command =
-          if p.val != "": p.val
-          else: p.remainingArgs()[0]
-        when init:
-          Py_Initialize()
-        PyRun_SimpleString(pyConfig.run_command).exit0or1
+        expectFinalStrArg:
+          exit0or1 PyRun_SimpleString(pyConfig.run_command)
       of "":  # allow -
         discard
       else:

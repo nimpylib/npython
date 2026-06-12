@@ -1,4 +1,4 @@
-import coreconfig
+
 import ../Objects/[
   pyobject, exceptionsImpl,
   stringobject,
@@ -9,12 +9,13 @@ import ../Utils/[utils, nexportc, compat, trans_imp]
 import ../Include/cpython/pyerrors
 import ../Include/internal/pycore_int
 import ./[
+  coreconfig,
   neval_helpers,
   sysmodule_instance,
   sysmodule,
 ]
 impExpCwd pylifecycle, [
-  builtins,
+  builtins, exit,
 ]
 import std/os except getCurrentDir
 
@@ -128,4 +129,3 @@ proc pyInit*(args: seq[string]) =
     echo "sys.path: " & $sys.path
 
 proc Py_Initialize*(){.npyexportc.} = pyInit @[]
-
