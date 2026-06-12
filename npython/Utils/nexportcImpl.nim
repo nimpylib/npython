@@ -18,6 +18,10 @@ proc newLibPragmas(old_pragma: NimNode): NimNode =
     old_pragma.copyNimTree
   else: newNimNode nnkPragma
   pragmas.add ident"exportc"
+  when defined(js) and defined(esModule) and appType == "lib":
+    pragmas.add nnkExprColonExpr.newTree(
+      ident"codeGenDecl", newLit"export function $# $#($#)"
+    )
   pragmas.add ident"dynlib"
   pragmas.add ident"cdecl"
   pragmas

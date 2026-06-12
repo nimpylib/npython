@@ -14,7 +14,7 @@ when isMain(nodejs or deno):
 else:
   when isMain(dKarax):
     import ./karaxpython
-  elif isMainModule:
+  elif isMainModule and appType != "lib":
     import ./lifecycle
     Py_Initialize()
     mayWaitFor interactiveShell()
