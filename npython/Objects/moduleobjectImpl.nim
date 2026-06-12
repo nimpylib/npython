@@ -22,7 +22,7 @@ proc check_api_version(name: string, module_api_version: ApiVersion): PyBaseErro
 
 
 
-template PyModule_CreateInitialized(T: typedesc[PyObject]; module: PyModuleDef, module_api_version: ApiVersion): PyObject =
+template privatePyModule_CreateInitialized(T: typedesc[PyObject]; module: PyModuleDef, module_api_version: ApiVersion): PyObject =
   ## `_PyModule_CreateInitialized`
   bind newPyModuleImpl
   (proc (): PyObject =
@@ -31,9 +31,12 @@ template PyModule_CreateInitialized(T: typedesc[PyObject]; module: PyModuleDef, 
     newPyModuleImpl(T, module.typ, tname)
   )()
 
-template PyModule_CreateInitialized*(nameId: untyped; module_api_version=NPYTHON_API_VERSION): PyObject =
-  bind newPyModuleDef
-  PyModule_CreateInitialized(`Py nameId ModuleObject`,
-    newPyModuleDef(astToStr(nameId), `py nameId ModuleObjectType`),
+template PyModule_CreateInitializedWithName*(nameId: untyped, moduleName: string; module_api_version=NPYTHON_API_VERSION): PyObject =
+  bind newPyModuleDef, privatePyModule_CreateInitialized
+  privatePyModule_CreateInitialized(`Py nameId ModuleObject`,
+    newPyModuleDef(moduleName, `py nameId ModuleObjectType`),
     module_api_version
   )
+template PyModule_CreateInitialized*(nameId: untyped, module_api_version=NPYTHON_API_VERSION): PyObject =
+  bind PyModule_CreateInitializedWithName
+  PyModule_CreateInitializedWithName(nameId, astToStr(nameId), module_api_version)

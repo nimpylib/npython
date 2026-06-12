@@ -63,6 +63,7 @@ template newPyModuleImpl*(T: typedesc[PyModuleObject]; typ: PyTypeObject; nam: P
   ){.dirty.} =
   ## for subtype
   bind newPyStr, initFrom_PyModule_NewObject, newPyModuleDef
+  bind retIfExc
   block:
     let resObj = typ.tp_alloc(typ, 0)
     when tp_alloc_may_exc:
