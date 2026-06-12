@@ -2,7 +2,12 @@
 ## 
 ## An JavaScript-targeted online demo is available at <https://play.nimpylib.org>
 
-when defined(js):
-  include npython/Python/jspython
+when isMainModule:
+  when defined(js):
+    include npython/Python/jspython
+  else:
+    include npython/Python/cpython
 else:
-  include npython/Python/cpython
+  import ./npython/apis
+  export apis
+
