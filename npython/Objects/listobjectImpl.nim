@@ -7,7 +7,7 @@ export listobject
 
 import ../Utils/trans_imp
 impExpCwd listobject, [
-  bltin_sort
+  bltin_sort, sort,
 ]
 
 methodMacroTmpl(List)
