@@ -12,6 +12,7 @@ import ../../Objects/[
   dictobject,
   pyobject_apis/strings,
 ]
+import ../../Include/cpython/pylock
 import ../../Utils/[
   compat, fileio, utils,
 ]
@@ -65,7 +66,15 @@ proc input*(prompt: PyObject=nil): PyObject{.bltin_clinicGen.} =
 
 const NewLine = "\n"
 
-var printRtErr: PyBaseErrorObject
+when SingleThread:
+  var priRtErr: PyBaseErrorObject
+  template withPriLock(body) = body
+else:
+  var prilock: PyMutex  # also lock for IO
+  var priRtErr{.guard: prilock.}: PyBaseErrorObject
+
+  template withPriLock(body) =
+    withLock prilock: body
 
 proc print*(args: varargs[PyObject],
     sep: string|PyStrObject = " ", endl: string|PyStrObject = NewLine,
@@ -84,29 +93,32 @@ proc print*(args: varargs[PyObject],
     template writeStdoutCompat(s) = res.add s
   template handleExc(e) =
     if e.isThrownException:
-      printRtErr = PyBaseErrorObject e
+      withPriLock:
+        priRtErr = PyBaseErrorObject e
+      raise new RuntimeError
   template toStr(obj): string =
     let objStr = PyObject_StrNonNil obj
     handleExc(objStr)
     $PyStrObject(objStr).str
-  if args.len != 0:
-    writeStdoutCompat args[0].toStr
-    if args.len > 1:
-      for i in 1..<args.len:
-        writeStdoutCompat sep
-        writeStdoutCompat args[i].toStr
-  when noWrite:
-    if endl == NewLine:
-      echoCompat res
-    elif endl.len > 1 and endl[^1] == NewLine[0]:
-      writeStdoutCompat endl[0..^2]
-      echoCompat res
+  withPriLock:
+    if args.len != 0:
+      writeStdoutCompat args[0].toStr
+      if args.len > 1:
+        for i in 1..<args.len:
+          writeStdoutCompat sep
+          writeStdoutCompat args[i].toStr
+    when noWrite:
+      if endl == NewLine:
+        echoCompat res
+      elif endl.len > 1 and endl[^1] == NewLine[0]:
+        writeStdoutCompat endl[0..^2]
+        echoCompat res
+      else:
+        raise newException(NotImplementedError,
+          r"this build target cannot print if `not end.endswith('\n')`"
+        )
     else:
-      raise newException(NotImplementedError,
-        r"this build target cannot print if `not end.endswith('\n')`"
-      )
-  else:
-    writeStdoutCompat endl
+      writeStdoutCompat endl
 
 proc builtinPrint*(args: openArray[PyObject], kwargs: PyObject): PyObject {. pyCFuncPragma .} =
   let kwargs = PyDictObject kwargs
@@ -136,7 +148,8 @@ proc builtinPrint*(args: openArray[PyObject], kwargs: PyObject): PyObject {. pyC
   except NotImplementedError as e:
     return newNotImplementedError newPyAscii e.msg
   except RuntimeError:
-    return printRtErr
+    withPriLock:
+      return priRtErr
 
 template register_io* =
   registerBltinFunction("input", builtin_input)
