@@ -6,7 +6,7 @@ import ./pyobject
 from ./abstract/iter import PyObject_GetIter
 import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
 import ./numobjects/intobject/[decl, ops_imp_warn]
-import ../Utils/addr0
+import ../Utils/[addr0, nexportc]
 #XXX: Nim's string ops has bugs for NUL('\0') char, e.g. len('1\02') gives 2
 declarePyType Bytes(tpToken):
   items: seq[char]
@@ -54,6 +54,7 @@ proc `==`*(a, b: PyBytesObject): bool {. inline .} = a.hash == b.hash and a.item
 proc `==`*(a, b: PyByteArrayObject): bool {. inline .} = a.items == b.items
 proc len*(s: PyByteLike): int {. inline, cdecl .} = s.items.len
 proc `$`*(s: PyByteLike): string = $s.items
+proc asCString*(self: PyBytesObject): cstring{.npyexportc: "PyBytes_AsString".} = cstring $self.items
 iterator items*(s: PyByteLike): char =
   for i in s.items: yield i
 iterator ints*(s: PyByteLike): PyIntObject =
