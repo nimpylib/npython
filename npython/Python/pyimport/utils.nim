@@ -2,6 +2,7 @@
 import ../[
   sysmodule_instance,
 ]
+import ../../Utils/nexportc
 import ../../Objects/[pyobject,
   exceptions,
   noneobject,
@@ -44,7 +45,7 @@ proc import_add_module*(name: PyStrObject): PyModuleObject =
   import_add_moduleImpl dis
 
 proc PyImport_AddModuleRef*(name: PyStrObject): PyObject = import_add_module name
-proc PyImport_AddModuleRef*(name: string): PyObject =
+proc PyImport_AddModuleRef*(name: string): PyObject{.npyexportc.} =
   let name_obj = newPyStr name
   PyImport_AddModuleRef name_obj
 

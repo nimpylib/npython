@@ -13,11 +13,13 @@ proc withIdLast2(e, last1, last2: NimNode): NimNode =
   result.add last1
   result.add last2
 
-proc newLibPragmas(old_pragma: NimNode): NimNode =
+proc newLibPragmas(old_pragma: NimNode, name = NimNode nil): NimNode =
   var pragmas = if old_pragma.len > 0:
     old_pragma.copyNimTree
   else: newNimNode nnkPragma
-  pragmas.add ident"exportc"
+  pragmas.add nnkExprColonExpr.newTree(ident"exportc",
+    newLit strVal(if name.kind == nnkPostfix: name[1] else: name)
+  )
   when defined(js) and defined(esModule) and appType == "lib":
     pragmas.add nnkExprColonExpr.newTree(
       ident"codeGenDecl", newLit"export function $# $#($#)"
@@ -35,19 +37,19 @@ proc cvtResType(def: NimNode) =
     if not `old_body`:
       return cint(-1)
 
-proc npyexportcImpl(def: NimNode, flags: NPyExportcFlagsSet): NimNode =
+proc npyexportcImpl(def: NimNode, flags: NPyExportcFlagsSet, cname = ident def.name.strVal): NimNode =
   let disallowBoolRet = flags & boolRetAsCInt
   let stringConv = not (flags & noStringConv)
   let params = def.params
+  let nam = def.name
   template retOld =
     result = def.copyNimTree
-    result.pragma = newLibPragmas def.pragma
+    result.pragma = newLibPragmas(def.pragma, cname)
     return
   result = newStmtList(def)
   let cparams = params.copyNimNode
   cparams.add params[0]  # restype
-  let nam = def.name
-  var cname = ident nam.strVal
+  var cname = cname
   if nam.isExported:
     cname = cname.postfix"*"
   
@@ -112,7 +114,7 @@ proc npyexportcImpl(def: NimNode, flags: NPyExportcFlagsSet): NimNode =
   push still
   push still
   push cparams
-  push newLibPragmas still
+  push newLibPragmas(still, cname)
   push still
   push body
   if disallowBoolRet and retBool:
@@ -120,6 +122,7 @@ proc npyexportcImpl(def: NimNode, flags: NPyExportcFlagsSet): NimNode =
   result.add cdef
 
 macro npyexportc*(def: typed): untyped = npyexportcImpl def, NPyExportcFlagsSet 0
+macro npyexportc*(name: static[string]; def: typed): untyped = npyexportcImpl def, NPyExportcFlagsSet(0), ident name 
 
 macro npyexportcSet*(flags: static NPyExportcFlags, def: typed): untyped = npyexportcImpl def, flags
 macro npyexportcSet*(flags: static NPyExportcFlagsSet, def: typed): untyped = npyexportcImpl def, flags

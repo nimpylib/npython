@@ -1,5 +1,6 @@
 
 import std/tables
+import ../Utils/nexportc
 import ../Include/internal/pycore_global_strings
 import ./[
   pyobject,
@@ -32,7 +33,7 @@ genProperty Module, "__name__", name, name(self):
   `name=`(self, PyStrObject other)
   pyNone
 
-proc getDict*(self): PyDictObject =
+proc getDict*(self): PyDictObject{.npyexportc: "PyModule_GetDict".} =
   ## _PyModule_GetDict(mod) must not be used after calling module_clear(mod)
   result = PyDictObject self.dict
   assert not result.isNil

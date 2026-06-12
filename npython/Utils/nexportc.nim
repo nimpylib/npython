@@ -6,5 +6,6 @@ when appType == "lib" or defined(wasm):
   export nexportcImpl
 else:
   template npyexportc*(def) = def
+  template npyexportc*(name; def) = def
   template npyexportcSet*(flags: NPyExportcFlagsSet; def) = def
 
