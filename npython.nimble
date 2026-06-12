@@ -36,6 +36,7 @@ template pylib(x, ver) =
            else: pylibPre & x
 
 pylib "intobject", " ^= 0.1.3"
+pylib "pysimperr", " ^= 0.1.0"
 pylib "pyrepr", " ^= 0.1.1"
 pylib "jscompat", " ^= 0.1.4"
 pylib "nimpatch", " ^= 0.1.1"

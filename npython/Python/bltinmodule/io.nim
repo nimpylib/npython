@@ -18,6 +18,7 @@ import ../../Utils/[
 import ../sysmodule/[
   audit,
 ]
+import pkg/pysimperr/rterr
 
 proc input*(prompt: PyObject=nil): PyObject{.bltin_clinicGen.} =
   #TODO:sys.stdin
@@ -63,6 +64,50 @@ proc input*(prompt: PyObject=nil): PyObject{.bltin_clinicGen.} =
 
 
 const NewLine = "\n"
+
+var printRtErr: PyBaseErrorObject
+
+proc print*(args: varargs[PyObject],
+    sep: string|PyStrObject = " ", endl: string|PyStrObject = NewLine,
+    #TODO:io
+  ) =
+
+  when sep is PyStrObject:
+    let sep = $sep.str
+  when endl is PyStrObject:
+    let endl = $endl.str
+
+  #TODO:sys.stdout: shall do nothing if missing sys.stdout; else write to it
+  const noWrite = not declared(writeStdoutCompat)
+  when noWrite:
+    var res: string
+    template writeStdoutCompat(s) = res.add s
+  template handleExc(e) =
+    if e.isThrownException:
+      printRtErr = PyBaseErrorObject e
+  template toStr(obj): string =
+    let objStr = PyObject_StrNonNil obj
+    handleExc(objStr)
+    $PyStrObject(objStr).str
+  if args.len != 0:
+    writeStdoutCompat args[0].toStr
+    if args.len > 1:
+      for i in 1..<args.len:
+        writeStdoutCompat sep
+        writeStdoutCompat args[i].toStr
+  when noWrite:
+    if endl == NewLine:
+      echoCompat res
+    elif endl.len > 1 and endl[^1] == NewLine[0]:
+      writeStdoutCompat endl[0..^2]
+      echoCompat res
+    else:
+      raise newException(NotImplementedError,
+        r"this build target cannot print if `not end.endswith('\n')`"
+      )
+  else:
+    writeStdoutCompat endl
+
 proc builtinPrint*(args: openArray[PyObject], kwargs: PyObject): PyObject {. pyCFuncPragma .} =
   let kwargs = PyDictObject kwargs
   #retIfExc PyArg_UnpackKeywordsToAs("print", kwargs, sep, `end`, file, flush)
@@ -75,48 +120,23 @@ proc builtinPrint*(args: openArray[PyObject], kwargs: PyObject): PyObject {. pyC
     endl = NewLine
   retIfExc getOptionalStr("sep", osep, sep)
   retIfExc getOptionalStr("end", oend, endl)
-  
   template notImpl(argname, obj) =
     if not obj.isNil and not obj.isPyNone:
       return newNotImplementedError(
         newPyAscii argname & " currently can only be None"
       )
-  #TODO:kwargs
+  #TODO:io
   notImpl "file", ofile
   notImpl "flush", oflush
-
-  #TODO:sys.stdout: shall do nothing if missing sys.stdout; else write to it
-  const noWrite = not declared(writeStdoutCompat)
-  when noWrite:
-    var res: string
-    template writeStdoutCompat(s) = res.add s
-  template toStr(obj): string =
-    let objStr = PyObject_StrNonNil obj
-    retIfExc(objStr)
-    $PyStrObject(objStr).str
   try:
-    if args.len != 0:
-      writeStdoutCompat args[0].toStr
-      if args.len > 1:
-        for i in 1..<args.len:
-          writeStdoutCompat sep
-          writeStdoutCompat args[i].toStr
-    when noWrite:
-      let stripNL = endl
-      if endl == NewLine:
-        echoCompat res
-      elif endl.len > 1 and endl[^1] == NewLine[0]:
-        writeStdoutCompat endl[0..^2]
-        echoCompat res
-      else:
-        return newNotImplementedError(
-          newPyAscii"this build target cannot print if `not end.endswith('\n')`"
-        )
-    else:
-      writeStdoutCompat endl
+    print(args, sep, endl)
+    return pyNone
   except IOError as e:
     return newIOError e
-  pyNone
+  except NotImplementedError as e:
+    return newNotImplementedError newPyAscii e.msg
+  except RuntimeError:
+    return printRtErr
 
 template register_io* =
   registerBltinFunction("input", builtin_input)
