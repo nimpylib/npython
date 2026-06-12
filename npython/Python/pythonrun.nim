@@ -264,16 +264,16 @@ template errPrint(dict; call): bool{.dirty.} =
   else:
     true
 
-proc PyRun_SimpleStringFlagsWithName*(str; name: string, flags=initPyCompilerFlags()): bool{.pyCFuncPragma,npyexportcSet(boolRetAsCInt).} =
+proc PyRun_SimpleStringFlagsWithName*(str; name: string, flags=initPyCompilerFlags()): bool{.discardable, pyCFuncPragma,npyexportcSet(boolRetAsCInt).} =
   ## `_PyRun_SimpleStringFlagsWithName`
   errPrint dict:
     let the_name = newPyStr name
     PyRun_StringFlagsWithName(str, the_name, Mode.File, dict, dict, flags, false)
 
-proc PyRun_SimpleStringFlags*(str; flags=initPyCompilerFlags()): bool{.pyCFuncPragma,npyexportcSet(boolRetAsCInt).} =
+proc PyRun_SimpleStringFlags*(str; flags=initPyCompilerFlags()): bool{.discardable, pyCFuncPragma,npyexportcSet(boolRetAsCInt).} =
   #PyRun_SimpleStringFlagsWithName(str, nil, flags)
   errPrint dict:
     PyRun_StringFlags(str, Mode.File, dict, dict, flags)
 
-proc PyRun_SimpleString*(str): bool{.npyexportcSet(boolRetAsCInt).} = PyRun_SimpleStringFlags(str, initPyCompilerFlags())
+proc PyRun_SimpleString*(str): bool{.discardable, npyexportcSet(boolRetAsCInt).} = PyRun_SimpleStringFlags(str, initPyCompilerFlags())
 
