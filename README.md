@@ -74,6 +74,7 @@ wasmtime --invoke NimMain bin/npython.wasm
 - Deno: `nimble buildJs -d:deno`
 - Browser, prompt&alert-based repl: `nimble buildJs -d:jsAlert`
 - single page website: `nimble buildKarax` (requires `nimble install karax`). This is how [online playground][play-npython] runs
+- es6 library for non-native environment: `nimble buildJsLib`
 
 
 ### Status

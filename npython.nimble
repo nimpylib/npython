@@ -98,6 +98,12 @@ taskWithArgs testNodeJs, "test nodejs backend, assuming after build":
     pyExe = "node " & pyExeFile
   test "buildJs", pyExe, pyExeFile, args
 
+taskWithArgs testJsLib, "test lib for js, assuming after build":
+  let
+    pyExeFile = binPathWithoutExt & ".lib.js"
+    pyExe = "node "
+  test "buildJsLib", pyExe, pyExeFile, @["js/lib"] & args
+
 using args: openArray[string]
 proc selfExecWithSrcAdd(cmd: string; args) =
   selfExec cmd & ' ' &
@@ -108,8 +114,15 @@ proc selfExecBuildWithSrcAdd(cmd, outfile: string; args) =
 taskWithArgs buildDbg, "debug build, output product will be appended with a suffix `_d`":
   selfExecBuildWithSrcAdd "c -g", (binPathWithoutExt & "_d").toExe, args
 
+template buildLibImpl(cmd, doItForBuildTargetName) {.dirty.} =
+  let it = namedBin[srcName]
+  selfExecBuildWithSrcAdd cmd, (binDir / doItForBuildTargetName), args
+
+taskWithArgs buildJsLib, "build js non-native library(es6 module)":
+  buildLibImpl "js --app:lib -d:jspure", it & ".lib.js"
+
 taskWithArgs buildLib, "build shared library":
-  selfExecBuildWithSrcAdd "c --app:lib", (binDir / namedBin[srcName].toDll), args
+  buildLibImpl "c --app:lib", it.toDll
 
 #taskRequires "buildWasm", "wasm_backend ^= 0.1.2"
 taskWithArgs buildWasm, "build .wasm(wasi) executable":
