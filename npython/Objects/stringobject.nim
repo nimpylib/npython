@@ -193,7 +193,15 @@ proc hash*(self: UnicodeVariant): Hash {. inline, cdecl .} =
   self.setHash = true
 
 
-proc `==`*(self, other: UnicodeVariant): bool {. inline, cdecl .} =
+declarePyType Str(tpToken):
+  str: UnicodeVariant
+
+template genCmp(op, body){.dirty.} =
+  proc `op`*(self, other: UnicodeVariant): bool {. cdecl .} =
+    body
+  proc `op`*(self, other: PyStrObject): bool {. inline, cdecl .} = op(self.str, other.str)
+
+genCmp `==`:
   template cmpAttr(a, b) =
     if a.len > b.len: return false
     for i, c in a:
@@ -207,11 +215,24 @@ proc `==`*(self, other: UnicodeVariant): bool {. inline, cdecl .} =
     cmpAttr(it1, it2)
     return it1 == it2
 
-declarePyType Str(tpToken):
-  str: UnicodeVariant
+template lessImpl(ret){.dirty.} =
+  template cmpAttr(T, a, b) =
+    for i, c in a:
+      if i > b.high: return false
+      if T(c) > T(b[i]):
+        return false
+    return ret
+  template ltSeq[T](a, b) = cmpAttr T, a, b
+  template cmpAttr(a, b) = cmpAttr uint32, a, b
 
-proc `==`*(self, other: PyStrObject): bool {. inline, cdecl .} =
-  self.str == other.str
+  doKindsWith2It(self, other):
+    ltSeq[uint8](it1, it2)
+    cmpAttr(it1, it2)
+    cmpAttr(it1, it2)
+    ltSeq[uint32](it1, it2)
+
+genCmp `<`: lessImpl self != other
+genCmp `<=`:lessImpl true
 
 proc cmpAscii*(self: PyStrObject; s: string): int =
   ## PyUnicode_CompareWithASCIIString

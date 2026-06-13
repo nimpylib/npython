@@ -25,11 +25,14 @@ implStrMethod join(sequ): self.join sequ
 implStrMagic eq:
   if not other.ofPyStrObject:
     return pyFalseObj
-  if self.str == PyStrObject(other).str:
-    return pyTrueObj
-  else:
-    return pyFalseObj
+  return newPyBool self.str == PyStrObject(other).str
 
+template partial(nam, op){.dirty.}=
+  implStrMagic nam:
+    if not other.ofPyStrObject: return pyNotImplemented
+    return newPyBool op(self.str, PyStrObject(other).str)
+partial(lt, `<`)
+partial(le, `<=`)
 
 implStrMagic str:
   self
