@@ -1,5 +1,6 @@
 
 import pkg/pymath
+import pkg/handy_sugars/trans_imp
 
 import ../Objects/[
   pyobject,
@@ -15,10 +16,11 @@ import ../Python/getargs/[tovals,
   paramsMeta,
   dispatch,
 ]
-
-const mathModuleName* = "math"
-declarePyType MathModule(base(Module)): discard
-proc PyInit_math*: PyObject = PyModule_CreateInitialized(math)
+impExpCwd math, [
+  init,
+  vec_op, reduce,
+]
+methodMacroTmpl(mathModule)
 
 template gen_const(nam) {.dirty.} =
   genProperty MathModule, astToStr(nam), nam: newPyFloat(pymath.nam)
@@ -42,6 +44,14 @@ template gen_funci(nam) {.dirty.} =
     newPyFloat(float pymath.nam x).orRetValErr
 template gen_func2(nam) {.dirty.} =
   implMathModuleMethod nam(x: float, y: float): newPyFloat(pymath.nam(x, y))
+template gen_fufma(nam) {.dirty.} =
+  implMathModuleMethod nam(x: float, y: float, z: float):
+    var e: ref Exception
+    let res = nam(x, y, z, e)
+    if e.isNil.not:
+      if e.name == "ValueError": return newValueError newPyAscii e.msg
+      else: return newOverflowError newPyAscii e.msg
+    newPyFloat(res)
 
 template toPyObject(i: int): PyObject = newPyInt i
 template toPyObject(i: float): PyObject = newPyFloat i
@@ -74,7 +84,7 @@ gen_func2 copysign
 gen_func1 cos
 gen_func1 cosh
 gen_func1 degrees
-#gen_funp2 dist
+#en_funp2 dist    #done reduce
 gen_func1 erf
 gen_func1 erfc
 gen_func1 exp
@@ -84,17 +94,17 @@ gen_func1 fabs
 #gen_func1 factorial
 gen_funci floor
 gen_func2 fmod
-#gen_func3 fma
+gen_fufma fma
 gen_funct frexp
-#gen_func1 fsum
+#en_func1 fsum    #done vec_op
 gen_func1 gamma
 #gen_funiN gcd
-#gen_funiN hypot
-#gen_fubfx isclose #done above
+#en_funfN hypot   #done reduce
+#en_fubfx isclose #done above
 gen_funcb isfinite
 gen_funcb isinf
 gen_funcb isnan
-#gen_funci isqrt  #TODO:intobject
+#gen_funci isqrt   #TODO:intobject
 #gen_funiN lcm
 gen_fun2i ldexp
 gen_func1 lgamma
@@ -112,7 +122,7 @@ gen_func2 remainder
 gen_func1 sin
 gen_func1 sinh
 gen_func1 sqrt
-#gen_funcx sumprod
+#gen_funcx sumprod #TODO:intobject
 gen_func1 tan
 gen_func1 tanh
 gen_funci trunc
