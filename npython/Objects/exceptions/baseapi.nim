@@ -49,12 +49,23 @@ when NPythonAsyncReadline:
     if exc.isThrownException:
       return mayNewPromise PyBaseErrorObject exc
 
+const notIterSuf = " object is not iterable"
+template getIterableNoCheck*(obj: PyObject): PyObject =
+  ## do not check if result has `__next__`
+  bind notIterSuf
+  let iterFunc = obj.getMagic(iter)
+  if iterFunc.isNil:
+    let msg = obj.pyType.name & notIterSuf
+    newTypeError(newPyStr msg)
+  else: iterFunc(obj)
+
 template getIterableWithCheck*(obj: PyObject): (PyObject, UnaryMethod) = 
+  bind getIterableNoCheck, notIterSuf
   var retTuple: (PyObject, UnaryMethod)
   block body:
     let iterFunc = obj.getMagic(iter)
     if iterFunc.isNil:
-      let msg = obj.pyType.name & " object is not iterable"
+      let msg = obj.pyType.name & notIterSuf
       retTuple = (newTypeError(newPyStr msg), nil)
       break body
     let iterObj = iterFunc(obj)
