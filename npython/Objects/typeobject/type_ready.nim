@@ -230,12 +230,12 @@ proc addGeneric(t: PyTypeObject) =
     if nilMagic(magicName):
       t.magicMethods.magicName = defaultMethod
 
+  trySetSlot(ne, neDefault)
   if (not nilMagic(lt)) and (not nilMagic(eq)):
     trySetSlot(le, leDefault)
-  trySetSlot(ne, neDefault)
-  if (not nilMagic(ge)) and (not nilMagic(eq)):
-    trySetSlot(ge, geDefault)
   trySetSlot(gt, gtDefault)
+  if (not nilMagic(gt)) and (not nilMagic(eq)):
+    trySetSlot(ge, geDefault)
 
 
 proc type_add_members(tp: PyTypeObject, dict: PyDictObject) =
