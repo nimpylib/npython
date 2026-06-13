@@ -236,7 +236,7 @@ template checkTypeTmplImpl(obj: PyObject{atom}, tp, tpObjName; msgInner="") {.di
       let expected = tpObjName
       let got = obj.typeName
       let tmsgInner = msgInner
-      let msg = fmt"{expected} is requred{tmsgInner} (got {got})"
+      let msg = fmt"{expected} is required{tmsgInner} (got {got})"
       return newTypeError newPyStr(msg)
   # else we will check by toval
 
@@ -246,7 +246,7 @@ template checkTypeTmplImpl(obj: PyObject, tp, tpObjName; msgInner="") =
   checkTypeTmplImpl(tobj, tp, tpObjName, msgInner)
 
 template checkTypeTmpl(obj, tp, tpObj, methodName) =
-  checkTypeTmplImpl(obj, tp, tpObj.name, " for" & methodName)
+  checkTypeTmplImpl(obj, tp, tpObj.name, " for " & methodName)
 
 template checkTypeOrRetTE*(obj, tp; tpObj: PyTypeObject; methodName: string) =
   ## example here: For a definition like `i: PyIntObject`
