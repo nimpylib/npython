@@ -59,20 +59,23 @@ proc newPySeqIter*(sequ: PyObject): PyObject =
   result = newPySeqIter(sequ, exc)
   if result.isNil: result = exc
 
-template pyForIn*(it; iterableToLoop: PyObject; doWithIt) =
-  ## pesudo code: `for it in iterableToLoop: doWithIt`
-  ##   but `return` PyBaseErrorObject if python's exception is raised
+template pyForInWithExc*(it; iterableToLoop: PyObject; handleExc; doWithIt) =
   let (iterable, nextMethod) = getIterableWithCheck(iterableToLoop)
   if iterable.isThrownException:
-    return PyBaseErrorObject iterable
+    handleExc PyBaseErrorObject iterable
   while true:
     let it = nextMethod(iterable)
     if it.isStopIter:
       break
     if it.isThrownException:
-      return PyBaseErrorObject it
+      handleExc PyBaseErrorObject it
     doWithIt
-
+template ret(x) = return x
+template pyForIn*(it; iterableToLoop: PyObject; doWithIt) =
+  ## pesudo code: `for it in iterableToLoop: doWithIt`
+  ##   but `return` PyBaseErrorObject if python's exception is raised
+  bind pyForInWithExc, ret
+  pyForInWithExc(it, iterableToLoop, ret, doWithIt)
 
 type ItorPy = iterator(): PyObject{.raises: [].}
 declarePyType NimIteratorIter():
