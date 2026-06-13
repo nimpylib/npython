@@ -8,6 +8,7 @@ import ../../Objects/[
 ]
 export name, `name=`
 declarePyType SysModule(base(Module)):
+  builtin_module_names{.member, readonly.}: PyListObject  # list[str]
   modules{.member.}: PyDictObject  # dict[str, Module]
   path{.member.}: PyListObject  # list[str]
   argv{.member.}: PyListObject  # list[str]

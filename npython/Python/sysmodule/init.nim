@@ -60,6 +60,7 @@ proc PySys_Create*(sysmod: var PySysModuleObject): PyBaseErrorObject =
 
   retIfExc initCore(sysdict)
 
+  sysmod.builtin_module_names = newPyList()
   sysmod.modules = modules
 
   #TODO:monioring

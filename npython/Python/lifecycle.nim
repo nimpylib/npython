@@ -2,12 +2,13 @@
 import ../Objects/[
   pyobject, exceptionsImpl,
   stringobject,
-  listobject,
+  listobjectImpl,
   typeobject,
   ]
 import ../Utils/[utils, nexportc, compat, trans_imp]
 import ../Include/cpython/pyerrors
-import ../Include/internal/pycore_int
+import ../Include/internal/[pycore_int, pycore_global_strings]
+import ../builtinModules/index
 import ./[
   coreconfig,
   neval_helpers,
@@ -70,6 +71,9 @@ proc pycore_interp_init =
 
   chk pycore_init_builtins(): "can't initialize builtins module"
 
+  sys.builtin_module_names.add pyId"sys"
+  sys.builtin_module_names.add pyId"builtins"
+
 using config: PyConfig
 proc pyinit_config(config) =
   pycore_interp_init()
@@ -112,6 +116,10 @@ proc pyInit*(args: seq[string]) =
   pyConfig.orig_argv = @[pyConfig.executable] & args
 
   chk PySys_UpdateConfig(sys, pyConfig): "failed to update sys from config"
+
+  add_builtin_modules()
+  let exc = sys.builtin_module_names.sort()
+  assert exc.isNil, "failed to sort builtin module names(which shall be list[str]): " & $exc
 
   if args.len == 0:
     sys.path.add newPyAscii()
