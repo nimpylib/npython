@@ -14,6 +14,7 @@ import ../../Objects/[pyobject,
 import std/os
 import ../../Utils/compat_io_os
 import ../../Objects/stringobject/strformat
+import ../../builtinModules/index
 import ./utils
 
 let
@@ -30,6 +31,12 @@ template newEvaluator*(f): Evaluator = Evaluator(evalFrame: f)
 
 
 proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
+  let sname = $name
+  withBuiltinModule sname, value:
+    let modu = value[]()
+    sys.modules[name] = modu
+    return modu
+
   var alreadyIn: bool
   let module = import_add_module(name, alreadyIn)
 
@@ -37,7 +44,7 @@ proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
     return module
 
   var filepath: string
-  let sname = $name
+
   for path in sys.path:
     let p = joinPath($path, sname).addFileExt("py")
     if p.fileExistsCompat:

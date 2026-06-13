@@ -1,11 +1,13 @@
 
 import std/macros
 import std/os
+import std/tables
 import ../Python/sysmodule_instance
 import ../Objects/[
   pyobject,
   moduleobject,
   dictobject,
+  stringobject,
   listobject,
 ]
 
@@ -14,27 +16,36 @@ var moduleIds{.compileTime.}: seq[string]
 
 template toInit(id): NimNode =
   ident("PyInit_" & id.strVal)
+template toName(id): NimNode =
+  ident(id.strVal & "ModuleName")
+
+var tab: Table[string, proc (): PyObject{.raises: [].}]
+
+template withBuiltinModule*(name: string; value; body) =
+  ## internal use only, for builtin modules. like `math`, `pwd`, etc.
+  bind tab, withValue
+  withValue tab, name, value:
+    body
 
 proc reg_builtin_moduleImpl(
     #modules: PyDictObject, builtin_module_names: PyListObject; modu) =
-    modules, builtin_module_names, modu: NimNode): NimNode =
+    builtin_module_names, modu: NimNode): NimNode =
   let init = modu.toInit
+  let moduName = modu.toName
+  let tabId = bindSym"tab"
+  let str = bindSym"newPyAscii"
   result = quote do:
     block:
-      let modObj = `init`() #`modu`.make_module()
-      #TODO:import
-      assert modObj.ofPyModuleObject
-      let moduO = PyModuleObject modObj
-      let moduS = moduO.name
-      `modules`[moduS] = moduO
-      `builtin_module_names`.add(moduS)
+      let moduS = `moduName`
+      `tabId`[moduS] = `init`
+      `builtin_module_names`.add(`str` moduS)
 
-template get_modules:  NimNode = newDotExpr(bindSym"sys", ident"modules")
+#template get_modules:  NimNode = newDotExpr(bindSym"sys", ident"modules")
 template get_bltnames: NimNode = newDotExpr(bindSym"sys", ident"builtin_module_names")
 
 template reg_builtin_module*(modu) =
   ## like `PyImport_AppendInittab`
-  reg_builtin_moduleImpl(get_modules(), get_bltnames(), modu)
+  reg_builtin_moduleImpl(get_bltnames(), modu)
 
 static:
   for (k, i) in walkDir(currentSourcePath().parentDir, relative=true):
@@ -47,20 +58,20 @@ macro init_builtin_modules_table_pre =
   for i in moduleIds:
     let id = ident i
     let init = id.toInit
+    let moduName = id.toName
     result.add quote do:
-      from ./`id` import `init`
-      export `init`
+      from ./`id` import `init`, `moduName`
+      export `init`, `moduName`
 
 init_builtin_modules_table_pre()
 
 macro add_builtin_modules* =
   result = newStmtList()
   let
-    sys_module = get_modules()
     builtin_module_names = get_bltnames()
 
   for i in moduleIds:
     result.add reg_builtin_moduleImpl(
-      sys_module, builtin_module_names,
+      builtin_module_names,
       ident i  # remove .nim
     )

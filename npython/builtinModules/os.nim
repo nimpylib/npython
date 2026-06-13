@@ -13,11 +13,10 @@ impExpCwd os, [
   decl,
 ]
 
+const osModuleName* = "os"
 proc PyInit_os*: PyObject =
-  let
-    mod_name = "os"
-    os_name = os_consts.name
-  result = PyModule_CreateInitializedWithName(os, mod_name)
+  let os_name = os_consts.name
+  result = PyModule_CreateInitialized(os)
   retIfExc result
   let modu = PyOsModuleObject result
   modu.dotname = newPyAscii os_name
