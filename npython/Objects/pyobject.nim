@@ -555,6 +555,31 @@ proc toIdentStr(n: NimNode): string =
   else: # shall be valid already
     ($n).toLowerAscii
 
+proc addRegisterMethod*(result: NimNode, typeObjNode, methodName, meth: NimNode, classmethod: bool, kind: NPyMethodKind) =
+  case kind
+  of NPyMethodKind.Common:
+    result.add nnkCall.newTree(
+        nnkDotExpr.newTree(
+          typeObjNode,
+          newIdentNode("registerBltinMethod")
+        ),
+        newLit($methodName),
+        quote do:
+          (`meth`, `classmethod`)
+      )
+  of NPyMethodKind.Magic:
+    result.add newAssignment(
+        newDotExpr(
+          newDotExpr(
+            typeObjNode,
+            ident("magicMethods")
+          ),
+          methodName
+        ),
+        meth
+      )
+  else: # registered manually
+    discard
 proc implMethod*(methodName, argTypes: NimNode, ObjectType, pragmas, body: NimNode, kind: NPyMethodKind): NimNode = 
   # transforms user implementation code
   # prototype: function defination, contains argumetns to check
@@ -647,30 +672,8 @@ proc implMethod*(methodName, argTypes: NimNode, ObjectType, pragmas, body: NimNo
   result = newStmtList()
   result.add procNode
 
-  case kind
-  of NPyMethodKind.Common:
-    result.add nnkCall.newTree(
-        nnkDotExpr.newTree(
-          typeObjNode,
-          newIdentNode("registerBltinMethod")
-        ),
-        newLit($methodName),
-        quote do:
-          (`name`, `classmethod`)
-      )
-  of NPyMethodKind.Magic:
-    result.add newAssignment(
-        newDotExpr(
-          newDotExpr(
-            ident(typeObjName),
-            ident("magicMethods")
-          ),
-          methodName
-        ),
-        name
-      )
-  else: # registered manually
-    discard
+  result.addRegisterMethod typeObjNode, methodName, name, classmethod, kind
+
 
 proc implMethod*(prototype, ObjectType, pragmas, body: NimNode, kind: NPyMethodKind): NimNode = 
   let (methodName, argTypes) = getNameAndArgTypes(prototype)
