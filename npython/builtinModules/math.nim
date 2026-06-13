@@ -18,7 +18,7 @@ import ../Python/getargs/[tovals,
 ]
 impExpCwd math, [
   init,
-  vec_op, reduce,
+  vec_op, reduce, prod,
 ]
 methodMacroTmpl(mathModule)
 
@@ -116,7 +116,7 @@ gen_funct modf
 gen_func2 nextafter
 #gen_func2 perm
 gen_func2 pow
-#gen_funix prod
+#en_funix prod
 gen_func1 radians
 gen_func2 remainder
 gen_func1 sin

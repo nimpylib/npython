@@ -1,6 +1,8 @@
 
+template imp(sub, ls) {.dirty.} =
+  import ../../sub/ls
 template impObj(ls) {.dirty.} =
-  import ../../Objects/ls
+  imp Objects, ls
 impObj [
   pyobject,
   bltcommon,
