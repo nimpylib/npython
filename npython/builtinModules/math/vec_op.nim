@@ -1,6 +1,7 @@
 
 import pkg/pymath
 include ./comm
+import ./utils
 impObj [
   iterobject,
   stringobject,
@@ -27,9 +28,7 @@ iterator items(x: FltItor): float =
 
 proc fsum*(q: PyObject): PyObject{.pyCFuncPragma.} =
   let it = floatsItor q
-  let res = try: fsum it
-  except OverflowDefect as e: return newOverflowError newPyAscii e.msg
-  except ValueError as e: return newValueError newPyAscii e.msg
+  let res = fsum(it).orRetValOrOvfErr
   retIfExc it.exc
   result = newPyFloat res
 

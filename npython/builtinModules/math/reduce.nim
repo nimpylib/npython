@@ -1,22 +1,39 @@
 
 import pkg/pymath
+import pkg/intobject
 include ./comm
 impObj [
-  iterobject,
   stringobject,
   tupleobject,
 ]
 impObj abstract/sequence/tup
 
-proc hypot*(args: varargs[PyObject]): PyObject =
-  var res = 0.0
-  var f: float
-  for i in args:
-    retIfExc PyFloat_AsDouble(i, f)
-    res = hypot(res, f)
-  newPyFloat res
+template reduce(hypot, T, newPyT, init, toV) {.dirty.} =
+  proc hypot*(args: varargs[PyObject]): PyObject =
+    var res = init
+    var f: T
+    for i in args:
+      toV(i, f)
+      res = hypot(res, f)
+    `newPyT` res
 
-implMathModuleMethod hypot(*coord): hypot(coord)
+  implMathModuleMethod hypot(*coord): hypot(coord)
+template asgn(i, f) =
+  retIfExc PyFloat_AsDouble(i, f)
+reduce hypot, float, newPyFloat, 0.0, asgn
+template toIntObj(o, i) =
+  var pyi: PyIntObject
+  retIfExc PyNumber_Index(o, pyi)
+  i = pyi.v
+template gcdlcm(gcd, init) {.dirty.} =
+  reduce gcd, IntObject, newPyInt, init, toIntObj
+template tryFirst: IntObject =
+  var res: IntObject
+  if args.len == 0: return pyIntZero
+  args[0].toIntObj res
+  res
+gcdlcm gcd, tryFirst
+gcdlcm lcm, intOne
 
 type Interrupt = object of CatchableError
   exc: PyBaseErrorObject
