@@ -2,6 +2,9 @@
 import std/macros
 import std/os
 import std/tables
+when defined(js):
+  import std/sets
+  from std/strutils import splitLines
 import ../Python/sysmodule_instance
 import ../Objects/[
   pyobject,
@@ -48,10 +51,23 @@ template reg_builtin_module*(modu) =
   reg_builtin_moduleImpl(get_bltnames(), modu)
 
 static:
-  for (k, i) in walkDir(currentSourcePath().parentDir, relative=true):
+  const dir = currentSourcePath().parentDir
+  const Js = defined(js)
+  when Js:
+    const skips = slurp(dir/"private/skipJs.txt").splitLines().toHashSet
+    template skipHandled(modname, body) {.dirty.} =
+      bind skips
+      if modname not_in skips:
+        body
+  else:
+    template skipHandled(modname, body) {.dirty.} = body
+
+  for (k, i) in walkDir(dir, relative=true):
     if k == pcDir: continue
     if i == "index.nim": continue
-    moduleIds.add i[0..^5]
+    let pureName = i[0..^5]
+    skipHandled pureName:
+      moduleIds.add pureName
 
 macro init_builtin_modules_table_pre =
   result = newStmtList()

@@ -126,7 +126,7 @@ taskWithArgs buildJsLib, "build js non-native library(es6 module)":
   buildLibImpl "js --app:lib -d:jspure", it & ".lib.js"
 
 taskWithArgs buildLib, "build shared library":
-  buildLibImpl "c --app:lib", it.toDll
+  buildLibImpl "c --app:lib --tlsEmulation:on", it.toDll
 
 #taskRequires "buildWasm", "wasm_backend ^= 0.1.2"
 taskWithArgs buildWasm, "build .wasm(wasi) executable":

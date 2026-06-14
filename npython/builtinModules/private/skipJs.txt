@@ -1,0 +1,6 @@
+ctypes
+tkinter
+turtle
+curser
+mmap
+msvcrt
