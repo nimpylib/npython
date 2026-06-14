@@ -33,10 +33,13 @@ genProperty Module, "__name__", name, name(self):
   `name=`(self, PyStrObject other)
   pyNone
 
-proc getDict*(self): PyDictObject{.npyexportc: "PyModule_GetDict".} =
+proc getDict*(self): PyDictObject =
   ## _PyModule_GetDict(mod) must not be used after calling module_clear(mod)
   result = PyDictObject self.dict
   assert not result.isNil
+
+proc PyModule_GetDict*(self: PyModuleObject): PyDictObject{.npyexportc.} =
+  self.getDict()
 
 proc init_dict(modu: PyModuleObject, md_dict: PyDictObject, name: PyStrObject) =
   md_dict[pyDUId name] = name
@@ -76,4 +79,3 @@ template newPyModuleImpl*(T: typedesc[PyModuleObject]; typ: PyTypeObject; nam: P
 
 proc newPyModule*(name: PyStrObject|string): PyModuleObject =
   newPyModuleImpl PyModuleObject, pyModuleObjectType, name, false
-
