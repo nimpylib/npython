@@ -10,6 +10,7 @@ import ./[call, traceback]
 import ../Include/ceval
 import ../Include/internal/pycore_global_strings
 import ../Objects/typeobject/apis/attrs
+import ../Objects/pyobject_apis/attrs
 import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    sliceobject, codeobject, frameobject, funcobject, cellobject,
                    setobject, noneobject, notimplementedobject, boolobjectImpl,
@@ -616,7 +617,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
             of OpCode.ImportFrom:
               let module = sTop()
               let name = names[opArg]
-              let retObj = module.callMagic(getattr, name, handleExcp=true)
+              let retObj = PyObject_GetAttr(module, name)
               if retObj.isThrownException:
                 handleException(retObj)
               # TODO:_PyEval_ImportFrom
@@ -1065,4 +1066,3 @@ proc PyEval_MergeCompilerFlags*(cf: PyCompilerFlags): bool =
     if compilerflags != 0:
       result = true
       cf.flags = typeof(cf.flags) cf.flags.ord or compilerflags.ord
-
