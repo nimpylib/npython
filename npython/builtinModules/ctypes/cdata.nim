@@ -24,11 +24,12 @@ impObjects [
 imp Python, getargs/tovals
 
 const ucs2 = sizeof(wchar_t) == 2
-
-declarePyType SimpleCData(dict, typeName("_SimpleCData")):
-  discard
-
 template notImpl = doAssert false, "notImpl"
+
+declarePyType CData(dict, typeName("_CData")): discard
+method addressof*(self: PyCDataObject): pointer{.base, raises: [].} = notImpl
+declarePyType SimpleCData(base(CData), typeName("_SimpleCData")): discard
+
 method value*(self: `PySimpleCDataObject`): PyObject{.base, raises: [].} = notImpl
 method setValue*(self: `PySimpleCDataObject`, value: PyObject): PyBaseErrorObject{.base, raises: [].} = notImpl
 
@@ -37,6 +38,7 @@ var ctypeClasses{.compileTime.}: seq[
 ]
 macro forEachCTypeClass(action) =
   result = newStmtList quote do:
+    `action`("_CData", pyCDataObjectType, 0)
     `action`("_SimpleCData", pySimpleCDataObjectType, 0)
     # alias
     `action`("c_voidp", pyCVoidPObjectType, sizeof(pointer))
@@ -107,7 +109,9 @@ template declarePyCType(id, T, PyT; telseDo) {.dirty.} =
   declarePyCTypeAux id:
     c_value: T
   proc `value=`*(self: `Py id Object`, value: T) =
-    self.c_value = value
+    self.c_value = value      
+  method addressof*(self: `Py id Object`): pointer{.raises: [].} = self.c_value.addr
+
   static:
     ctypeClasses.add (astToStr(id), "py" & astToStr(id) & "ObjectType", sizeof(T))
   implPyCType id, T, PyT, elseDo=telseDo
@@ -197,6 +201,7 @@ template valueFromAddr(self: PyCwcharPObject; v: int) =
   self.value.p = cast[ptr ptr wchar_t](v)[]
   self.value.alloced = false
 
+method addressof*(self): pointer{.raises: [].} = self.value.p.addr
 static:
   ctypeClasses.add ("c_wchar_p", "pyCWcharPObjectType", sizeof(ptr wchar_t))
 implPyCType c_wchar_p, WcharPObj, str, setValueImpl=setValueImpl:
