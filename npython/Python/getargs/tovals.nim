@@ -13,6 +13,7 @@ import ../../Objects/numobjects/floatobject
 
 genToValGeneric(int, Ssize_t, Number)
 genToValGeneric(float, double, Float)
+genToValGeneric(float32, float, Float)
 
 proc converterr(expected: string, arg: PyObject): string =
   fmt"must be {expected:.50s}, not {arg.typeName:.50s}"

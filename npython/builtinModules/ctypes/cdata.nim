@@ -2,10 +2,12 @@
 import std/macros
 import ../private/[utils]
 import ./common
+import ./cdata/ints
 
 impObjects [
   pyobject,
   stringobject,
+  numobjects,
   byteobjects,
   dictobject,
   exceptions,
@@ -14,7 +16,6 @@ impObjects [
   pyobject_apis/attrsGeneric,
 ]
 impObjects pyobject_apis/strings
-impObjects numobjects/intobject
 imp Include, internal/pycore_global_strings
 imp Python, getargs/tovals
 
@@ -98,15 +99,22 @@ declarePyCType c_char_p, cstring, bytes:
     return
   return newTypeError newPyStr "bytes or integer address expected instead of " & value.typeName & " instance" 
 
-# c_int
-proc toval[T: SomeSignedInt](x: PyIntObject, res: var T): PyBaseErrorObject =
+
+template decl_int(pyId, nimId) {.dirty.} =
+  declarePyCType pyId, nimId, int
+
+gen_ints_decl decl_int
+
+proc toval[T: SomeInteger](x: PyIntObject, res: var T): PyBaseErrorObject =
   var ovf: IntSign
-  res = x.toSomeSignedInt[:T](ovf)
+  res = (when T is SomeSignedInt: toSomeSignedInt else: toSomeUnsignedInt)[T](x, ovf)
   if ovf != IntSign.Zero: return PyInt_OverflowCType $T
 
-declarePyCType c_int, cint, int
+decl_all_ints
 
 
+declarePyCType c_double, c_double, float
+declarePyCType c_float, c_float, float
 
 genProperty SimpleCData, "value", value, self.value:
   retIfExc self.setValue other
