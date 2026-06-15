@@ -93,6 +93,9 @@ template impl(B, InitT, newTOfLen, newTOfLenUninit){.dirty.} =
     `newPy B FromOpenArray` s
   proc `newPy B`*(size: int): `Py B Object` =
     `newPy B` newTOfLen size
+  proc `newPy B`*(c: char): `Py B Object` =
+    result = `newPy B` 1
+    result.items[0] = c
 
   let `empty B` = `newPy B` newSeq[char]()
   proc `newPy B`*(): `Py B Object` = `empty B`

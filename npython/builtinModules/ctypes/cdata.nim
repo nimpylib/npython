@@ -83,6 +83,33 @@ template declarePyCType(id, T, PyT) {.dirty.} =
 
 declarePyCType c_void_p, int, int
 
+# c_char
+template typerr_c_charAux(suf = "") {.dirty.} =
+  return newTypeError newPyAscii "one character bytes, bytearray, or an integer in range(256) expected, not " & suf
+template typerr_c_char_not(obj: PyBytesObject|PyByteArrayObject) {.dirty.} =
+  typerr_c_charAux obj.typeName & " of length " & $obj.len
+template typerr_c_char_not(obj: PyObject) {.dirty.} =
+  typerr_c_charAux obj.typeName
+proc toval(obj: PyBytesObject, c: var char): PyBaseErrorObject =
+  if obj.len == 1:
+    c = obj[0]
+    return
+  typerr_c_char_not obj
+declarePyCType c_char, char, bytes:
+  if value.ofPyIntObject:
+    let ivalue = PyIntObject(value)
+    var ovf: IntSign
+    let ui = ivalue.toSomeUnsignedInt[:uint8](ovf)
+    if ovf == IntSign.Zero:
+      self.pri_value = cast[char](ui)
+      return
+  if value.ofPyByteArrayObject:
+    let ba = PyByteArrayObject(value)
+    if ba.len == 1:
+      self.pri_value = ba[0]
+    typerr_c_char_not ba
+  typerr_c_char_not value
+
 # c_char_p
 template toval(x: PyBytesObject, res: var cstring): PyBaseErrorObject =
   res = cast[cstring](x.items[0].addr)
