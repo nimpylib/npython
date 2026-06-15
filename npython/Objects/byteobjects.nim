@@ -4,7 +4,7 @@ import pkg/pyrepr
 import ./hash
 import ./pyobject
 from ./abstract/iter import PyObject_GetIter
-import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject]
+import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject, noneobject]
 import ./numobjects/intobject/[decl, ops_imp_warn]
 import ../Utils/[addr0, nexportc]
 #XXX: Nim's string ops has bugs for NUL('\0') char, e.g. len('1\02') gives 2
@@ -96,6 +96,18 @@ template impl(B, InitT, newTOfLen, newTOfLenUninit){.dirty.} =
   proc `newPy B`*(c: char): `Py B Object` =
     result = `newPy B` 1
     result.items[0] = c
+
+  proc `newPy B NotNil`*(s: cstring): `Py B Object` =
+    ## .. warnings: return `None` if `s` is nil
+    `newPy B`(
+      when not defined(js):
+        s.toOpenArray(0, s.high)
+      else:
+        $s
+    )
+  proc `newPy B`*(s: cstring): PyObject =
+    if s.isNil: return pyNone
+    `newPy B NotNil` s
 
   let `empty B` = `newPy B` newSeq[char]()
   proc `newPy B`*(): `Py B Object` = `empty B`

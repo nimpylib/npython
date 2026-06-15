@@ -215,9 +215,6 @@ template toval(x: PyBytesObject, res: var cstring): PyBaseErrorObject =
   res = cast[cstring](x.items[0].addr)
   PyBaseErrorObject nil
 
-proc newPyBytes(s: cstring): PyObject =
-  if s.isNil: pyNone
-  else: newPyBytes s.toOpenArray(0, s.high)
 
 declarePyCType c_char_p, cstring, bytes:
   if value.isPyNone:
