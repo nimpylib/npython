@@ -2,12 +2,13 @@
 import std/macros
 import std/strformat
 from std/algorithm import reverse
-import ../Utils/[sequtils, destroyPatch, addr0]
+import ../Utils/[sequtils, addr0]
 import ./byteobjects
 import ./pyobject
 import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
   iterobject, hash, abstract,
   bltcommon,
+  pybuffer,
 ]
 import ./tupleobjectImpl
 import ./stringobject/private/utils
@@ -28,44 +29,10 @@ proc `&`(s: string, se: seq[char]): string =
     for i in se: result.add i
 template `&`(se: seq[char], s: string): seq[char] = se & @s
 
-#TODO:buffer
-# workaround:
-type Py_buffer = object
-  buf: CharsView
-  len: int
-  obj: PyObject
-defdestroy Py_buffer: discard
-#proc PyBuffer_Release(b: Py_buffer) = discard
-
-proc init_Py_buffer(buf: CharsView, len: int, obj: PyObject, ): Py_buffer = Py_buffer(buf: buf, len: len, obj: obj)
-
-proc to_py_buffer(b: PyBytesObject|PyByteArrayObject): CharsView = b.charsView
-
-proc init_Py_buffer(buf: PyBytesObject|PyByteArrayObject): Py_buffer{.raises: [].} =
-  init_Py_buffer(buf.to_py_buffer, buf.len, buf)
-
 macro addVars(call; vargs: varargs[untyped]): untyped =
   result = call
   for arg in vargs:
     result.add arg
-
-proc toval(o: PyObject, val: var Py_buffer): PyBaseErrorObject =
-  let c = o.PyNumber_AsCharOr("bytes") do:
-    if o.ofPyBytesObject:
-      let ob = o.PyBytesObject
-      val = init_Py_buffer ob
-      return
-    elif o.ofPyByteArrayObject:
-      let ob = o.PyByteArrayObject
-      val = init_Py_buffer ob
-      return
-    else:
-      # TODO:buffer
-      return bufferNotImpl()
-    # return self.doSth s
-  let obj = newPyBytes [c]
-  val = init_Py_buffer obj
-
 
 template doCorS(Res; doSth; o; args: varargs[untyped]): untyped{.dirty.} =
   const hasRes = Res is_not void
@@ -336,7 +303,7 @@ template impl(x, fromSize, fromObject) =
     fromObject x
 
 # TODO: encoding, errors params
-implBytesMagic New(tp: PyObject, x: PyObject):
+implBytesMagic New(_: PyObject, x: PyObject):
   var bytes: PyObject
   let fun = x.getMagic(bytes)
   if not fun.isNil:
