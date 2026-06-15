@@ -18,8 +18,8 @@ impObjects [
   exceptions,
   noneobject,
   pyobject_apis/attrsGeneric,
+  pyobject_apis/strings
 ]
-impObjects pyobject_apis/strings
 imp Python, getargs/tovals
 
 const ucs2 = sizeof(wchar_t) == 2
@@ -32,21 +32,22 @@ method value*(self: `PySimpleCDataObject`): PyObject{.base, raises: [].} = notIm
 method setValue*(self: `PySimpleCDataObject`, value: PyObject): PyBaseErrorObject{.base, raises: [].} = notImpl
 
 var ctypeClasses{.compileTime.}: seq[
-  tuple[pyname, typeId: string]
+  tuple[pyname, typeId: string, size: int]
 ]
 macro forEachCTypeClass(action) =
   result = newStmtList quote do:
-    `action`("_SimpleCData", pySimpleCDataObjectType)
+    `action`("_SimpleCData", pySimpleCDataObjectType, 0)
     # alias
-    `action`("c_voidp", pyCVoidPObjectType)
-  for (name, id) in ctypeClasses:
+    `action`("c_voidp", pyCVoidPObjectType, sizeof(pointer))
+  for (name, id, size) in ctypeClasses:
     result.add newCall(action,
-                       newStrLitNode name, ident id)
+                       newStrLitNode name, ident id, newIntLitNode size)
 
 template registerCTypeClasses*(dict: PyDictObject) =
   bind forEachCTypeClass
-  template addCTypeClass(pyName: static[string], pyTypeObj: PyTypeObject) =
+  template addCTypeClass(pyName: static[string], pyTypeObj: PyTypeObject, ctypeSize: int) =
     dict[newPyAscii pyName] = pyTypeObj
+    retIfExc PyObject_GenericSetAttr(pyTypeObj, ctypeSizeAttrName, newPyInt ctypeSize)
   forEachCTypeClass(addCTypeClass)
 macro declarePyCTypeAux(id, attrsWithSp) =
   let name = newStrLitNode id.strVal
@@ -65,8 +66,6 @@ template defsetValue(self, value) =
 template valueFromAddr(self; v) =
   self.c_value = cast[ptr typeof(self.c_value)](v)[]
 template implPyCType(id, T, PyT; setValueImpl: untyped = defsetValue; elseDo) {.dirty.} =
-  static:
-    ctypeClasses.add (astToStr(id), "py" & astToStr(id) & "ObjectType")
   proc `newPy id`*(): `Py id Object`{.raises: [].} =
     result = `newPy id Simple`()
   proc `newPy id`*(value: `T`): `Py id Object`{.raises: [].} =
@@ -108,6 +107,8 @@ template declarePyCType(id, T, PyT; telseDo) {.dirty.} =
     c_value: T
   proc `value=`*(self: `Py id Object`, value: T) =
     self.c_value = value
+  static:
+    ctypeClasses.add (astToStr(id), "py" & astToStr(id) & "ObjectType", sizeof(T))
   implPyCType id, T, PyT, elseDo=telseDo
 
 template declarePyCType(id, T, PyT) {.dirty.} =
@@ -219,6 +220,8 @@ template valueFromAddr(self: PyCwcharPObject; v: int) =
   self.value.p = cast[ptr ptr wchar_t](v)[]
   self.value.alloced = false
 
+static:
+  ctypeClasses.add ("c_wchar_p", "pyCWcharPObjectType", sizeof(ptr wchar_t))
 implPyCType c_wchar_p, WcharPObj, str, setValueImpl=setValueImpl:
   if value.isPyNone:
     self.value = WcharPObj()

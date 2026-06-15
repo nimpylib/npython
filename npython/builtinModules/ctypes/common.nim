@@ -5,7 +5,11 @@ impObjects [
   stringobject,
   exceptions,
 ]
+imp Include, internal/pycore_global_strings
 
+template ctypeSizeAttrName*: PyStrObject =
+  bind pyId
+  pyId "_npy_ctype_size_"
 
 template attrName*(obj: PyObject): PyStrObject =
   if not obj.ofPyStrObject:
