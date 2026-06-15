@@ -6,6 +6,7 @@ import ./cdata/ints
 
 impObjects [
   pyobject,
+  boolobjectImpl,
   stringobject,
   numobjects,
   byteobjects,
@@ -32,6 +33,8 @@ var ctypeClasses{.compileTime.}: seq[
 macro forEachCTypeClass(action) =
   result = newStmtList quote do:
     `action`("_SimpleCData", pySimpleCDataObjectType)
+    # alias
+    `action`("c_voidp", pyCVoidPObjectType)
   for (name, id) in ctypeClasses:
     result.add newCall(action,
                        newStrLitNode name, ident id)
@@ -78,6 +81,7 @@ template declarePyCType(id, T, PyT) {.dirty.} =
   bind cannotAs
   declarePyCType id, T, PyT, cannotAs T
 
+declarePyCType c_void_p, int, int
 
 # c_char_p
 template toval(x: PyBytesObject, res: var cstring): PyBaseErrorObject =
@@ -99,6 +103,8 @@ declarePyCType c_char_p, cstring, bytes:
     return
   return newTypeError newPyStr "bytes or integer address expected instead of " & value.typeName & " instance" 
 
+declarePyCType c_bool, bool, bool:
+  return PyObject_IsTrue(value, self.pri_value)
 
 template decl_int(pyId, nimId) {.dirty.} =
   declarePyCType pyId, nimId, int
