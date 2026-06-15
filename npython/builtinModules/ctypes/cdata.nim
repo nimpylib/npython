@@ -1,6 +1,7 @@
 
 import std/macros
-import pkg/py_locale_utf8_encoding/wchar_t
+import pkg/py_locale_utf8_encoding/wchar_t as wcharLib
+import pkg/pytime_utils/time_t_decl
 import ../private/[utils]
 import ./common
 import ./cdata/ints
@@ -20,6 +21,8 @@ impObjects [
 impObjects pyobject_apis/strings
 imp Include, internal/pycore_global_strings
 imp Python, getargs/tovals
+
+const ucs2 = sizeof(wchar_t) == 2
 
 declarePyType SimpleCData(dict, typeName("_SimpleCData")):
   discard
@@ -84,6 +87,13 @@ template declarePyCType(id, T, PyT) {.dirty.} =
 
 declarePyCType c_void_p, int, int
 
+template toWchar(rune: Rune): wchar_t =
+  when ucs2:
+    if rune > high wchar_t:
+      return newOverflowError newPyAscii "str's character is a UCS4 " &
+        "which cannot fit into wchar_t (whose size is 2)"
+  cast[wchar_t](rune)
+
 # c_wchar
 template typerr_c_wcharAux(suf = "") {.dirty.} =
   return newTypeError newPyAscii "a unicode character expected, not " & suf
@@ -94,11 +104,7 @@ template typerr_c_wchar_not(obj: PyObject) {.dirty.} =
 proc toval(obj: PyStrObject, c: var wchar_t): PyBaseErrorObject =
   if obj.len == 1:
     let rune = obj[0]
-    when sizeof(c) < sizeof(typeof(rune)):
-      if rune > high wchar_t:
-        return newOverflowError newPyAscii "str's character is a UCS4 " &
-          "which cannot fit into wchar_t (whose size is 2)"
-    c = cast[wchar_t](rune)
+    c = rune.toWchar
     return
   typerr_c_wchar_not obj
 proc newPyStr(c: wchar_t): PyObject =
@@ -132,6 +138,62 @@ declarePyCType c_char, char, bytes:
       self.pri_value = ba[0]
     typerr_c_char_not ba
   typerr_c_char_not value
+
+# c_wchar_p
+type WcharP = object
+  p: ptr wchar_t
+  alloced = true
+proc `=destroy`(self: var WcharP) =
+  if self.alloced:
+    dealloc self.p
+    self.alloced = false
+proc `=wasMoved`(self: var WcharP) = self.alloced = false
+proc `=sink`(dest: var WcharP, src: WcharP) = dest = src  # necessary to prevent double-free
+template toval(x: PyStrObject, res: var WcharP): PyBaseErrorObject =
+  res = WcharP()
+  res.p = cast[ptr wchar_t](alloc x.len * sizeof(wchar_t))
+  for i, r in x.pairs:
+    res.p[i] = r.toWchar
+  PyBaseErrorObject nil
+
+proc newPyStr(s: WcharP): PyObject =
+  if s.p.isNil: pyNone
+  else:
+    var allAscii = true
+    var L = 0
+    while true:
+      let i = s.p[L]
+      if i == wchar_t(0):
+        break
+      L.inc
+      if i > wchar_t(255):
+        allAscii = false
+        break
+    template asgn(char): untyped {.dirty.} =
+      var ls = newSeq[char](L)
+      for i in 0..<L:
+        let w = s.p[i]
+        ls[i] = cast[char](w)
+      newPyStr ls
+    if allAscii: asgn char
+    else: asgn Rune
+
+declarePyCType c_wchar_p, WcharP, str:
+  if value.isPyNone:
+    self.pri_value = WcharP()
+    return
+  if value.ofPyIntObject:
+    var i: int
+    retIfExc toval(value, i)
+    self.pri_value = WcharP(p: cast[ptr wchar_t](i), alloced: false)
+    return
+  return newTypeError newPyStr(
+    "unicode string or integer address expected instead of " &
+      value.typeName & " instance"
+  )
+
+implCWcharPMagic repr:
+  newPyStr self.typeName & '(' & $cast[int](self.pri_value.p.addr) & ')'
 
 # c_char_p
 template toval(x: PyBytesObject, res: var cstring): PyBaseErrorObject =
@@ -167,7 +229,7 @@ proc toval[T: SomeInteger](x: PyIntObject, res: var T): PyBaseErrorObject =
   if ovf != IntSign.Zero: return PyInt_OverflowCType $T
 
 decl_all_ints
-
+declarePyCType c_time_t, time_t, int
 
 declarePyCType c_double, c_double, float
 declarePyCType c_float, c_float, float
