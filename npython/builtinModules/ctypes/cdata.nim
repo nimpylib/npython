@@ -7,6 +7,7 @@ import ../private/[utils]
 import ./common
 import ./dll/decl
 import ./cdata/ints
+import ./utils
 
 impObjects [
   pyobject,
@@ -137,8 +138,6 @@ proc toval(obj: PyStrObject, c: var wchar_t): PyBaseErrorObject =
     c = rune.toWchar
     return
   typerr_c_wchar_not obj
-proc newPyStr(c: wchar_t): PyObject =
-  newPyStr @[Rune c]
 declarePyCType c_wchar, wchar_t, str:
   typerr_c_wchar_not value
 
@@ -179,28 +178,6 @@ proc `=destroy`(self: var WcharPObj) =
     self.alloced = false
 proc `=wasMoved`(self: var WcharPObj) = self.alloced = false
 proc `=copy`(dest: var WcharPObj, src: WcharPObj) {.error.}
-
-proc newPyStr(s: ptr wchar_t): PyObject =
-  if s.isNil: pyNone
-  else:
-    var allAscii = true
-    var L = 0
-    while true:
-      let i = s[L]
-      if i == wchar_t(0):
-        break
-      L.inc
-      if i > wchar_t(255):
-        allAscii = false
-        break
-    template asgn(char): untyped {.dirty.} =
-      var ls = newSeq[char](L)
-      for i in 0..<L:
-        let w = s[i]
-        ls[i] = cast[char](w)
-      newPyStr ls
-    if allAscii: asgn char
-    else: asgn Rune
 
 declarePyCTypeAux c_wchar_p:
   value: owned WcharPObj

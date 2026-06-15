@@ -26,6 +26,8 @@ when declared(feature):  # nimble v0.18+
   feature "playground":
     requires "karax"
 
+requires "libffi"
+
 var pylibPre = "https://github.com/nimpylib"
 let envVal = getEnv("NIMPYLIB_PKGS_BARE_PREFIX")
 if envVal != "": pylibPre = ""
