@@ -139,6 +139,18 @@ proc toRunes*(self: UnicodeVariant): seq[Rune] =
   if self.ascii: self.asciiStr.asRuneSeq
   else: self.unicodeStr
 
+iterator items*(self: UnicodeVariant): Rune =
+  if self.ascii: 
+    for i in self.asciiStr: yield Rune i
+  else:
+    for i in self.unicodeStr: yield i
+
+iterator pairs*(self: UnicodeVariant): (int, Rune) =
+  if self.ascii: 
+    for i, c in self.asciiStr: yield (i, Rune c)
+  else:
+    for i, r in self.unicodeStr: yield (i, r)
+
 proc `&`*(a, b: UnicodeVariant): UnicodeVariant =
   doKindsWith2It(a, b):
     newUnicodeUnicodeVariant(it1 & it2)
@@ -276,8 +288,8 @@ proc newPyString*(str: UnicodeVariant): PyStrObject{.inline.} =
 
 proc newPyString*(str: string|cstring|openArray[char]|int, ensureAscii=false): PyStrObject =
   newPyString str.newUnicodeVariant(ensureAscii)
-proc newPyString*(str: seq[Rune]): PyStrObject =
-  newPyString newUnicodeUnicodeVariant(str)
+proc newPyString*(str: seq[Rune]): PyStrObject = newPyString newUnicodeUnicodeVariant(str)
+proc newPyString*(str: seq[char]): PyStrObject = newPyString newUnicodeVariant(str)
 proc newPyString*(str: PyStrObject): PyStrObject{.cdecl, inline.} =
   ## helper for handle type of `string|PyStrObject`
   str
@@ -298,7 +310,7 @@ proc len*(strObj: PyStrObject): int {. inline, cdecl .} = strObj.str.len
 template newPyStr*(s: string|cstring|openArray[char]|int; ensureAscii=false): PyStrObject =
   bind newPyString
   newPyString(s, ensureAscii)
-template newPyStr*(s: seq[Rune]|UnicodeVariant|PyStrObject|char|Rune): PyStrObject =
+template newPyStr*(s: seq[char]|seq[Rune]|UnicodeVariant|PyStrObject|char|Rune): PyStrObject =
   bind newPyString
   newPyString(s)
 
@@ -338,6 +350,10 @@ proc PyUnicode_READ*(kind: bool, data: UnicodeVariant, index: int): Rune{.inline
 proc `[]`*(self: PyStrObject, index: int): Rune{.inline.} =
   ## helper for `PyUnicode_READ`
   PyUnicode_READ(self.kind, self.data, index)
+iterator pairs*(self: PyStrObject): (int, Rune) =
+  for i, r in self.str: yield (i, r)
+iterator items*(self: PyStrObject): Rune =
+  for i in self.str: yield i
 
 proc isAscii*(self: PyStrObject): bool {.inline.} =
   ## `PyUnicode_IS_ASCII`

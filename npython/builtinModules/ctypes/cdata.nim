@@ -1,5 +1,6 @@
 
 import std/macros
+import pkg/py_locale_utf8_encoding/wchar_t
 import ../private/[utils]
 import ./common
 import ./cdata/ints
@@ -82,6 +83,28 @@ template declarePyCType(id, T, PyT) {.dirty.} =
   declarePyCType id, T, PyT, cannotAs T
 
 declarePyCType c_void_p, int, int
+
+# c_wchar
+template typerr_c_wcharAux(suf = "") {.dirty.} =
+  return newTypeError newPyAscii "a unicode character expected, not " & suf
+template typerr_c_wchar_not(obj: PyStrObject) {.dirty.} =
+  typerr_c_wcharAux "a string of length " & $obj.len
+template typerr_c_wchar_not(obj: PyObject) {.dirty.} =
+  typerr_c_wcharAux "instance of " & obj.typeName
+proc toval(obj: PyStrObject, c: var wchar_t): PyBaseErrorObject =
+  if obj.len == 1:
+    let rune = obj[0]
+    when sizeof(c) < sizeof(typeof(rune)):
+      if rune > high wchar_t:
+        return newOverflowError newPyAscii "str's character is a UCS4 " &
+          "which cannot fit into wchar_t (whose size is 2)"
+    c = cast[wchar_t](rune)
+    return
+  typerr_c_wchar_not obj
+proc newPyStr(c: wchar_t): PyObject =
+  newPyStr @[Rune c]
+declarePyCType c_wchar, wchar_t, str:
+  typerr_c_wchar_not value
 
 # c_char
 template typerr_c_charAux(suf = "") {.dirty.} =
