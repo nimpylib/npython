@@ -1,9 +1,11 @@
 
 import std/macros
+import std/dynlib
 import pkg/py_locale_utf8_encoding/wchar_t as wcharLib
 import pkg/pytime_utils/time_t_decl
 import ../private/[utils]
 import ./common
+import ./dll/decl
 import ./cdata/ints
 
 impObjects [
@@ -15,11 +17,9 @@ impObjects [
   dictobject,
   exceptions,
   noneobject,
-  typeobject,
   pyobject_apis/attrsGeneric,
 ]
 impObjects pyobject_apis/strings
-imp Include, internal/pycore_global_strings
 imp Python, getargs/tovals
 
 const ucs2 = sizeof(wchar_t) == 2
@@ -81,6 +81,21 @@ template declarePyCType(id, T, PyT; elseDo) {.dirty.} =
   `impl id Magic` New(tp: PyObject, value = PyObject nil):
     if value.isNil: `newPy id`()
     else: `newPy id`(value)
+  
+  proc from_address*(_: typedesc[`Py id Object`]; address: int): `Py id Object` {.pyCFuncPragma.} =
+    let res = `newPy id`()
+    res.pri_value = cast[ptr T](address)[]
+    result = res
+  `impl id Method` from_address(address: int), [classmethod]:
+    `from_address`(`Py id Object`, address)
+
+  `impl id Method` in_dll(dll: PyCDllObject, name: string), [classmethod]:
+    let a = dll.handle.symAddr(cstring name)
+    if a.isNil:
+      return newValueError dll.path & newPyStr(": undefined symbol: " & name)
+    `from_address`(`Py id Object`, cast[int](a))
+
+
 template declarePyCType(id, T, PyT) {.dirty.} =
   bind cannotAs
   declarePyCType id, T, PyT, cannotAs T
