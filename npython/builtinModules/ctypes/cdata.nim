@@ -48,43 +48,50 @@ template registerCTypeClasses*(dict: PyDictObject) =
   template addCTypeClass(pyName: static[string], pyTypeObj: PyTypeObject) =
     dict[newPyAscii pyName] = pyTypeObj
   forEachCTypeClass(addCTypeClass)
-macro decl(id, T; name: static[string]) = quote do:
-  declarePyType `id`(base(SimpleCData), typeName(`name`)):
-    pri_value{.private.}: `T`
+macro declarePyCTypeAux(id, attrsWithSp) =
+  let name = newStrLitNode id.strVal
+  let attrs = newStmtList()
+  for pair in attrsWithSp:
+    attrs.add newCall(pair[0], pair[1])
+  result = quote do:
+    declarePyType `id`(base(SimpleCData), typeName(`name`)), `attrs`
 
 template cannotAs(T) =
   return newTypeError newPyAscii '\'' & self.typeName & "' object cannot be interpreted as " & $T
-template declarePyCType(id, T, PyT; elseDo) {.dirty.} =
-  bind decl
-  const `id name` = astToStr(id)
-  decl id, T, `id name`
+
+template defsetValue(self, value) =
+  retIfExc toval(value, self.c_value)
+
+template valueFromAddr(self; v) =
+  self.c_value = cast[ptr typeof(self.c_value)](v)[]
+template implPyCType(id, T, PyT; setValueImpl: untyped = defsetValue; elseDo) {.dirty.} =
   static:
-    ctypeClasses.add (`id name`, "py" & astToStr(id) & "ObjectType")
+    ctypeClasses.add (astToStr(id), "py" & astToStr(id) & "ObjectType")
   proc `newPy id`*(): `Py id Object`{.raises: [].} =
     result = `newPy id Simple`()
   proc `newPy id`*(value: `T`): `Py id Object`{.raises: [].} =
     result = `newPy id`()
-    result.pri_value = value
+    result.value = value
+    
   #proc `newPy id`*(value: `Py PyT Object`): `Py id Object`{.raises: [].} =
-  method value*(self: `Py id Object`): PyObject{.raises: [].} = `newPy PyT` self.pri_value
+  method value*(self: `Py id Object`): PyObject{.raises: [].} = `newPy PyT` self.c_value
   proc setValue*(self: `Py id Object`, value: `Py PyT Object`): PyBaseErrorObject =
-    retIfExc toval(value, self.pri_value)
+    setValueImpl(self, value)
   method setValue*(self: `Py id Object`, value: PyObject): PyBaseErrorObject{.raises: [].} =
     if value.`ofPy PyT Object`:
       return self.setValue `Py PyT Object` value
     elseDo
-  proc `value=`*(self: `Py id Object`, value: T) = self.pri_value = value
   proc `newPy id`*(value: PyObject): PyObject{.raises: [].} =
     let res = `newPy id`()
     retIfExc res.setValue value
     result = res
-  `impl id Magic` New(tp: PyObject, value = PyObject nil):
+  `impl id Magic` New(_: PyObject, value = PyObject nil):
     if value.isNil: `newPy id`()
     else: `newPy id`(value)
   
   proc from_address*(_: typedesc[`Py id Object`]; address: int): `Py id Object` {.pyCFuncPragma.} =
     let res = `newPy id`()
-    res.pri_value = cast[ptr T](address)[]
+    res.valueFromAddr address
     result = res
   `impl id Method` from_address(address: int), [classmethod]:
     `from_address`(`Py id Object`, address)
@@ -95,6 +102,13 @@ template declarePyCType(id, T, PyT; elseDo) {.dirty.} =
       return newValueError dll.path & newPyStr(": undefined symbol: " & name)
     `from_address`(`Py id Object`, cast[int](a))
 
+template declarePyCType(id, T, PyT; telseDo) {.dirty.} =
+  bind declarePyCTypeAux
+  declarePyCTypeAux id:
+    c_value: T
+  proc `value=`*(self: `Py id Object`, value: T) =
+    self.c_value = value
+  implPyCType id, T, PyT, elseDo=telseDo
 
 template declarePyCType(id, T, PyT) {.dirty.} =
   bind cannotAs
@@ -145,39 +159,33 @@ declarePyCType c_char, char, bytes:
     var ovf: IntSign
     let ui = ivalue.toSomeUnsignedInt[:uint8](ovf)
     if ovf == IntSign.Zero:
-      self.pri_value = cast[char](ui)
+      self.c_value = cast[char](ui)
       return
   if value.ofPyByteArrayObject:
     let ba = PyByteArrayObject(value)
     if ba.len == 1:
-      self.pri_value = ba[0]
+      self.c_value = ba[0]
     typerr_c_char_not ba
   typerr_c_char_not value
 
 # c_wchar_p
-type WcharP = object
+type WcharPObj = object
   p: ptr wchar_t
   alloced = true
-proc `=destroy`(self: var WcharP) =
+proc `=destroy`(self: var WcharPObj) =
   if self.alloced:
     dealloc self.p
     self.alloced = false
-proc `=wasMoved`(self: var WcharP) = self.alloced = false
-proc `=sink`(dest: var WcharP, src: WcharP) = dest = src  # necessary to prevent double-free
-template toval(x: PyStrObject, res: var WcharP): PyBaseErrorObject =
-  res = WcharP()
-  res.p = cast[ptr wchar_t](alloc x.len * sizeof(wchar_t))
-  for i, r in x.pairs:
-    res.p[i] = r.toWchar
-  PyBaseErrorObject nil
+proc `=wasMoved`(self: var WcharPObj) = self.alloced = false
+proc `=copy`(dest: var WcharPObj, src: WcharPObj) {.error.}
 
-proc newPyStr(s: WcharP): PyObject =
-  if s.p.isNil: pyNone
+proc newPyStr(s: ptr wchar_t): PyObject =
+  if s.isNil: pyNone
   else:
     var allAscii = true
     var L = 0
     while true:
-      let i = s.p[L]
+      let i = s[L]
       if i == wchar_t(0):
         break
       L.inc
@@ -187,20 +195,38 @@ proc newPyStr(s: WcharP): PyObject =
     template asgn(char): untyped {.dirty.} =
       var ls = newSeq[char](L)
       for i in 0..<L:
-        let w = s.p[i]
+        let w = s[i]
         ls[i] = cast[char](w)
       newPyStr ls
     if allAscii: asgn char
     else: asgn Rune
 
-declarePyCType c_wchar_p, WcharP, str:
+declarePyCTypeAux c_wchar_p:
+  value: owned WcharPObj
+using self: PyCwcharPObject
+proc c_value*(self): ptr wchar_t = self.value.p
+template setValueImpl(self: PyCwcharPObject, tvalue: PyStrObject) =
+  template toval(x: PyStrObject, res: var ptr wchar_t): PyBaseErrorObject =
+    res = cast[ptr wchar_t](alloc x.len * sizeof(wchar_t))
+    for i, r in x.pairs:
+      res[i] = r.toWchar
+    PyBaseErrorObject nil
+  var p: ptr wchar_t
+  retIfExc toval(tvalue, p)
+  self.value.p = p
+  self.value.alloced = true
+template valueFromAddr(self: PyCwcharPObject; v: int) =
+  self.value.p = cast[ptr ptr wchar_t](v)[]
+  self.value.alloced = false
+
+implPyCType c_wchar_p, WcharPObj, str, setValueImpl=setValueImpl:
   if value.isPyNone:
-    self.pri_value = WcharP()
+    self.value = WcharPObj()
     return
   if value.ofPyIntObject:
     var i: int
     retIfExc toval(value, i)
-    self.pri_value = WcharP(p: cast[ptr wchar_t](i), alloced: false)
+    self.value = WcharPObj(p: cast[ptr wchar_t](i), alloced: false)
     return
   return newTypeError newPyStr(
     "unicode string or integer address expected instead of " &
@@ -208,7 +234,7 @@ declarePyCType c_wchar_p, WcharP, str:
   )
 
 implCWcharPMagic repr:
-  newPyStr self.typeName & '(' & $cast[int](self.pri_value.p.addr) & ')'
+  newPyStr self.typeName & '(' & $cast[int](self.value.p.addr) & ')'
 
 # c_char_p
 template toval(x: PyBytesObject, res: var cstring): PyBaseErrorObject =
@@ -218,17 +244,17 @@ template toval(x: PyBytesObject, res: var cstring): PyBaseErrorObject =
 
 declarePyCType c_char_p, cstring, bytes:
   if value.isPyNone:
-    self.pri_value = cstring nil
+    self.c_value = cstring nil
     return
   if value.ofPyIntObject:
     var i: int
     retIfExc toval(value, i)
-    self.pri_value = cast[cstring](i)
+    self.c_value = cast[cstring](i)
     return
   return newTypeError newPyStr "bytes or integer address expected instead of " & value.typeName & " instance" 
 
 declarePyCType c_bool, bool, bool:
-  return PyObject_IsTrue(value, self.pri_value)
+  return PyObject_IsTrue(value, self.c_value)
 
 template decl_int(pyId, nimId) {.dirty.} =
   declarePyCType pyId, nimId, int
