@@ -7,7 +7,7 @@ import builtindict
 import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobjectImpl,
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
-  listobjectImpl, enumobject,
+  listobjectImpl, enumobject, memoryobject,
   ]
 import ../Objects/numobjects/complexobjectImpl
 import ../Objects/stringobject/strformat
@@ -195,6 +195,7 @@ proc register_bltins* =
   registerBltinObject("slice", pySliceObjectType)
   registerBltinObject("type", pyTypeObjectType)
   registerBltinObject("tuple", pyTupleObjectType)
+  registerBltinObject("memoryview", pyMemoryViewObjectType)
   # not ready to use because no setup code is done when init new types
   # registerBltinObject("staticmethod", pyStaticMethodObjectType)
 

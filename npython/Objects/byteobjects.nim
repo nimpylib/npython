@@ -3,8 +3,7 @@ import std/strformat
 import pkg/pyrepr
 import ./hash
 import ./pyobject
-from ./abstract/iter import PyObject_GetIter
-import ./[listobject, tupleobjectImpl, stringobject, exceptions, iterobject, noneobject]
+import ./[listobject, tupleobjectImpl, stringobject, exceptions, noneobject]
 import ./numobjects/intobject/[decl, ops_imp_warn]
 import ../Utils/[addr0, nexportc]
 #XXX: Nim's string ops has bugs for NUL('\0') char, e.g. len('1\02') gives 2
@@ -38,6 +37,11 @@ proc reset*(self: var PyBytesWriter, cap: int=0) =
 proc initPyBytesWriter*(cap: int): PyBytesWriter =
   result = initPyBytesWriter()
   result.reset cap
+
+proc getData*(self: var PyBytesWriter): ptr char =
+  ## PyBytesWriter_GetData
+  self.s.addr0
+
 proc finish*(self: sink PyBytesWriter): PyObject
 
 proc `$`(self: seq[char]): string =
@@ -167,69 +171,3 @@ template PyNumber_AsCharOrRet*(vv: PyObject, errSubject="byte"): char =
   PyNumber_AsCharOr(vv, errSubject):
     return it
 
-template fillFromIterable(writer: PyBytesWriter; x; forInLoop; errSubject: string) =
-  forInLoop i, x:
-    writer.add i.PyNumber_AsCharOrRet(errSubject)
-
-template genFromIter(S; T; forInLoop; getLenHint: untyped=len){.dirty.} =
-  proc `PyBytes_From S`(x: T): PyObject =
-    var writer = initPyBytesWriter x.getLenHint
-    writer.fillFromIterable(x, forInLoop, "bytes")
-    writer.finish
-  proc `initFrom S`(self: PyByteArrayObject, x: T): PyBaseErrorObject =
-    var writer = initPyBytesWriter x.getLenHint
-    writer.use_bytearray = true
-    writer.fillFromIterable(x, forInLoop, "byte")
-    writer.finish self
-
-template sysForIn(x, it, body){.dirty.} =
-  for x in it: body 
-genFromIter List, PyListObject, sysForIn
-genFromIter Tuple, PyTupleObject, sysForIn
-template getLenHint(x): int = 64  # TODO
-genFromIter Iterator, PyObject, pyForIn, getLenHint
-
-template fillFromObject(x: PyObject){.dirty.} =
-  mixin fromList, fromTuple, fromIterator
-  # TODO
-  #[    /* Use the modern buffer interface */
-    if (PyObject_CheckBuffer(x))
-        return _PyBytes_FromBuffer(x);]#
-  if x.pyType == pyListObjectType: fromList x
-  if x.pyType == pyTupleObjectType: fromTuple x
-  if not x.ofPyStrObject:
-    let it = PyObject_GetIter(x)
-    if not it.isThrownException:
-      fromIterator it
-    if not it.isExceptionOf Type:
-      return PyBaseErrorObject it
-  return newTypeError newPyStr(
-    fmt"cannot convert '{x.pyType.name:.200s}' object to bytes"
-  )
-
-template genFrom(ls, tup, itor){.dirty.} =
-  template fromList(x) = ls
-  template fromTuple(x) = tup
-  template fromIterator(it) = itor
-
-proc PyBytes_FromObject*(x: PyObject): PyObject =
-  if x.pyType == pyBytesObjectType: return x
-  genFrom: return PyBytes_FromList PyListObject x
-  do:      return PyBytes_FromTuple PyTupleObject x
-  do:      return PyBytes_FromIterator(it)
-  fillFromObject x
-
-proc initFromObject*(self: PyByteArrayObject, x: PyObject): PyBaseErrorObject =
-  template retOnE(exp: PyBaseErrorObject) =
-    let e = exp
-    if not e.isNil: return e
-    else: return
-  genFrom: retOnE self.initFromList PyListObject x
-  do:      retOnE self.initFromTuple PyTupleObject x
-  do:      retOnE self.initFromIterator(it)
-  fillFromObject x
-
-proc PyByteArray_FromObject*(x: PyObject): PyObject =
-  let self = newPyByteArray()
-  result = self.initFromObject x
-  if result.isNil: return self

@@ -5,16 +5,19 @@ from std/algorithm import reverse
 import ../Utils/[sequtils, addr0]
 import ./byteobjects
 import ./pyobject
+import ./numobjects/intobject
 import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
   iterobject, hash, abstract,
   bltcommon,
-  pybuffer,
+  listobject,
+  pybuffer, memoryobject,
 ]
 import ./tupleobjectImpl
 import ./stringobject/private/utils
 import ./stringlib/join
+when NPySupportRawMemory:
+  import ./abstract/pybuffer
 import pkg/pystrutils
-from ./listobject import genMutableSequenceMethods, newPyList, PyListObject, add
 import ../Python/getargs/[va_and_kw, dispatch]
 import ../Utils/[sequtils2]
 
@@ -147,7 +150,7 @@ template toval(obj: bool, val: var PyObject): PyBaseErrorObject =
   val = newPyBool obj
   nil
 
-template implCommons(B, mutRead){.dirty.} =
+template implCommons(B, readonly, mutRead){.dirty.} =
   methodMacroTmpl(B)
   type `T B` = `Py B Object`
   `impl B Magic` eq:
@@ -259,9 +262,18 @@ template implCommons(B, mutRead){.dirty.} =
       `newPy B`(self.items.replace(PyByteArrayObject(old).items, PyByteArrayObject(`new`).items, count))
     else:
       bufferNotImpl()
+  when NPySupportRawMemory:
+    `impl B Magic` buffer, mutRead:
+      let iobj = other.castTypeOrRetTE PyIntObject
+      let flags = iobj.toIntOrRetOF
+      var view: Py_buffer
+      retIfExc PyBuffer_FillInfo(view, self,
+        self.items.addr0, self.len,
+        readonly, PyBufferFlags flags)
+      newPyMemoryView view
 
-implCommons bytes, []
-implCommons bytearray, [mutable: read]
+implCommons bytes,     true, []
+implCommons bytearray, false,[mutable: read]
 
 
 implBytesMagic hash: newPyInt self.hash
@@ -301,6 +313,91 @@ template impl(x, fromSize, fromObject) =
       fromSize size
   else:
     fromObject x
+
+
+template objAsBuffer(view, x) {.dirty.} =
+  var view: Py_buffer
+  retIfExc PyObject_GetBuffer(x, view, PyBUF.FULL_RO)
+  defer: retIfExc PyBuffer_Release view
+
+when NPySupportRawMemory:
+  proc newPyBytesFrom_Buffer*(x: PyObject): PyObject =
+    objAsBuffer view, x
+    var writer = initPyBytesWriter(view.len)
+    retIfExc PyBuffer_ToContiguous(writer.getData, view, view.len, PyBufferOrder.C)
+    writer.finish()
+
+  proc initFromBuffer(self: PyByteArrayObject, x: PyObject): PyBaseErrorObject =
+    objAsBuffer view, x
+    retIfExc PyBuffer_ToContiguous(self.charsView, view, view.len, PyBufferOrder.C)
+
+template fillFromIterable(writer: PyBytesWriter; x; forInLoop; errSubject: string) =
+  forInLoop i, x:
+    writer.add i.PyNumber_AsCharOrRet(errSubject)
+
+template genFromIter(S; T; forInLoop; getLenHint: untyped=len){.dirty.} =
+  proc `PyBytes_From S`(x: T): PyObject =
+    var writer = initPyBytesWriter x.getLenHint
+    writer.fillFromIterable(x, forInLoop, "bytes")
+    writer.finish
+  proc `initFrom S`(self: PyByteArrayObject, x: T): PyBaseErrorObject =
+    var writer = initPyBytesWriter x.getLenHint
+    writer.use_bytearray = true
+    writer.fillFromIterable(x, forInLoop, "byte")
+    writer.finish self
+
+template sysForIn(x, it, body){.dirty.} =
+  for x in it: body 
+genFromIter List, PyListObject, sysForIn
+genFromIter Tuple, PyTupleObject, sysForIn
+template getLenHint(x): int = 64  # TODO
+genFromIter Iterator, PyObject, pyForIn, getLenHint
+
+template fillFromObject(x: PyObject){.dirty.} =
+  mixin fromList, fromTuple, fromIterator, fromBuffer
+  when NPySupportRawMemory:
+    if x.ofPyBuffer(): fromBuffer x
+  if x.pyType == pyListObjectType: fromList x
+  if x.pyType == pyTupleObjectType: fromTuple x
+  if not x.ofPyStrObject:
+    let it = PyObject_GetIter(x)
+    if not it.isThrownException:
+      fromIterator it
+    if not it.isExceptionOf Type:
+      return PyBaseErrorObject it
+  return newTypeError newPyStr(
+    fmt"cannot convert '{x.pyType.name:.200s}' object to bytes"
+  )
+
+template genFrom(ls, tup, itor, buf){.dirty.} =
+  template fromList(x) = ls
+  template fromTuple(x) = tup
+  template fromIterator(x) = itor
+  template fromBuffer(x) = buf
+
+proc PyBytes_FromObject*(x: PyObject): PyObject =
+  if x.pyType == pyBytesObjectType: return x
+  genFrom: return PyBytes_FromList PyListObject x
+  do:      return PyBytes_FromTuple PyTupleObject x
+  do:      return PyBytes_FromIterator(it)
+  do:      return newPyBytes_FromBuffer(x)
+  fillFromObject x
+
+proc initFromObject*(self: PyByteArrayObject, x: PyObject): PyBaseErrorObject =
+  template retOnE(exp: PyBaseErrorObject) =
+    let e = exp
+    if not e.isNil: return e
+    else: return
+  genFrom: retOnE self.initFromList PyListObject x
+  do:      retOnE self.initFromTuple PyTupleObject x
+  do:      retOnE self.initFromIterator(it)
+  do:      retOnE self.initFromBuffer(x)
+  fillFromObject x
+
+proc PyByteArray_FromObject*(x: PyObject): PyObject =
+  let self = newPyByteArray()
+  result = self.initFromObject x
+  if result.isNil: return self
 
 # TODO: encoding, errors params
 implBytesMagic New(_: PyObject, x: PyObject):

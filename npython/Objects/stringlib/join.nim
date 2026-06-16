@@ -5,6 +5,11 @@ import ../[
   stringobject,
   exceptions,
 ]
+from ../pybuffer import PyBUF
+import ../memoryobject/status
+when NPySupportRawMemory:
+  import ../abstract/pybuffer
+  export PyObject_GetBuffer, PyBUF
 import ../abstract/sequence/list
 import ../../Utils/rtarrays
 
@@ -35,7 +40,7 @@ template bytes_join*(S; sep; iterable: PyObject; mutable: bool)#[: PyObject]#{.d
 
   #XXX: NIM-BUG: when JS using RtArray: `Error: internal error: ("genAddr: 2", skTemp)`
   # due to `[]=` or `[]` to RtArray
-  var buffers = (when defined(js): newSeq else: initRTArray)[Py_buffer](seqlen)
+  var buffers = newSeq[Py_buffer](seqlen)
 
 
   #[ Here is the general case.  Do a pre-pass to figure out the total
@@ -45,6 +50,7 @@ template bytes_join*(S; sep; iterable: PyObject; mutable: bool)#[: PyObject]#{.d
   var sz = 0
   var nbufs = 0
   var drop_gil = true
+  var torelease: seq[int]
   for i in 0 ..< seqlen:
     item = PySequence_Fast_GET_ITEM(sequ, i)
     proc asgn(b: auto) =
@@ -61,12 +67,12 @@ template bytes_join*(S; sep; iterable: PyObject; mutable: bool)#[: PyObject]#{.d
         return newTypeError newPyStr(
           fmt"sequence item {i}: expected a bytes-like object, {item.typeName:.80s} found"
         )
-      when defined(npython_buffer):
-        #TODO:buffer
+      when NPySupportRawMemory:
         let exc: PyBaseErrorObject = PyObject_GetBuffer(item, buffers[i], PyBUF.SIMPLE)
         if not exc.isNil:
           byteslikeExpect
-        #[ If the backing objects are mutable, then dropping the GIL
+        torelease.add i
+      #[ If the backing objects are mutable, then dropping the GIL
           opens up race conditions where another thread tries to modify
           the object which we hold a buffer on it. Such code has data
           races anyway, but this is a conservative approach that avoids
@@ -130,7 +136,8 @@ template bytes_join*(S; sep; iterable: PyObject; mutable: bool)#[: PyObject]#{.d
     if drop_gil: PyEval_RestoreThread(save)
 
   # RtArray's `=destroy` will call buffer's destroy
-  #for b in buffers: PyBuffer_Release(b)
+  for idx in torelease:
+    retIfExc PyBuffer_Release(buffers[idx])
   #if use_non_static: PyMem_Free(buffers)
   return res
 

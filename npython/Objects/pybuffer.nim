@@ -5,16 +5,51 @@ import ./[
   exceptions,
   byteobjects,
 ]
-import ../Utils/[destroyPatch,]
+export rtarrays
 
-#TODO:buffer
-# workaround:
+const PyBUF_MAX_NDIM* = 64
+
+template `or`(a, b): untyped = a.ord or b.ord
+type
+  PyBUF*{.pure.} = enum
+    Simple = 0
+    Writable = 1
+
+    Format = 4
+    Nd = 8
+    Strides = 0x10 or Nd
+    C_Contiguous = 0x20 or Strides
+    F_Contiguous = 0x40 or Strides
+    Indirect = 0x80 or Strides
+
+    Contig = Nd or Writable
+
+    Strided = Strides or Writable
+
+    Records = Strides or Writable or Format
+    RecordsRO = Strides or Format
+
+    Full = Indirect or Writable or Format
+    FullRO = Indirect or Format
+
+
+    READ = 0x100
+    WRITE = 0x200
+
+const
+  PyBUF_ContigRO* = PyBUF.Nd
+  PyBUF_StridedRO* = PyBUF.Strides
+
 type Py_buffer* = object
   buf*: CharsView
-  len*: int
   obj*: PyObject
-defdestroy Py_buffer: discard
-#proc PyBuffer_Release(b: Py_buffer) = discard
+  len*: int
+  itemsize*: int
+  readonly*: bool
+  ndim*: int
+  format*: cstring
+  shape*, strides*, suboffsets*: RtArrayView[int]
+  privateInternal*: PyObject  # unstable
 
 proc init_Py_buffer*(buf: CharsView, len: int, obj: PyObject, ): Py_buffer = Py_buffer(buf: buf, len: len, obj: obj)
 
