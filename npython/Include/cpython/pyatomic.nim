@@ -30,6 +30,13 @@ proc Py_atomic_compare_exchange*[T: AtomType](obj, expected: ptr T, desired: T):
     else:
       expected[] = obj[]
 
+proc Py_atomic_add*[T: AtomType](obj: ptr T, value: T): T =
+  orSingleThrd:
+    atomicAddFetch(obj, value, ATOMIC_SEQ_CST)
+  do:
+    let old = obj[]
+    obj[] = old + value
+    result = old
 
 template genLoadStore(atomicOpKind){.dirty.} =
   proc `Py_atomic_load atomicOpKind`*[T: AtomType|SomeFloat](obj: ptr T): T =
