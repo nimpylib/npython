@@ -5,7 +5,7 @@ impExpCwd memoryobject, [
 ]
 when NPySupportRawMemory:
   impExpCwd memoryobject, [
-    constructors, deconstructors, abstract,
+    constructors, deconstructors, abstract, methods,
   ]
 
 #implMemoryViewMagic getitem:
