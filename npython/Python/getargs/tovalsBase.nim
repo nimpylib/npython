@@ -13,6 +13,11 @@ template genToVal*(T; fun){.dirty.} =
     bind fun
     fun(obj, val)
 
+template genToVal1T*(TT; fun){.dirty.} =
+  template toval*[T](obj; val: var TT[T]): PyBaseErrorObject =
+    bind fun
+    fun(obj, val)
+
 template genToValGeneric*(T; CT; GenericT){.dirty.} =
   genToVal T, `Py GenericT As CT`
 

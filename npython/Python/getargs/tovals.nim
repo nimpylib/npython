@@ -1,4 +1,5 @@
 
+import std/options
 import std/strformat
 import ./tovalsBase
 export tovalsBase
@@ -7,6 +8,7 @@ import ../../Objects/[
   exceptions,
   stringobject,
   boolobjectImpl,
+  noneobject,
 ]
 import ../../Objects/numobjects/intobject/ops_imp_warn
 import ../../Objects/numobjects/floatobject
@@ -26,3 +28,13 @@ proc `handle %s`(x: PyObject, res: var string): PyBaseErrorObject =
 genToVal string, `handle %s`
 
 genToVal bool, PyObject_IsTrue
+
+proc handleOption[T](x: PyObject, res: var Option[T]): PyBaseErrorObject =
+  if x.isNil or x.isPyNone:
+    res = none(T)
+    return
+  var val: T
+  retIfExc toval(x, val)
+  res = some(val)
+
+genToVal1T Option, handleOption
