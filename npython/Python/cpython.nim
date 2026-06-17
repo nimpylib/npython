@@ -153,6 +153,14 @@ proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsyn
       of "c":
         expectFinalStrArg:
           exit0or1 PyRun_SimpleString(pyConfig.run_command)
+      of "e":  #EXT. unstable. not available in cpython
+        expectFinalStrArg:
+          let o = PyRun_String(pyConfig.run_command, Mode.Single)
+          if o.isThrownException:
+            PyErr_Print PyBaseErrorObject(o)
+            quitCompat()
+          else:
+            quitCompat 1
       of "":  # allow -
         discard
       else:
