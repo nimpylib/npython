@@ -13,6 +13,7 @@ import ../../Objects/[
   exceptions,
   noneobject,
 ]
+import ../../Objects/exceptions/oserr/convert
 
 
 proc clinicGenAuxHelper(hasSelfParam, passSelfToOrigin: bool,
@@ -131,8 +132,12 @@ proc genExcepts(excepts, body: NimNode): NimNode =
   if excepts.len == 0:
     return body
   result = nnkTryStmt.newTree body
+  var hasOSError = false
 
   for exc in excepts:
+    if exc.eqIdent "OSError":
+      hasOSError = true
+      continue
     let alias = ident "e"
     let newPyE = ident("new" & exc.strVal)
     result.add nnkExceptBranch.newTree(
@@ -140,7 +145,14 @@ proc genExcepts(excepts, body: NimNode): NimNode =
       quote do:
         return `newPyE`(newPyStr `alias`.msg)
     )
-  result = newStmtList(result)
+  if hasOSError:
+    if excepts.len == 1:
+      result = body
+    let handleOsErrRetPyObjId = bindSym"handleOsErrRetPyObj"
+    result = quote do:
+      `handleOsErrRetPyObjId`: `result`
+  else:
+    result = newStmtList(result)
 
 proc clinicGenMethodOfKindImpl*(typ: NimNode; kind: NPyMethodKind, exceptions,
     prc: NimNode, classmethod=false, includeOriginal=true,

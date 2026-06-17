@@ -10,7 +10,7 @@ impObjects [
   stringobject,
 ]
 impExpCwd os, [
-  decl,
+  decl, funcs,
 ]
 
 const osModuleName* = "os"
