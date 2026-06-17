@@ -6,6 +6,8 @@ import ./pyobject
 import ./[listobject, tupleobjectImpl, stringobject, exceptions, noneobject]
 import ./numobjects/intobject/[decl, ops_imp_warn]
 import ../Utils/[addr0, nexportc]
+import ./charsview/decl as charsview_decl
+export charsview_decl
 #XXX: Nim's string ops has bugs for NUL('\0') char, e.g. len('1\02') gives 2
 declarePyType Bytes(tpToken):
   items: seq[char]
@@ -67,11 +69,7 @@ proc contains*(s: PyByteLike, c: char): bool = c in s.items
 proc `[]`*(s: PyByteLike, i: int): char = s.items[i]
 proc getInt*(s: PyByteLike, i: int): PyIntObject = newPyInt s[i]
 
-when defined(js):
-  type CharsView* = seq[char]
-else:
-  type CharsView* = cstring  ## impl is unstable. It's UB if setitem to PyBytes's CharsView
-  ## and in JS backend, currently it's just a copy, not a real view
+when not defined(js):
   proc getCharPtr*(s: PyByteLike; i: int): ptr char = addr s.items[i]  ## unstable.
   ##  not available on JS
 
@@ -81,10 +79,11 @@ when defined(doc):
   export SingleChar
 template impl(B, InitT, newTOfLen, newTOfLenUninit){.dirty.} =
   proc asString*(s: `Py B Object`): string = $s.items
-  proc charsView*(s: `Py B Object`): CharsView =
+  template charsView*(s: `Py B Object`): CharsView =
+    bind addr0
     when defined(js): s.items
     else:
-      return cast[cstring](s.items.addr0)
+      cast[cstring](s.items.addr0)
   method `$`*(s: `Py B Object`): string = s.asString
   proc `newPy B`*(s: sink InitT): `Py B Object` =
     result = `newPy B Simple`()
