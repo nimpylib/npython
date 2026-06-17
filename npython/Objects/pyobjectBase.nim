@@ -229,6 +229,13 @@ type
     tp_basicsize*: int ## NPython won't use var-length struct, so no tp_itemsize needed.
 
 static:assert not compiles((var t: PyTypeObject; t.mro))
+const pyobjOffsetRef = offsetOf(PyObject, pybase_head)
+template getPyHeapRef*[Py = PyObject](x: var PyObjectObj): Py =
+  ## unstable. mainly used for tp_dealloc, where we only have a var PyObjectObj
+  ##   but need to get the heap ref of the whole object to call tp_del
+  bind pyobjOffsetRef
+  cast[Py](cast[int](addr x) - pyobjOffsetRef)
+
 template forMro*(baseVar; tp: PyTypeObject; body) =
   #TODO:mro
   var baseVar = tp
