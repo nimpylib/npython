@@ -79,11 +79,10 @@ when defined(doc):
   export SingleChar
 template impl(B, InitT, newTOfLen, newTOfLenUninit){.dirty.} =
   proc asString*(s: `Py B Object`): string = $s.items
-  template charsView*(s: `Py B Object`): CharsView =
-    bind addr0
-    when defined(js): s.items
-    else:
-      cast[cstring](s.items.addr0)
+  when defined(js): 
+    proc charsView*(s: `Py B Object`): var CharsView = s.items
+  else:
+    proc charsView*(s: `Py B Object`): CharsView = cast[cstring](s.items.addr0)
   method `$`*(s: `Py B Object`): string = s.asString
   proc `newPy B`*(s: sink InitT): `Py B Object` =
     result = `newPy B Simple`()

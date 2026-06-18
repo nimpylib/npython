@@ -1,12 +1,11 @@
 
 import pkg/handy_sugars/trans_imp
 impExpCwd memoryobject, [
-  decl, status,
+  decl,
 ]
-when NPySupportRawMemory:
-  impExpCwd memoryobject, [
-    constructors, deconstructors, abstract, methods,
-  ]
+impExpCwd memoryobject, [
+  constructors, deconstructors, abstract, methods,
+]
 
 #implMemoryViewMagic getitem:
 

@@ -6,10 +6,8 @@ import ../[
   exceptions,
 ]
 from ../pybuffer import PyBUF
-import ../memoryobject/status
-when NPySupportRawMemory:
-  import ../abstract/pybuffer
-  export PyObject_GetBuffer, PyBUF
+import ../abstract/pybuffer
+export PyObject_GetBuffer, PyBUF
 import ../abstract/sequence/list
 import ../../Utils/rtarrays
 
@@ -63,24 +61,19 @@ template bytes_join*(S; sep; iterable: PyObject; mutable: bool)#[: PyObject]#{.d
       let b = PyByteArrayObject(item)
       asgn b
     else:
-      template byteslikeExpect =
+      let exc: PyBaseErrorObject = PyObject_GetBuffer(item, buffers[i], PyBUF.SIMPLE)
+      if not exc.isNil:
         return newTypeError newPyStr(
           fmt"sequence item {i}: expected a bytes-like object, {item.typeName:.80s} found"
         )
-      when NPySupportRawMemory:
-        let exc: PyBaseErrorObject = PyObject_GetBuffer(item, buffers[i], PyBUF.SIMPLE)
-        if not exc.isNil:
-          byteslikeExpect
-        torelease.add i
+      torelease.add i
       #[ If the backing objects are mutable, then dropping the GIL
-          opens up race conditions where another thread tries to modify
-          the object which we hold a buffer on it. Such code has data
-          races anyway, but this is a conservative approach that avoids
-          changing the behaviour of that data race.
-          ]#
-        drop_gil = false
-      else:
-        byteslikeExpect
+        opens up race conditions where another thread tries to modify
+        the object which we hold a buffer on it. Such code has data
+        races anyway, but this is a conservative approach that avoids
+        changing the behaviour of that data race.
+        ]#
+      drop_gil = false
 
     nbufs = i + 1  # for error cleanup
     let itemlen = buffers[i].len

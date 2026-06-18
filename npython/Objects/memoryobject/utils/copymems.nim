@@ -1,6 +1,11 @@
 
 include ./comm
 import ./equivs
+when defined(js):
+  import ../../charsview/memcpys
+const OnlyContiguous = defined(js)
+when OnlyContiguous and defined(nimPreviewSlimSystem):
+  import std/assertions
 
 template HAVE_PTR(suboffsets, dim): bool =
   ## Check for the presence of suboffsets in the first dimension. */
@@ -31,17 +36,30 @@ proc last_dim_is_contiguous(dest: Py_buffer; src: Py_buffer): bool {.inline.} =
     src.strides[src.ndim - 1] == src.itemsize
 
 type CharsView = typeof(Py_buffer.buf)
-type Ptr = pointer
-template `+`(x: Ptr, stride): Ptr =
-  cast[Ptr](cast[int](x) + stride)
-template `+=`[P: CharsView](x: var P; i: int) =
-  x = cast[P](cast[int](x) + i)
-template `[]`(x: Ptr; i: int): int8 =
-  (cast[ptr int8](cast[int](x) + i))[]
+using sptr: CharsView
+when OnlyContiguous:
+  using dptr: var CharsView
+else:
+  using dptr: CharsView
+template nonContiguous(body): untyped =
+  when OnlyContiguous:
+    doAssert false, "only contiguous buffers are supported for this backend"
+  else:
+    body
+when OnlyContiguous:
+  type Ptr = RtArrayView[int]
+else:
+  type Ptr = pointer
+  template `+`(x: Ptr, stride): Ptr =
+    cast[Ptr](cast[int](x) + stride)
+  template `+=`[P: CharsView](x: var P; i: int) =
+    x = cast[P](cast[int](x) + i)
+  template `[]`(x: Ptr; i: int): int8 =
+    (cast[ptr int8](cast[int](x) + i))[]
 const NULL = nil
 proc copy_base(shape: Ptr, itemsize: int,
-         dptr: CharsView, dstrides, dsuboffsets: Ptr,
-         sptr: CharsView, sstrides, ssuboffsets: Ptr,
+         dptr; dstrides, dsuboffsets: Ptr,
+         sptr; sstrides, ssuboffsets: Ptr,
          mem: pointer) =
   ##[ Base case for recursive multi-dimensional copying. Contiguous arrays are
    copied with very little overhead. Assumptions: ndim == 1, mem == NULL or
@@ -55,28 +73,29 @@ proc copy_base(shape: Ptr, itemsize: int,
     else:
       moveMem(dptr, sptr, size)
   else:
-    var p: int
+    nonContiguous:
+      var p: int
 
-    p = cast[int](mem)
-    var sptr = cast[int](sptr)
-    for i in 0..<shape[0]:
-      let xsptr = ADJUST_PTR(sptr, ssuboffsets, 0);
-      copyMem(cast[pointer](p), cast[pointer](xsptr), itemsize)
-      p += itemsize
-      sptr += sstrides[0]
+      p = cast[int](mem)
+      var sptr = cast[int](sptr)
+      for i in 0..<shape[0]:
+        let xsptr = ADJUST_PTR(sptr, ssuboffsets, 0);
+        copyMem(cast[pointer](p), cast[pointer](xsptr), itemsize)
+        p += itemsize
+        sptr += sstrides[0]
 
-    p = cast[int](mem)
-    var dptr = cast[int](dptr)
-    for i in 0..<shape[0]:
-      let xdptr = ADJUST_PTR(dptr, dsuboffsets, 0);
-      copyMem(cast[pointer](xdptr), cast[pointer](p), itemsize)
-      p += itemsize
-      dptr += dstrides[0]
+      p = cast[int](mem)
+      var dptr = cast[int](dptr)
+      for i in 0..<shape[0]:
+        let xdptr = ADJUST_PTR(dptr, dsuboffsets, 0);
+        copyMem(cast[pointer](xdptr), cast[pointer](p), itemsize)
+        p += itemsize
+        dptr += dstrides[0]
 
 
 proc copy_rec(shape: Ptr, ndim, itemsize: int,
-         dptr: CharsView, dstrides, dsuboffsets: Ptr,
-         sptr: CharsView, sstrides, ssuboffsets: Ptr,
+         dptr; dstrides, dsuboffsets: Ptr,
+         sptr; sstrides, ssuboffsets: Ptr,
          mem: pointer) =
   ##[ Recursively copy a source buffer to a destination buffer. The two buffers
    have the same ndim, shape and itemsize. ]##
@@ -90,19 +109,20 @@ proc copy_rec(shape: Ptr, ndim, itemsize: int,
                 mem)
     return
 
-  var
-    dptr = dptr
-    sptr = sptr
-  for i in 0..<shape[0]:
-    let
-      xdptr = ADJUST_PTR(dptr, dsuboffsets, 0)
-      xsptr = ADJUST_PTR(sptr, ssuboffsets, 0)
-    copy_rec(shape+1, ndim-1, itemsize,
-              xdptr, dstrides+1, if dsuboffsets.isNil: dsuboffsets+1 else: NULL,
-              xsptr, sstrides+1, if ssuboffsets.isNil: ssuboffsets+1 else: NULL,
-              mem)
-    dptr += dstrides[0]
-    sptr += sstrides[0]
+  nonContiguous:
+    var
+      dptr = dptr
+      sptr = sptr
+    for i in 0..<shape[0]:
+      let
+        xdptr = ADJUST_PTR(dptr, dsuboffsets, 0)
+        xsptr = ADJUST_PTR(sptr, ssuboffsets, 0)
+      copy_rec(shape+1, ndim-1, itemsize,
+                xdptr, dstrides+1, if dsuboffsets.isNil: dsuboffsets+1 else: NULL,
+                xsptr, sstrides+1, if ssuboffsets.isNil: ssuboffsets+1 else: NULL,
+                mem)
+      dptr += dstrides[0]
+      sptr += sstrides[0]
 
 using
   dest: var Py_buffer
@@ -117,11 +137,13 @@ proc copy_buffer*(dest, src): PyBaseErrorObject =
   retIfExc equiv_structure(dest, src)
 
   var mem: pointer
-  if not last_dim_is_contiguous(dest, src):
-    mem = alloc(dest.shape[dest.ndim-1] * dest.itemsize)
+  when not OnlyContiguous:
+    if not last_dim_is_contiguous(dest, src):
+      mem = alloc(dest.shape[dest.ndim-1] * dest.itemsize)
 
   copy_rec(dest.shape, dest.ndim, dest.itemsize,
             dest.buf, dest.strides, dest.suboffsets,
             src.buf, src.strides, src.suboffsets,
             mem)
-  dealloc mem
+  when not OnlyContiguous:
+    dealloc mem

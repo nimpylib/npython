@@ -26,7 +26,8 @@ proc mbuf_dealloc(self: PyManagedBufferObject) {.cdecl.} =
   assert self.exports == 0, $self.exports
   mbuf_release self
   if self.flags & PyManagedBufferFlags.FREE_FORMAT:
-    dealloc self.master.format
+    when not defined(js):
+      dealloc self.master.format
 
 proc mbuf_dealloc(self: var PyObjectObj) {.cdecl.} =
   mbuf_dealloc getPyHeapRef[PyManagedBufferObject](self)

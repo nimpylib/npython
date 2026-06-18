@@ -9,22 +9,27 @@ import ../[
   stringobject,
   pybuffer,
 ]
+when defined(js):
+  import ../charsview/memcpys
+import ../charsview/decl
 import ../abstract/pybuffer
 import ./[
   utils,
 ]
 export PyBufferOrder
 
-proc buffer_to_contiguous(mem: pointer; src: Py_buffer, order: PyBufferOrder): PyBaseErrorObject =
+using sptr: CharsView
+genCharsViewDecl Ptr
+proc buffer_to_contiguous(buf: Ptr; src: Py_buffer, order: PyBufferOrder): PyBaseErrorObject =
   ##[Copy `src` to a contiguous representation.
   Assumptions: src has `PyBUF.FULL` information, src.ndim >= 1,
-   len(mem) == src.len.]##
+   len(buf) == src.len.]##
   assert src.ndim >= 1
   assert src.shape.isNil.not
   assert src.strides.isNil.not
   
   var dest = src
-  dest.buf = cast[typeof dest.buf](mem)
+  dest.buf = buf
 
   var strides = initRtArray[int](src.ndim)
   dest.strides = newView(strides)
@@ -39,7 +44,7 @@ proc buffer_to_contiguous(mem: pointer; src: Py_buffer, order: PyBufferOrder): P
 
   copy_buffer(dest, src)
 
-proc PyBuffer_ToContiguous*(buf: pointer, src: Py_buffer, len: int, order: PyBufferOrder): PyBaseErrorObject =
+proc PyBuffer_ToContiguous*(buf: Ptr; src: Py_buffer, len: int, order: PyBufferOrder): PyBaseErrorObject =
 
   if len != src.len:
     return newValueError newPyAscii("PyBuffer_ToContiguous: len != view->len");
@@ -68,6 +73,6 @@ proc PyBuffer_ToContiguous*(buf: pointer, src: Py_buffer, len: int, order: PyBuf
 
   buffer_to_contiguous(buf, view, order)
 
-proc PyBuffer_ToContiguous*(buf: pointer, src: Py_buffer, len: int, order: char): PyBaseErrorObject =
+proc PyBuffer_ToContiguous*(buf: Ptr; src: Py_buffer, len: int, order: char): PyBaseErrorObject =
   assert order == 'C' or order == 'F' or order == 'A'
   PyBuffer_ToContiguous(buf, src, len, cast[PyBufferOrder](ord(order)))

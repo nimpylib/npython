@@ -15,8 +15,7 @@ import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
 import ./tupleobjectImpl
 import ./stringobject/private/utils
 import ./stringlib/join
-when NPySupportRawMemory:
-  import ./abstract/pybuffer
+import ./abstract/pybuffer
 import pkg/pystrutils
 import ../Python/getargs/[va_and_kw, dispatch]
 import ../Utils/[sequtils2]
@@ -262,15 +261,14 @@ template implCommons(B, readonly, mutRead){.dirty.} =
       `newPy B`(self.items.replace(PyByteArrayObject(old).items, PyByteArrayObject(`new`).items, count))
     else:
       bufferNotImpl()
-  when NPySupportRawMemory:
-    `impl B Magic` buffer, mutRead:
-      let iobj = other.castTypeOrRetTE PyIntObject
-      let flags = iobj.toIntOrRetOF
-      var view: Py_buffer
-      retIfExc PyBuffer_FillInfo(view, self,
-        self.items.addr0, self.len,
-        readonly, PyBufferFlags flags)
-      newPyMemoryView view
+  `impl B Magic` buffer, mutRead:
+    let iobj = other.castTypeOrRetTE PyIntObject
+    let flags = iobj.toIntOrRetOF
+    var view: Py_buffer
+    retIfExc PyBuffer_FillInfo(view, self,
+      self.charsView, self.len,
+      readonly, PyBufferFlags flags)
+    newPyMemoryView view
 
 implCommons bytes,     true, []
 implCommons bytearray, false,[mutable: read]
@@ -320,16 +318,15 @@ template objAsBuffer(view, x) {.dirty.} =
   retIfExc PyObject_GetBuffer(x, view, PyBUF.FULL_RO)
   defer: retIfExc PyBuffer_Release view
 
-when NPySupportRawMemory:
-  proc newPyBytesFrom_Buffer*(x: PyObject): PyObject =
-    objAsBuffer view, x
-    var writer = initPyBytesWriter(view.len)
-    retIfExc PyBuffer_ToContiguous(writer.getData, view, view.len, PyBufferOrder.C)
-    writer.finish()
+proc newPyBytesFrom_Buffer*(x: PyObject): PyObject =
+  objAsBuffer view, x
+  var res = newPyBytes(view.len)
+  retIfExc PyBuffer_ToContiguous(res.charsView, view, view.len, PyBufferOrder.C)
+  return res
 
-  proc initFromBuffer(self: PyByteArrayObject, x: PyObject): PyBaseErrorObject =
-    objAsBuffer view, x
-    retIfExc PyBuffer_ToContiguous(self.charsView, view, view.len, PyBufferOrder.C)
+proc initFromBuffer(self: PyByteArrayObject, x: PyObject): PyBaseErrorObject =
+  objAsBuffer view, x
+  retIfExc PyBuffer_ToContiguous(self.charsView, view, view.len, PyBufferOrder.C)
 
 template fillFromIterable(writer: PyBytesWriter; x; forInLoop; errSubject: string) =
   forInLoop i, x:
@@ -355,8 +352,7 @@ genFromIter Iterator, PyObject, pyForIn, getLenHint
 
 template fillFromObject(x: PyObject){.dirty.} =
   mixin fromList, fromTuple, fromIterator, fromBuffer
-  when NPySupportRawMemory:
-    if x.ofPyBuffer(): fromBuffer x
+  if x.ofPyBuffer(): fromBuffer x
   if x.pyType == pyListObjectType: fromList x
   if x.pyType == pyTupleObjectType: fromTuple x
   if not x.ofPyStrObject:
