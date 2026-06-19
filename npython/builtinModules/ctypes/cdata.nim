@@ -6,7 +6,7 @@ import pkg/pytime_utils/time_t_decl
 import ../private/[utils]
 import ./common
 import ./dll/decl
-import ./cdata/ints
+import ./cdata/[ints, pointers, ]
 import ./utils
 
 impObjects [
@@ -18,6 +18,7 @@ impObjects [
   dictobject,
   exceptions,
   noneobject,
+  typeobject,
   pyobject_apis/attrsGeneric,
   pyobject_apis/strings
 ]
@@ -33,6 +34,8 @@ declarePyType SimpleCData(base(CData), typeName("_SimpleCData")): discard
 method value*(self: `PySimpleCDataObject`): PyObject{.base, raises: [].} = notImpl
 method setValue*(self: `PySimpleCDataObject`, value: PyObject): PyBaseErrorObject{.base, raises: [].} = notImpl
 
+implPointerCData()
+
 var ctypeClasses{.compileTime.}: seq[
   tuple[pyname, typeId: string, size: int]
 ]
@@ -40,6 +43,7 @@ macro forEachCTypeClass(action) =
   result = newStmtList quote do:
     `action`("_CData", pyCDataObjectType, 0)
     `action`("_SimpleCData", pySimpleCDataObjectType, 0)
+    `action`("_Pointer", pyPointerObjectType, sizeof(pointer))
     # alias
     `action`("c_voidp", pyCVoidPObjectType, sizeof(pointer))
   for (name, id, size) in ctypeClasses:
@@ -279,4 +283,3 @@ implSimpleCDataMagic setattr:
     retIfExc self.setValue arg2
     return pyNone
   PyObject_GenericSetAttr(self, arg1, arg2)
-

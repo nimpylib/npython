@@ -33,6 +33,7 @@ type
   CTypeInfo = object
     kind: CTypeKind
     ffiType: ptr Type
+    target: PyTypeObject
 
   FFIValue = object
     case kind: CTypeKind
@@ -137,6 +138,13 @@ proc ctypeInfo(tp: PyTypeObject): CTypeInfo =
   tab.withValue tp, value:
     return value
 
+  if tp.isPointerType:
+    return CTypeInfo(
+      kind: ckPointer,
+      ffiType: addr type_pointer,
+      target: tp.pointerTargetType,
+    )
+
   CTypeInfo(kind: ckVoid, ffiType: nil)
 
 proc ctypeInfo(tp: PyObject, allowVoidInC: bool): CTypeInfo =
@@ -228,6 +236,16 @@ proc prepareArg(arg: PyObject, info: CTypeInfo, res: var FFIValue): PyBaseErrorO
   of ckPointer:
     if arg.isPyNone:
       res.p = nil
+    elif arg.ofPyPointerObject:
+      res.keepalive = arg
+      res.p = PyPointerObject(arg).c_value
+    elif not info.target.isNil and arg.ofPyCDataObject:
+      let cdata = PyCDataObject(arg)
+      if not cdata.pyType.isType info.target:
+        return newTypeError newPyStr("expected " & info.target.name &
+          " instance instead of " & arg.typeName)
+      res.keepalive = arg
+      res.p = cdata.addressof
     elif arg.ofPyIntObject:
       var address: int
       retIfExc PyNumber_AsSomeInteger(arg, address)
@@ -287,7 +305,10 @@ proc resultToPy(info: CTypeInfo, resultValue: var FFIValue, restype: PyObject): 
   of ckDouble:
     newPyFloat(resultValue.f64)
   of ckPointer:
-    newPyIntFromPtr(resultValue.p)
+    if not restype.isNil and restype.ofPyTypeObject and PyTypeObject(restype).isPointerType:
+      newPyPointerFromAddress(PyTypeObject(restype), resultValue.p)
+    else:
+      newPyIntFromPtr(resultValue.p)
   of ckCString:
     newPyBytes(resultValue.s)
   of ckCWString:
@@ -316,7 +337,7 @@ implDynCall:
     if argInfo.ffiType.isNil:
       return unsupportedCType(argtype)
     ffiTypes[i] = argInfo.ffiType
-    retIfExc prepareArg(arg.stripCType, argInfo, argValues[i])
+    retIfExc prepareArg(arg, argInfo, argValues[i])
     argPointers[i] = argPtr(argValues[i])
 
   var cif: TCif

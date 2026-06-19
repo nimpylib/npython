@@ -15,6 +15,7 @@ impObjects [
 ]
 imp Python, sysmodule
 imp Python, getargs/tovals
+imp Python, getargs/nokw
 import ./common
 
 methodMacroTmpl(CtypesModule)
@@ -43,6 +44,22 @@ implCTypesModuleMethod sizeof(x):
   if result.isExceptionOf Attribute:
     return newTypeError newPyAscii"this type has no size"
 
+proc POINTERPyCTypesModuleObjectMethod*(selfNoCast: PyObject,
+    args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
+  PyArg_NoKw "POINTER"
+  checkArgNum 1, "POINTER"
+  let tp = args[0]
+  if not tp.ofPyTypeObject:
+    return newTypeError newPyStr("POINTER() expected a ctypes type, got " &
+      tp.typeName)
+  POINTER(PyTypeObject(tp))
+
+pyCtypesModuleObjectType.registerBltinMethod("POINTER",
+  (POINTERPyCTypesModuleObjectMethod, false))
+
+implCTypesModuleMethod pointer(obj: PyCDataObject):
+  newPyPointerTo(obj)
+
 #NOTE: like CPython, SIGSEGV if p == 0 (NULL)
 
 proc string_at*(p: pointer|(ptr char), size = -1): PyBytesObject =
@@ -62,4 +79,3 @@ proc wstring_at*(p: pointer|(ptr wchar_t), size = -1): PyStrObject =
 implCTypesModuleMethod wstring_at(p: int, size = -1):
   retIfExc audit("ctypes.wstring_at", p, size)
   wstring_at(cast[pointer](p), size)
-
