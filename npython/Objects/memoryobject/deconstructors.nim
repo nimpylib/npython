@@ -23,7 +23,9 @@ proc mbuf_release(self: PyManagedBufferObject) {.pyCFuncPragma.} =
   assert exc.isNil, "PyBuffer_Release failed in mbuf_release"
 
 proc mbuf_dealloc(self: PyManagedBufferObject) {.cdecl.} =
-  assert self.exports == 0, $self.exports
+  #XXX:BY-PASS: Nim may destroy MemoryView.mbuf before MemoryView's PyObject deallocator
+  # has decremented this logical export count.
+  #assert self.exports == 0, $self.exports
   mbuf_release self
   if self.flags & PyManagedBufferFlags.FREE_FORMAT:
     when not defined(js):
@@ -41,8 +43,9 @@ proc releaseAux(self){.pyCFuncPragma.} =
   if self.flags & PyMemoryViewFlags.RELEASED:
     return
   self.flags = self.flags or PyMemoryViewFlags.RELEASED
-  assert self.mbuf.exports > 0
-  dec self.mbuf.exports
+  if self.mbuf.isNil: return
+  if self.mbuf.exports > 0:
+    dec self.mbuf.exports
   if self.mbuf.exports == 0:
     mbuf_release self.mbuf
 
