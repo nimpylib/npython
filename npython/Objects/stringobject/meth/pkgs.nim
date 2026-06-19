@@ -19,12 +19,6 @@ import ../private/utils
 import ../../../Python/getargs/dispatch
 import pkg/nimpatch/[newUninit, castChar]
 
-proc toval(obj: PyObject, val: var PyStrObject): PyBaseErrorObject =
-  if obj.ofPyStrObject:
-    val = PyStrObject obj
-    return
-  errorIfNotString(obj, "argument must be str")
-
 proc capitalize*(self: PyStrObject): PyStrObject{.clinicGenMethod(str).} =
   if self.isAscii:
     newPyAscii strutils.capitalizeAscii(self.str.asciiStr)

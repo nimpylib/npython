@@ -58,7 +58,10 @@ proc do_mkvalue(arg: NimNode): NimNode =
         do_mklist(arg)
     of ntySet: do_mkset(arg)
     else:
-      error "Unsupported type "&ty.repr&" in mkvalue"
+      quote do:
+        var res: PyObject
+        retIfExc toPy(`arg`, res)
+        res
 
 template toPyObject(o: PyObject): PyObject = o
 func basePy(a: NimNode): NimNode =

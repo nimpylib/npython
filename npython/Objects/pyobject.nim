@@ -13,6 +13,7 @@ export tables
 import ../Utils/[utils, macroutils]
 import ../Include/cpython/critical_section
 import ../Include/descrobject
+import ../Python/getargs/dispatch/pysig2nim
 import pyobjectBase
 
 export macros except name
@@ -410,31 +411,12 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
       # valid item shall be pop-ed before
       error "only *args, **kwargs is allowed (and each no more than one)", child
     else:
-      let name = child[0]
-      var tp: NimNode
-      var defval: NimNode
-      var hasDefVal = false
-      case child.kind
-      of nnkExprColonExpr:
-        tp = child[1]
-      of nnkExprEqExpr:
-        #TODO: handle startPosOnly, startKwOnly
-        hasDefVal = true
-        defval = child[1]
-      of nnkIdentDefs:
-        # when used by getargs/dispatch (clinicGenMethod)
-        assert child.len == 3, "params notation like a, b: int is not allowed, please write as a: int, b: int"
-        tp = child[1]
-        if tp.kind == nnkEmpty: tp = default NimNode
-        if child[2].kind != nnkEmpty:
-          hasDefVal = true
-          defval = child[2]
-      else:
-        error "invalid arg type definition", child
+      let (name, tp, defval) = parseOneParam(child)
+      let hasDefVal = defval.kind != nnkEmpty
       if hasDefVal:
         posArgNum.dec
       var tpName: string
-      if not tp.isNil:
+      if tp.kind != nnkEmpty:
         tpName = tp.reduceAccQuoted.strVal
       if not hasDefVal and tpName == "PyObject":  # won't bother checking 
         addLetDecl(name, obj)
