@@ -6,7 +6,7 @@ import pkg/pytime_utils/time_t_decl
 import ../private/[utils]
 import ./common
 import ./dll/decl
-import ./cdata/[ints, pointers, ]
+import ./cdata/[ints, pointers, arrays, ]
 import ./utils
 
 impObjects [
@@ -35,6 +35,7 @@ method value*(self: `PySimpleCDataObject`): PyObject{.base, raises: [].} = notIm
 method setValue*(self: `PySimpleCDataObject`, value: PyObject): PyBaseErrorObject{.base, raises: [].} = notImpl
 
 implPointerCData()
+implArrayCData()
 
 var ctypeClasses{.compileTime.}: seq[
   tuple[pyname, typeId: string, size: int]
@@ -44,6 +45,7 @@ macro forEachCTypeClass(action) =
     `action`("_CData", pyCDataObjectType, 0)
     `action`("_SimpleCData", pySimpleCDataObjectType, 0)
     `action`("_Pointer", pyPointerObjectType, sizeof(pointer))
+    `action`("_Array", pyArrayObjectType, 0)
     # alias
     `action`("c_voidp", pyCVoidPObjectType, sizeof(pointer))
   for (name, id, size) in ctypeClasses:

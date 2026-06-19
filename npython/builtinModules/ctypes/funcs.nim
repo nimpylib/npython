@@ -39,7 +39,9 @@ implCTypesModuleMethod addressof(obj):
   addressof obj
 
 implCTypesModuleMethod sizeof(x):
-  let typ = x.pyType
+  let typ =
+    if x.ofPyTypeObject: PyTypeObject(x)
+    else: x.pyType
   result = PyObject_GetAttr(typ, ctypeSizeAttrName)
   if result.isExceptionOf Attribute:
     return newTypeError newPyAscii"this type has no size"
