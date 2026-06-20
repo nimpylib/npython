@@ -8,23 +8,26 @@ import ./[
 ]
 import ../../stringobject/strformat
 import ../../exceptions/extra_utils
-template PyNumber_AsSsize_tImpl(pyObj: PyObject, res: var int, handleTypeErr, handleValAndOverfMsg){.dirty.} =
+template PyNumber_AsIntImpl[I: SomeInteger](pyObj: PyObject, res: var I, handleTypeErr, handleValAndOverfMsg){.dirty.} =
+  bind fmt, formatValue
   let value = PyNumber_Index(pyObj)
   if not value.ofPyIntObject:
-    res = -1
+    res = cast[typeof(res)](-1)
     handleTypeErr PyTypeErrorObject value
   else:
     let ivalue = PyIntObject value
-    if not toInt(ivalue, res):
+    if not toSomeInteger(ivalue, res):
       handleValAndOverfMsg ivalue, (
         let tName{.inject.} = pyObj.pyType.name;
         newPyStr fmt"cannot fit '{tName:.200s}' into an index-sized integer")
 
-proc PyNumber_AsSsize_t*(pyObj: PyObject, res: var int): PyExceptionObject =
+proc PyNumber_AsSomeInteger*[I: SomeInteger](pyObj: PyObject, res: var I): PyExceptionObject =
   ## returns nil if no error; otherwise returns TypeError or OverflowError
   template handleTypeErr(e: PyTypeErrorObject) = return e
   template handleOverfMsg(_; msg: PyStrObject) = return newOverflowError msg
-  PyNumber_AsSsize_tImpl pyObj, res, handleTypeErr, handleOverfMsg
+  PyNumber_AsIntImpl pyObj, res, handleTypeErr, handleOverfMsg
+proc PyNumber_AsSsize_t*(pyObj: PyObject, res: var int): PyExceptionObject =
+  PyNumber_AsSomeInteger(pyObj, res)
 
 proc PyNumber_AsSsize_t*(pyObj: PyObject, excType: PyTypeObject; resExc: var PyBaseErrorObject): int =
   ## `excType` may be nil, in which case overflow clamps to low/high int
@@ -50,7 +53,7 @@ proc PyNumber_AsSsize_t*(pyObj: PyObject, excType: PyTypeObject; resExc: var PyB
     resExc = PyBaseErrorObject t
     resExc.thrown = true
     return -1
-  PyNumber_AsSsize_tImpl(pyObj, result, handleTypeErr, handleOverfMsg)
+  PyNumber_AsIntImpl(pyObj, result, handleTypeErr, handleOverfMsg)
   resExc = nil
 
 proc PyNumber_AsClampedSsize_t*(pyObj: PyObject, res: var int): PyTypeErrorObject =
@@ -64,4 +67,4 @@ proc PyNumber_AsClampedSsize_t*(pyObj: PyObject, res: var int): PyTypeErrorObjec
       if i.positive: high int
       else: low int
     return
-  PyNumber_AsSsize_tImpl(pyObj, res, handleTypeErr, handleExc)
+  PyNumber_AsIntImpl(pyObj, res, handleTypeErr, handleExc)

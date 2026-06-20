@@ -44,6 +44,12 @@ proc toUInt*(pyInt: PyIntObject, overflow: var IntSign): uint =
   ## like `toInt`<#toInt,PyIntObject,IntSign>`_ but for `uint`
   toSomeUnsignedInt[uint](pyInt, overflow)
 
+proc toSomeInteger*[I: SomeInteger](pyInt: PyIntObject, overflow: var IntSign): I =
+  when I is SomeSignedInt:
+    pyInt.toSomeSignedInt[:I](overflow)
+  else:
+    pyInt.toSomeUnsignedInt[:I](overflow)
+
 proc toInt*(pyInt: PyIntObject, res: var int): bool =
   ## returns false on overflow (`x not_in int.low..int.high`)
   pyInt.v.toInt(res)
@@ -51,6 +57,12 @@ proc toInt*(pyInt: PyIntObject, res: var int): bool =
 proc toUInt*(pyInt: PyIntObject, res: var uint): bool =
   ## like `toInt`<#toInt,PyIntObject,int>`_ but for `uint`
   pyInt.v.toUInt(res)
+
+proc toSomeInteger*[I: SomeInteger](pyInt: PyIntObject, res: var I): bool =
+  var ovf: IntSign
+  let i = pyInt.toSomeInteger[:I](ovf)
+  result = ovf == IntSign.Zero
+  if result: res = i
 
 proc PyInt_OverflowCType*(ctypeName: string): PyOverflowErrorObject =
   ## EXT.
