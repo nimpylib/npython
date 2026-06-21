@@ -12,7 +12,7 @@ imp Python, sysmodule/audit
 imp Python, getargs/tovals
 
 clinicGenOsSig system(command: string), []  # as `system` is also Nim's builtin module name
-clinicGenOsSig chdir(path: string)
+clinicGenOs chdir
 clinicGenOs getcwd
 clinicGenOs getcwdb
 

@@ -4,15 +4,15 @@ import ../[pyobjectBase,
   byteobjects,
   ]
 import ./meth
-import ../../Modules/posixmodule/utils
+import ../../builtinModules/os/funcs/fspathUtils/fspath
 
 proc PyUnicode_DecodeFSDefault*(s: string): PyStrObject =
   #TODO:decode
   newPyStr s
 
 proc PyUnicode_FSDecoder*(arg: PyObject, val: var PyStrObject): PyBaseErrorObject =
-  let path = PyOS_FSPath(arg)
-  retIfExc path
+  var path: PyObject
+  retIfExc fspath(arg, path)
   let output = if path.ofPyStrObject: PyStrObject path
   elif path.ofPyBytesObject:
     PyUnicode_DecodeFSDefault PyBytesObject(path).asString
