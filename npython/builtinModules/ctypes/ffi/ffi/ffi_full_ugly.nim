@@ -2,7 +2,7 @@
 include ./aheader
 import pkg/libffi
 import pkg/py_locale_utf8_encoding/wchar_t as wcharLib
-import ../../[cdata, utils, funcs]
+import ../../[cdata, funcs]
 impObjects [
   boolobjectImpl,
   listobject,
@@ -42,28 +42,6 @@ type
     p2pIsAlloced: bool
     keepalive: PyObject
 
-proc allocCWCharP(self: PyStrObject, res: var ptr wchar_t): PyOverflowErrorObject =
-  res = cast[ptr wchar_t](alloc self.len+1)
-  var p: int = cast[int](res)
-  template setPtrVal(p: int, v: wchar_t) =
-    (cast[ptr wchar_t](p))[] = v
-  template loop(asciiStr, cvt) {.dirty.} =
-    for i in self.str.asciiStr:
-      p.setPtrVal cvt i
-      p.inc
-
-  template wcharOrOF(r: Rune): wchar_t =
-    when sizeof(wchar_t) == sizeof(r): cast[wchar_t](r)
-    else:
-      static:assert sizeof(wchar_t) == 2
-      if r.ord <= high uint16: cast[wchar_t](r)
-      else:
-        return newOverflowError newPyAscii(
-          "str contains char of ord " & $r & " that cannot be fit in wchar_t: "
-        )
-  if self.isAscii: loop asciiStr, wchar_t
-  else: loop unicodeStr, wcharOrOF
-  p.setPtrVal wchar_t(0)
 
 defdestroy FFIValue:
   if self.p2pIsAlloced:
@@ -251,9 +229,7 @@ proc prepareArg(arg: PyObject, info: CTypeInfo, res: var FFIValue): PyBaseErrorO
       if arg.isPyNone:
         res.initFrom (ptr wchar_t)(nil)
       elif arg.ofPyStrObject:
-        var p: ptr wchar_t
-        retIfExc PyStrObject(arg).allocCWCharP p
-        res.initFrom p
+        res.initFrom PyStrObject(arg).toAllocedWideCString()
         res.p2pIsAlloced = true
         res.keepalive = arg
       else:

@@ -9,3 +9,4 @@ impObjects [
   exceptions,
   numobjects/intobject,
 ]
+impObjects stringobject/wchars

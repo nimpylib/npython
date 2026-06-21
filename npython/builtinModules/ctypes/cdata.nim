@@ -6,9 +6,9 @@ import pkg/pytime_utils/time_t_decl
 import ../private/[utils]
 import ./common
 import ./dll/decl
-import ./cdata/[ints, pointers, arrays, ]
-import ./utils
+import ./cdata/[ints, pointers, arrays]
 
+impObjects stringobject/wchars
 impObjects [
   pyobject,
   boolobjectImpl,
@@ -24,7 +24,6 @@ impObjects [
 ]
 imp Python, getargs/tovals
 
-const ucs2 = sizeof(wchar_t) == 2
 template notImpl = doAssert false, "notImpl"
 
 declarePyType CData(dict, typeName("_CData")): discard
@@ -128,13 +127,6 @@ template declarePyCType(id, T, PyT) {.dirty.} =
 
 declarePyCType c_void_p, int, int
 
-template toWchar(rune: Rune): wchar_t =
-  when ucs2:
-    if rune > high wchar_t:
-      return newOverflowError newPyAscii "str's character is a UCS4 " &
-        "which cannot fit into wchar_t (whose size is 2)"
-  cast[wchar_t](rune)
-
 # c_wchar
 template typerr_c_wcharAux(suf = "") {.dirty.} =
   return newTypeError newPyAscii "a unicode character expected, not " & suf
@@ -194,14 +186,7 @@ declarePyCTypeAux c_wchar_p:
 using self: PyCwcharPObject
 proc c_value*(self): ptr wchar_t = self.value.p
 template setValueImpl(self: PyCwcharPObject, tvalue: PyStrObject) =
-  template toval(x: PyStrObject, res: var ptr wchar_t): PyBaseErrorObject =
-    res = cast[ptr wchar_t](alloc x.len * sizeof(wchar_t))
-    for i, r in x.pairs:
-      res[i] = r.toWchar
-    PyBaseErrorObject nil
-  var p: ptr wchar_t
-  retIfExc toval(tvalue, p)
-  self.value.p = p
+  self.value.p = tvalue.toAllocedWideCString()
   self.value.alloced = true
 template valueFromAddr(self: PyCwcharPObject; v: int) =
   self.value.p = cast[ptr ptr wchar_t](v)[]

@@ -3,7 +3,8 @@
 import pkg/py_locale_utf8_encoding/wchar_t as wcharLib
 when defined(nimPreviewSlimSystem): import std/assertions
 import ../private/[utils]
-import ./[decl, cdata, utils]
+import ./[decl, cdata, ]
+impObjects stringobject/wchars/torunes
 impObjects [
   pyobject,
   bltcommon,
@@ -73,7 +74,7 @@ implCTypesModuleMethod string_at(p: int, size = -1):
   retIfExc audit("ctypes.string_at", p, size)
   string_at(cast[pointer](p), size)
 
-proc wstring_at*(p: pointer|(ptr wchar_t), size = -1): PyStrObject =
+proc wstring_at*(p: pointer|(ptr wchar_t), size = -1): PyObject =
   if size < 0:
     newPyStr cast[ptr wchar_t](p)
   else:
