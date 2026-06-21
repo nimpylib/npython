@@ -14,6 +14,7 @@ impObjects numobjects/intobject/ops_toint
 
 impFrom Objects, hash, nil
 imp Utils, [addr0, destroyPatch, utils]
+imp Python, getargs/tovals
 proc hash(obj: PyTypeObject): Hash{.raises: [].} = hash.rawHash obj
 
 type
@@ -27,7 +28,6 @@ type
     ckPointer,
     ckCString,
     ckCWString,
-const ckPointers = {ckPointer..ckCWString}
 
 type
   CTypeInfo = object
@@ -36,24 +36,10 @@ type
     target: PyTypeObject
 
   FFIValue = object
-    case kind: CTypeKind
-    of ckVoid: discard
-    of ckBool:
-      b: bool
-    of ckSigned:
-      s64: int64
-    of ckUnsigned:
-      u64: uint64
-    of ckFloat:
-      f32: cfloat
-    of ckDouble:
-      f64: cdouble
-    of ckPointer:
-      p: pointer
-    of ckCString:
-      s: cstring
-    of ckCWString:
-      ws: ptr wchar_t
+    kind: CTypeKind
+    p: pointer
+    pIsAlloced: bool
+    p2pIsAlloced: bool
     keepalive: PyObject
 
 proc allocCWCharP(self: PyStrObject, res: var ptr wchar_t): PyOverflowErrorObject =
@@ -80,7 +66,9 @@ proc allocCWCharP(self: PyStrObject, res: var ptr wchar_t): PyOverflowErrorObjec
   p.setPtrVal wchar_t(0)
 
 defdestroy FFIValue:
-  if self.kind == ckCWString: dealloc self.ws
+  if self.p2pIsAlloced:
+    dealloc (cast[ptr pointer](self.p))[]
+  if self.pIsAlloced: dealloc self.p
 
 template typeInfo(k: CTypeKind, ffiTypeObj: untyped): CTypeInfo =
   CTypeInfo(kind: k, ffiType: addr ffiTypeObj)
@@ -205,114 +193,94 @@ proc getArgType(argtypes: PyObject, idx: int): PyObject =
   else:
     PySequence_Fast_GET_ITEM(argtypes, idx)
 
-proc stripCType(arg: PyObject): PyObject{.inline.} =
-  if arg.ofPySimpleCDataObject:
-    PySimpleCDataObject(arg).value
-  else: arg
 
 proc prepareArg(arg: PyObject, info: CTypeInfo, res: var FFIValue): PyBaseErrorObject =
   res = FFIValue(kind: info.kind)
+  template prepForT[T](res: var FFIValue; _: typedesc[T]): ptr T =
+    res.pIsAlloced = true
+    res.p = alloc sizeof T
+    cast[ptr T](res.p)
+  template initFrom[T](res: var FFIValue; x: T) =
+    res.prepForT(T)[] = x
+  template ctypeOr(T; handlePyObj: untyped =
+      retIfExc toval(arg, cast[var T](res.prepForT(T)))
+    ) =
+    if arg.ofPySimpleCDataObject:
+      let raw = PySimpleCDataObject(arg)
+      #TODO:ctypes: check type/size
+      res.p = addressof(raw)
+    else:
+      handlePyObj
   case info.kind
   of ckVoid: unreachable
-  of ckBool:
-    let raw = stripCType(arg)
-    retIfExc PyObject_IsTrue(raw, res.b)
-  of ckSigned:
-    let raw = stripCType(arg)
-    retIfExc PyNumber_AsSomeInteger(raw, res.s64)
-  of ckUnsigned:
-    let raw = stripCType(arg)
-    retIfExc PyNumber_AsSomeInteger(raw, res.u64)
-  of ckFloat:
-    let raw = stripCType(arg)
-    var f: float32
-    retIfExc PyFloat_AsFloat(raw, f)
-    res.f32 = cfloat f
-  of ckDouble:
-    let raw = stripCType(arg)
-    var f: float
-    retIfExc PyFloat_AsDouble(raw, f)
-    res.f64 = cdouble f
+  of ckBool:    ctypeOr bool
+  of ckSigned:  ctypeOr int64
+  of ckUnsigned:ctypeOr uint64
+  of ckFloat:   ctypeOr float32
+  of ckDouble:  ctypeOr float
   of ckPointer:
     if arg.isPyNone:
-      res.p = nil
+      res.initFrom pointer(nil)
     elif arg.ofPyPointerObject:
       res.keepalive = arg
-      res.p = PyPointerObject(arg).c_value
+      res.initFrom PyPointerObject(arg).c_value
     elif not info.target.isNil and arg.ofPyCDataObject:
       let cdata = PyCDataObject(arg)
       if not cdata.pyType.isType info.target:
         return newTypeError newPyStr("expected " & info.target.name &
           " instance instead of " & arg.typeName)
       res.keepalive = arg
-      res.p = cdata.addressof
+      res.initFrom cdata.addressof
     elif arg.ofPyIntObject:
       var address: int
       retIfExc PyNumber_AsSomeInteger(arg, address)
-      res.p = cast[pointer](address)
+      res.initFrom cast[pointer](address)
     else:
       return newTypeError newPyAscii"pointer argument expected"
   of ckCString:
-    let raw = stripCType(arg)
-    if raw.isPyNone:
-      res.s = nil
-    elif raw.ofPyBytesObject:
-      res.keepalive = raw
-      res.s = PyBytesObject(raw).asCString
-    else:
-      return newTypeError newPyAscii"bytes argument expected"
+    ctypeOr cstring:
+      if arg.isPyNone:
+        res.initFrom cstring(nil)
+      elif arg.ofPyBytesObject:
+        res.keepalive = arg
+        res.initFrom PyBytesObject(arg).asCString  # char view, not copy
+      else:
+        return newTypeError newPyAscii"bytes argument expected"
   of ckCWString:
-    let raw = stripCType(arg)
-    if raw.isPyNone:
-      res.ws = nil
-    elif raw.ofPyStrObject:
-      retIfExc PyStrObject(raw).allocCWCharP res.ws
-      res.keepalive = raw
-    else:
-      return newTypeError newPyAscii"unicode string argument expected"
+    ctypeOr (ptr wchar_t):
+      if arg.isPyNone:
+        res.initFrom (ptr wchar_t)(nil)
+      elif arg.ofPyStrObject:
+        var p: ptr wchar_t
+        retIfExc PyStrObject(arg).allocCWCharP p
+        res.initFrom p
+        res.p2pIsAlloced = true
+        res.keepalive = arg
+      else:
+        return newTypeError newPyAscii"unicode string argument expected"
 
-proc argPtr(value: var FFIValue): pointer =
-  case value.kind
-  of ckVoid: nil
-  of ckBool:
-    addr value.b
-  of ckSigned:
-    addr value.s64
-  of ckUnsigned:
-    addr value.u64
-  of ckFloat:
-    addr value.f32
-  of ckDouble:
-    addr value.f64
-  of ckPointer:
-    addr value.p
-  of ckCString:
-    addr value.s
-  of ckCWString:
-    addr value.ws
+template argPtr(value: FFIValue): pointer = value.p
 
-proc resultToPy(info: CTypeInfo, resultValue: var FFIValue, restype: PyObject): PyObject{.raises: [].} =
+proc resultToPy(info: CTypeInfo, resultValue: FFIValue, restype: PyObject): PyObject{.raises: [].} =
+  template asT(T): untyped =
+    cast[ptr T](resultValue.p)[]
   case info.kind
   of ckVoid: pyNone
-  of ckBool:
-    newPyBool(resultValue.b)
-  of ckSigned:
-    newPyInt(resultValue.s64)
-  of ckUnsigned:
-    newPyInt(resultValue.u64)
-  of ckFloat:
-    newPyFloat(resultValue.f32)
-  of ckDouble:
-    newPyFloat(resultValue.f64)
+  of ckBool:    newPyBool(asT bool)
+  of ckSigned:   newPyInt(asT int64)
+  of ckUnsigned: newPyInt(asT uint64)
+  of ckFloat:  newPyFloat(asT float32)
+  of ckDouble: newPyFloat(asT float64)
   of ckPointer:
+    let p = asT pointer
     if not restype.isNil and restype.ofPyTypeObject and PyTypeObject(restype).isPointerType:
-      newPyPointerFromAddress(PyTypeObject(restype), resultValue.p)
+      newPyPointerFromAddress(PyTypeObject(restype), p)
     else:
-      newPyIntFromPtr(resultValue.p)
+      newPyIntFromPtr(p)
   of ckCString:
-    newPyBytes(resultValue.s)
+    newPyBytes(asT cstring)
   of ckCWString:
-    newPyStr(resultValue.ws)
+    newPyStr(asT (ptr wchar_t))
 
 implDynCall:
   let argtypes = argtypeItems(self, args.len)
@@ -346,6 +314,9 @@ implDynCall:
     return newRuntimeError newPyAscii"ffi_prep_cif failed"
 
   var resultValue = FFIValue(kind: retInfo.kind)
+  resultValue.p = alloc retInfo.ffiType.size
+  resultValue.pIsAlloced = true
+
   call(cif, cast[proc(){.cdecl.}](self.handle), argPtr(resultValue),
       argPointers.addr0)
   resultToPy(retInfo, resultValue, restype)
