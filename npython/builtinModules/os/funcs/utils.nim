@@ -32,10 +32,20 @@ proc osProcDefForClinic(prc: NimNode): NimNode =
   for i in 1..<result.params.len:
     result.params[i].normalizeOsParamForClinic
 
-macro clinicGenOs*(spec: typed, exceptions: untyped = [OSError]): untyped =
-  clinicGenStaticMethodOfKindImpl(ident"osModule", NPyMethodKind.Common,
-    exceptions, spec.getImpl.osProcDefForClinic)
+proc auditEventForOs(prc: NimNode): string =
+  var name = prc.name
+  if name.kind == nnkPostfix:
+    name = name[1]
+  "os." & name.strVal
 
-macro clinicGenOsSig*(spec: untyped, exceptions: untyped = [OSError]): untyped =
+macro clinicGenOs*(spec: typed, exceptions: untyped = [OSError],
+    auditArgs: untyped = nil): untyped =
+  let prc = spec.getImpl.osProcDefForClinic
   clinicGenStaticMethodOfKindImpl(ident"osModule", NPyMethodKind.Common,
-    exceptions, spec.getProcDefFromSpec.osProcDefForClinic)
+    exceptions, prc, auditArgs=auditArgs, auditEvent=prc.auditEventForOs)
+
+macro clinicGenOsSig*(spec: untyped, exceptions: untyped = [OSError],
+    auditArgs: untyped = nil): untyped =
+  let prc = spec.getProcDefFromSpec.osProcDefForClinic
+  clinicGenStaticMethodOfKindImpl(ident"osModule", NPyMethodKind.Common,
+    exceptions, prc, auditArgs=auditArgs, auditEvent=prc.auditEventForOs)
