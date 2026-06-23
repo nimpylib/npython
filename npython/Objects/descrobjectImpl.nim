@@ -68,13 +68,16 @@ implClassMethodDescrMagic call:
 
    This is just an excuse to say that this doesn't need to be optimized:
    we implement this simply by calling __get__ and then calling the result.]##
+  #[
+  #XXX:PY-DIFF: in NPython, cls is not passed impilicly
   let argc = len(args);
   if argc < 1:
     return newTypeError newPyStr(
       fmt"descriptor '{$?self}' of '{self.truncedTypeName}' " &
       "object needs an argument"
                 )
-  #let owner = args[0]
+  let owner = args[0]
+  ]#
   let bound = classmethod_get(self, nil, self.dType)
   retIfExc bound
   tpMagic(NimFunc, call)(bound, args#.toOpenArray(1, args.high)

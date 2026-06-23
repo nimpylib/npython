@@ -20,11 +20,12 @@ declarePyType PurePath():
   hasHash{.private.}: bool
 
 method getSep*(self: PyPurePathObject): char {.base, raises: [].} = unreachable  ## EXT.
-proc with_path*(self: PyPurePathObject, s: string): PyPurePathObject{.raises: [].} =
-  let pyObjType = self.pyType
+proc with_path*(pyObjType: PyTypeObject, s: string): PyPurePathObject{.raises: [].} =
   let res = PyPurePathObject pyObjType.tp_alloc(`pyObjType`, 0)
   res.s = s
   return res
+proc with_path*(self: PyPurePathObject, s: string): PyPurePathObject =
+  self.pyType.with_path s
 proc str*(self: PyPurePathObject): string = self.s
 
 method hashImpl(self: PyPurePathObject): Hash {.base, raises: [].} = hash self.str
