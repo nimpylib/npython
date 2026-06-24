@@ -83,7 +83,7 @@ genPredict isalpha
 #  genPredict isascii  # ref ./meth
 #genPredict isdigit
 genPredict isdecimal
-#genPredict isidentifier
+genPredict isidentifier
 genPredict islower
 #genPredict isnumeric
 #genPredict isprintable
@@ -114,6 +114,16 @@ template gen_removesuffix(removesuffix){.dirty.} =
 gen_removesuffix removesuffix
 gen_removesuffix removeprefix
 
+template genWithChar(startswith, idx) {.dirty.} =
+  proc startswith*(self: PyStrObject, prefix: char): bool =
+    if self.len > 0:
+      if self.isAscii:
+        self.str.asciiStr[idx] == prefix
+      else:
+        self.str.unicodeStr[idx] == Rune prefix
+    else: false
+genWithChar startswith, 0
+genWithChar endswith, self.len - 1
 template gen_startswith(startswith){.dirty.} =
   proc startswith*(self: PyStrObject, prefix: PyStrObject, start = 0, `end` = self.len): bool =
     doKindsWith2It(self.str, prefix.str):
@@ -156,6 +166,15 @@ template forAdd(iter, itExpr) =
   for it{.inject.} in iter:
     result.add itExpr
 
+
+template genSplit1(splitAscii, splitUnicode) {.dirty.} =
+  result = newPyList()
+  case self.str.ascii
+  of true:
+    forAdd splitAscii, newPyAscii it
+  of false:
+    forAdd splitUnicode, newPyStr it
+
 template gen_split(split){.dirty.} =
   proc split*(self: PyStrObject; sep: PyStrObject, maxsplit: int = -1): PyListObject{.raises: [ValueError].} =
     ## `_PyUnicode_Split`
@@ -168,15 +187,13 @@ template gen_split(split){.dirty.} =
       return
       forAdd it1.split(it2, maxsplit), newPyAscii it
 
-
   proc split*(self: PyStrObject; sep: PyNoneObject = pyNone, maxsplit: int = -1): PyListObject =
     ## `_PyUnicode_SplitWhitespace`
-    result = newPyList()
-    case self.str.ascii
-    of true:
-      forAdd self.str.asciiStr.split(maxsplit), newPyAscii it
-    of false:
-      forAdd self.str.unicodeStr.split(maxsplit), newPyStr it
+    genSplit1 self.str.asciiStr.split(maxsplit), self.str.unicodeStr.split(maxsplit)
+
+  proc split*(self: PyStrObject; sep: char, maxsplit: int = -1): PyListObject =
+    ## `_PyUnicode_Split`
+    genSplit1 self.str.asciiStr.split(sep, maxsplit), self.str.unicodeStr.split(Rune sep, maxsplit)
 
   proc split*(self: PyStrObject; sep: PyObject, maxsplit: int = -1): PyObject{.raises: [].} =
     if sep.isPyNone:
@@ -245,6 +262,19 @@ template gen_strip(strip){.dirty.} =
 gen_strip strip
 gen_strip lstrip
 gen_strip rstrip
+
+proc replace*(self: PyStrObject, old, `new`: char): PyStrObject =
+  if self.isAscii:
+    newPyAscii self.str.asciiStr.replace(old, `new`)
+  else:
+    newPyStr self.str.unicodeStr.replace(Rune old, Rune `new`)
+proc replace*(self: PyStrObject, old, `new`: char, count: int): PyStrObject =
+  if count == -1:
+    return self.replace(old, `new`)
+  if self.isAscii:
+    newPyAscii self.str.asciiStr.replace(old, `new`, count)
+  else:
+    newPyStr self.str.unicodeStr.replace(Rune old, Rune `new`, count)
 
 proc replace*(self, old, `new`: PyStrObject): PyStrObject =
   if self.isAscii and old.isAscii and `new`.isAscii:
