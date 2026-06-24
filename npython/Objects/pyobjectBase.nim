@@ -347,6 +347,9 @@ proc idStr*(obj: PyObject): string {. inline .} =
 
 converter toObjSeq*[Py: PyObject](s: seq[Py]): seq[PyObject]{.inline.} = cast[seq[PyObject]](s)  ## allow auto upcast
 
+template retPyROAttrErr* =
+  return newAttributeError newPyAscii"readonly attribute"
+
 # record builtin types defined. Make them ready for Python level usage in typeReady
 var bltinTypes*: seq[PyTypeObject]
 

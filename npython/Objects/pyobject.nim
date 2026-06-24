@@ -135,11 +135,9 @@ template genProperty*(T; pyname: string; nname; getter, setter){.dirty.} =
   `impl T Getter` nname: getter
   `impl T Setter` nname: setter
   `[]=`(`py T ObjectType`.getsetDescr, pyname, (tpGetter(T, nname), tpSetter(T, nname)))
-template roErr =
-  return newAttributeError newPyAscii"readonly attribute"
 template genProperty*(T, pyname, nname; getter){.dirty.} =
-  bind roErr
-  genProperty(T, pyname, nname, getter): roErr
+  bind retPyROAttrErr
+  genProperty(T, pyname, nname, getter): retPyROAttrErr
 
 # assert self type then cast
 macro castSelf*(ObjectType: untyped, code: untyped): untyped = 

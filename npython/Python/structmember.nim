@@ -53,12 +53,9 @@ genStoreAtP PyObject:
     storeAt(p, cast[pointer](v))
     #cast[ptr PyObject](p)[] = v
 
-template roErr =
-  return newAttributeError newPyAscii"readonly attribute"
-
 genStoreAtP cstring:
   ## assuming static, readonly
-  roErr
+  retPyROAttrErr
 genStoreAtP char:
   var
     s: string
@@ -134,7 +131,7 @@ template WARN(s) =
 proc PyMember_SetOne*(obj_addr: PyObject, l: PyMemberDef, v: PyObject): PyBaseErrorObject =
   l.noRelOff "PyMember_SetOne"
   if l.flags.readonly:
-    roErr
+    retPyROAttrErr
   when Js:
     let a = obj_addr
     let fieldName = l.name
