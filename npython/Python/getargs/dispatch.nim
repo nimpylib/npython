@@ -53,7 +53,8 @@ proc clinicGenAuxHelper(hasSelfParam, passSelfToOrigin: bool,
   for i in start..<params.len:
     let
       pDef = params[i]
-      pName = pDef[0].getNameOfParam
+      oldPName = pDef[0].getNameOfParam
+      pName = freshIdentLike oldPName
     assert pDef.len == 3, "#TODO:clinic current each param match one type (e.g. `a, b: int` shall be written as `a: int, b: int`)"
     callOriArgs.add pName
     if beginKwOnly:

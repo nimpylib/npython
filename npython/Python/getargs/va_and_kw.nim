@@ -9,6 +9,26 @@ import ../../Objects/[
   dictobject,
 ]
 
+proc freshIdentLike*(n: NimNode): NimNode =
+  ## unstable. internal.
+  ident:
+    if n.kind == nnkAccQuoted:
+      var res: string 
+      for i in n: res.add i.strVal
+      res
+    else: n.strVal
+
+proc freshParamName(n: NimNode): NimNode =
+  if n.kind == nnkPragmaExpr:
+    result = n.copyNimTree
+    result[0] = freshIdentLike(n[0])
+  else:
+    result = freshIdentLike(n)
+
+proc freshIdentDef(i: NimNode): NimNode =
+  result = i.copyNimTree
+  result[0] = freshParamName(i[0])
+
 proc PyArg_VaParseTupleAndKeywords*(funcname: NimNode#[string]#, args: NimNode#[openArray[PyObject]]#, keywords: NimNode#[PyDictObject]#,
     kwOnlyList: openArray[string]; vargs: NimNode#[varargs[typed]]#): NimNode =
   let kwOnlyIdx = vargs.len-kwOnlyList.len
@@ -35,19 +55,20 @@ proc PyArg_VaParseTupleAndKeywordsAs*(funcname: NimNode#[string]#, args: NimNode
   var vars = newNimNode nnkBracket
   for i in vargs:
     if i.kind == nnkExprEqExpr:
-      let name = i[0]
+      let name = freshParamName(i[0])
       result.add newVarStmt(name, i[1])
       vars.add name
     elif i.kind == nnkIdentDefs:
-      let varname = i[0]
-      result.add nnkVarSection.newTree i
+      let paramDef = freshIdentDef(i)
+      let varname = paramDef[0]
+      result.add nnkVarSection.newTree paramDef
       vars.add varname
     else:
       let (varname, typ) =
         if i.kind == nnkExprColonExpr:
-          (i[0], i[1])
+          (freshParamName(i[0]), i[1])
         else:
-          (i, bindSym"PyObject")
+          (freshParamName(i), bindSym"PyObject")
       result.add nnkVarSection.newTree newIdentDefs(varname, typ)
       vars.add varname
   result.add PyArg_VaParseTupleAndKeywords(funcname, args, keywords, kwOnlyList, vars)
