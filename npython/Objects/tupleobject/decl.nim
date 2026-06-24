@@ -16,10 +16,9 @@ proc newPyTuple*(): PyTupleObject{.inline.} =
   ## inner, used by  `__mul__` method
   result = newPyTupleSimple()
 
-proc newPyTuple*(items: seq[PyObject]): PyTupleObject = 
+proc newPyTuple*[T: PyObject](items: openArray[T]): PyTupleObject{.inline.} = 
   result = newPyTuple()
-  # shallow copy
-  result.items = items
+  result.items = @items
 
 template PyTuple_Collect*(body): PyTupleObject =
   ## EXT. use as std/sugar's collect.
@@ -27,13 +26,9 @@ template PyTuple_Collect*(body): PyTupleObject =
   bind collect, newPyTuple
   newPyTuple collect body
 
-proc newPyTuple*[T: PyObject](items: openArray[T]): PyTupleObject{.inline.} = 
-  newPyTuple @items
-
-template toPyObject(x: PyObject): PyObject = x
 proc collectVarargsToPyObjectArr(args: NimNode): NimNode =
   result = newNimNode(nnkBracket, args)
-  for i in args: result.add newCall(bindSym"toPyObject", i)
+  for i in args: result.add newCall(bindSym"PyObject", i)
 
 macro PyTuple_Pack*(args: varargs[typed]): PyTupleObject{.inline.} =
   ## mainly used for arguments with different types
