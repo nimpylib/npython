@@ -12,8 +12,14 @@ imp Python, getargs/dispatch
 
 import ./collections/namedtuple as namedtupleModule
 export namedtupleModule
+import pkg/handy_sugars/trans_imp
+impExpCwd collections, [
+  defdict,
+]
 
-genModule collections
+genModuleWithTypes collections, [
+  "defaultdict",
+]
 
 macro genFunc(name: typed, exceptions: untyped = []) =
   clinicGenStaticMethodOfKindImpl(ident"collectionsModule",
