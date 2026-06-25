@@ -20,7 +20,7 @@ proc newPyDict*[K: PyObject, V: PyObject](table: sink Table[K, V]
   result = newPyDictSimple()
   result.table = cast[Table[PyObject, PyObject]](table)
 
-proc newPyDict*() : PyDictObject = newPyDict initTable[PyObject, PyObject]()
+proc newPyDict*(defaultInitialSize = defaultInitialSize) : PyDictObject = newPyDict initTable[PyObject, PyObject](defaultInitialSize)
 
 proc newPyDict*[V: PyObject](table: openArray[(PyObject, V)]): PyDictObject{.
     raises: [DictError].} =
