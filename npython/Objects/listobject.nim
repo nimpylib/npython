@@ -15,7 +15,7 @@ import ./tupleobjectImpl
 import ./dictobject
 import ../Utils/[utils, compat]
 
-declarePyType List(reprLock, mutable, tpToken):
+declarePyType List(reprLock, mutable, tpToken, typeName("list")):
   items: seq[PyObject]
 
 

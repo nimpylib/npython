@@ -1,7 +1,7 @@
 import pyobject
 import ./numobjects/intobject/decl
 
-declarePyType Bool(tpToken, base(Int), singleton):
+declarePyType Bool(tpToken, typeName("bool"), base(Int), singleton):
   b: bool
 
 proc newPyBoolInner(b: bool): PyBoolObject = 

@@ -4,5 +4,5 @@ import ../pyobject
 # currently not ordered
 # nim ordered table has O(n) delete time
 # todo: implement an ordered dict 
-declarePyType Dict(tpToken, reprLock, mutable):
+declarePyType Dict(tpToken, typeName("dict"), reprLock, mutable):
   table: Table[PyObject, PyObject]

@@ -309,7 +309,7 @@ proc isExceptionType*(obj: PyObject): bool =
   objType.kind == PyTypeToken.BaseException
 
 
-declarePyType Traceback(mutable):
+declarePyType traceback(mutable):
   tb_next_may_nil: PyTracebackObject
   tb_frame{.member, readonly.}: PyObject #PyFrameObject
   tb_lasti{.member, readonly.}: int

@@ -6,7 +6,7 @@ import ./numobjects/intobject/[decl, ops, idxHelpers]
 import ../Utils/rangeLen
 import ./bltcommon
 
-declarePyType Slice(tpToken):
+declarePyType Slice(tpToken, typeName("slice")):
   start{.member,readonly.}: PyObject
   stop{.member,readonly.}: PyObject
   step{.member,readonly.}: PyObject

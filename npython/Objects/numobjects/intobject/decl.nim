@@ -13,7 +13,7 @@ export Digit, TwoDigits, SDigit, digitBits, truncate,
   IntSign, PyLong_SHIFT, PyLong_DECIMAL_SHIFT, PyLong_DECIMAL_BASE
 const digitPyLong_DECIMAL_BASE* = Digit PyLong_DECIMAL_BASE
 
-declarePyType Int(tpToken):
+declarePyType Int(tpToken, typeName("int")):
   #v: BigInt
   #v: int
   v: IntObject

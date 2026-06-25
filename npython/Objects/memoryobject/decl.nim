@@ -29,7 +29,7 @@ declarePyType ManagedBuffer():
   ndim: int
   flags: IntFlag[PyManagedBufferFlags]
 
-declarePyType MemoryView():
+declarePyType memoryview():
   mbuf: PyManagedBufferObject
   hash: Hash  # for read-only ones
   flags: IntFlag[PyMemoryViewFlags]

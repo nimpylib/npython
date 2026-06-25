@@ -2,7 +2,7 @@
 import pkg/nimpatch/floatdollar
 
 import ../../pyobject
-declarePyType Float(tpToken):
+declarePyType Float(tpToken, typeName("float")):
   v: float
 
 method `$`*(f: PyFloatObject): string{.raises: [].} = 

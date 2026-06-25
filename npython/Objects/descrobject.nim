@@ -157,7 +157,7 @@ proc newPyGetSetDescr*(getter: UnaryMethod, setter: BinaryMethod): PyObject =
 
 
 # property decorator
-declarePyType Property():
+declarePyType property():
   getter: PyObject
   # setter, deleter not implemented
 

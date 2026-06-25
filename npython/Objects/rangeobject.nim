@@ -6,7 +6,7 @@ import pyobject
 import baseBundle
 
 
-declarePyType Range():
+declarePyType range():
   start: PyIntObject
   ending: PyIntObject
   step: PyIntObject

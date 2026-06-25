@@ -205,7 +205,7 @@ proc hash*(self: UnicodeVariant): Hash {. inline, cdecl .} =
   self.setHash = true
 
 
-declarePyType Str(tpToken):
+declarePyType Str(tpToken, typeName("str")):
   str: UnicodeVariant
 
 template genCmp(op, body){.dirty.} =

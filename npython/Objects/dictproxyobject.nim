@@ -3,7 +3,7 @@ import baseBundle
 
 
 # read only dict used for `__dict__` of types
-declarePyType DictProxy():
+declarePyType dictproxy():
   dict: PyObject
 
 implDictProxyMagic repr:

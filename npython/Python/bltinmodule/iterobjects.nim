@@ -16,7 +16,7 @@ import ../getargs/[kwargs, tovals,]
 import ./utils
 
 # zip object *********
-declarePyType Zip():
+declarePyType zip():
   tuplesize: int
   ittuple: PyTupleObject  ## tuple of iterators
   result: PyTupleObject
@@ -114,7 +114,7 @@ implZipMagic iter: self
 
 
 # map object **********
-declarePyType Map():
+declarePyType map():
   iters: PyTupleObject
   fun: PyObject
   strict: bool
@@ -165,7 +165,7 @@ implMapMagic iternext: self.next()
 implMapMagic iter: self
 
 # filter object **********
-declarePyType Filter():
+declarePyType filter():
   fun: PyObject
   it: PyObject
 

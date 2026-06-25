@@ -7,7 +7,7 @@ import ../[
   pyobject,
 ]
 export pyobject
-declarePyType Tuple(reprLock, tpToken):
+declarePyType Tuple(reprLock, tpToken, typeName("tuple")):
   items: seq[PyObject]
   setHash: bool
   privateHash: Hash

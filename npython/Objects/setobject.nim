@@ -13,10 +13,10 @@ import ./tupleobjectImpl
 import ../Utils/[utils]
 import ./hash
 
-declarePyType Set(reprLock, mutable, tpToken):
+declarePyType Set(reprLock, mutable, tpToken, typeName("set")):
   items: HashSet[PyObject]
 
-declarePyType FrozenSet(reprLock, tpToken):
+declarePyType FrozenSet(reprLock, tpToken, typeName("frozenset")):
   items: HashSet[PyObject]
   setHash: bool
   privateHash: Hash

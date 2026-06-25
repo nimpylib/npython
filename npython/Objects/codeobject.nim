@@ -13,7 +13,7 @@ import ../Python/[opcode, symtable]
 type
   OpArg* = int
 
-declarePyType Code(tpToken):
+declarePyType Code(tpToken, typeName("code")):
     # for convenient and not performance critical accessing
     code: seq[(OpCode, OpArg)]
     lineNos: seq[int]

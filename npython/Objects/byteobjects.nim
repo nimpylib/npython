@@ -9,12 +9,12 @@ import ../Utils/[addr0, nexportc]
 import ./charsview/decl as charsview_decl
 export charsview_decl
 #XXX: Nim's string ops has bugs for NUL('\0') char, e.g. len('1\02') gives 2
-declarePyType Bytes(tpToken):
+declarePyType Bytes(tpToken, typeName("bytes")):
   items: seq[char]
   setHash{.private.}: bool
   privateHash{.private.}: Hash
 
-declarePyType ByteArray(reprLock, mutable):
+declarePyType bytearray(reprLock, mutable):
   items: seq[char]
 
 proc hash*(self: PyBytesObject): Hash =

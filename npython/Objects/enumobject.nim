@@ -25,7 +25,7 @@ import ../Include/internal/[
 ]
 import ./typeobject/apis/attrs
 
-declarePyType Enumerate(mutable):
+declarePyType enumerate(mutable):
   index: int
   sit: PyObject
   result: PyTupleObject
@@ -138,7 +138,7 @@ implEnumerateMagic iter: self
 
 # Reversed object ***********
 
-declarePyType Reversed(mutable):
+declarePyType reversed(mutable):
   index: int
   sequ: PyObject
 

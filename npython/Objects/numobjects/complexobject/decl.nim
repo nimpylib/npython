@@ -4,7 +4,7 @@ import ../../pyobject
 import ../floatobject/decl
 import std/complex
 import pkg/pycomplex
-declarePyType Complex(tpToken):
+declarePyType Complex(tpToken, typeName("complex")):
   v: PyComplex
 
 using self: PyComplexObject

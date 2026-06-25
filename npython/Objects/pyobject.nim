@@ -939,7 +939,7 @@ macro declarePyType*(prototype, fields: untyped): untyped =
     `pyObjType`.magicMethods.New = `newPy name Default`
 
   if typeName == "":
-    typeName = nameIdent.strVal.toLowerAscii
+    typeName = nameIdent.strVal
   result.add(getAst(initTypeTmpl(ident(baseTypeObjStr), pyObjType, fullNameIdent, nameIdent,
     typeName, 
     newLit(tpToken), 

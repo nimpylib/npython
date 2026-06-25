@@ -54,7 +54,7 @@ implFunctionMagic get:
 implBoundMethodMagic get:
   self
 
-declarePyType StaticMethod():
+declarePyType staticmethod():
   callable: PyObject
 
 implStaticMethodMagic get:
