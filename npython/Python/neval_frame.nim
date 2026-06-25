@@ -6,7 +6,7 @@ import ./[
 import ../Objects/[pyobject,
   funcobject,
   cellobject,
-  codeobject, frameobject,
+  codeobject, frameobject, dictobject,
   exceptions,
   stringobject,
   noneobject,
@@ -61,7 +61,8 @@ proc PyEval_GetGlobals*: PyObject =
 
 proc newPyFrame*(fun: PyFunctionObject, 
                  args: openArray[PyObject], 
-                 back: PyFrameObject): PyObject{.raises: [].}
+                 back: PyFrameObject,
+                 kwargs: PyDictObject = nil): PyObject{.raises: [].}
 
 proc newPyFrame*(fun: PyFunctionObject): PyFrameObject = 
   let obj = newPyFrame(fun, @[], nil)
@@ -72,7 +73,8 @@ proc newPyFrame*(fun: PyFunctionObject): PyFrameObject =
 
 proc newPyFrame*(fun: PyFunctionObject, 
                  args: openArray[PyObject], 
-                 back: PyFrameObject): PyObject{.raises: [].} =
+                 back: PyFrameObject,
+                 kwargs: PyDictObject = nil): PyObject{.raises: [].} =
   let code = fun.code
   # handle vararg: allow last arg to be vararg tuple when code.varArgName is present
   var provided = args.len
@@ -148,7 +150,12 @@ proc newPyFrame*(fun: PyFunctionObject,
           localIdx = j
           break
       if localIdx >= 0 and frame.fastLocals[localIdx].isNil:
-        if i < code.kwOnlyDefaults.len:
+        var kwValue: PyObject = nil
+        if not kwargs.isNil:
+          kwValue = kwargs.getOptionalItem(name)
+        if not kwValue.isNil:
+          frame.fastLocals[localIdx] = kwValue
+        elif i < code.kwOnlyDefaults.len:
           frame.fastLocals[localIdx] = code.kwOnlyDefaults[i]
         else:
           frame.fastLocals[localIdx] = pyNone

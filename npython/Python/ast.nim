@@ -1665,6 +1665,22 @@ proc astKeyword(parseNode: ParseNode): Asdlkeyword =
   res.value = astTest(parseNode.children[2])
   res
 
+proc astStarred(parseNode: ParseNode): AstStarred =
+  let res = newAstStarred()
+  assert parseNode.children.len == 2
+  assert parseNode.children[0].tokenNode.token == Token.Star
+  res.value = astTest(parseNode.children[1])
+  res.ctx = newAstLoad()
+  setNo(res, parseNode.children[0])
+  res
+
+proc astKeywordUnpack(parseNode: ParseNode): Asdlkeyword =
+  let res = newAstKeyword()
+  assert parseNode.children.len == 2
+  assert parseNode.children[0].tokenNode.token == Token.Doublestar
+  res.value = astTest(parseNode.children[1])
+  res
+
 template addArgTmpl(call: typed, parseNode: ParseNode; argsAttr) =
   #of AsdlexprTk.Keyword: call.keywords.add a
   case parseNode.children.len
@@ -1672,8 +1688,14 @@ template addArgTmpl(call: typed, parseNode: ParseNode; argsAttr) =
     let child = parseNode.children[0]
     call.argsAttr.add astTest(child)
   of 2:
-    let errArg = parseNode.children[0]
-    raiseSyntaxError("*args or **kws not implemented yet", errArg)
+    let starArg = parseNode.children[0]
+    case starArg.tokenNode.token
+    of Token.Star:
+      call.argsAttr.add astStarred parseNode
+    of Token.Doublestar:
+      call.keywords.add astKeywordUnpack parseNode
+    else:
+      unreachable
   of 3:
     call.keywords.add astKeyword(parseNode)
   else:

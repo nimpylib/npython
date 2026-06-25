@@ -17,6 +17,7 @@ import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
                    exceptionsImpl, stringobjectImpl, interpolationobject,
                    ]
 import ../Objects/abstract/[dunder, number, format]
+import ../Objects/abstract/sequence/list
 import ../Utils/utils
 import ./[
   neval_frame,
@@ -537,6 +538,19 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               let newTuple = newPyTuple(args)
               sPush newTuple
 
+            of OpCode.BuildTupleUnpackWithCall:
+              var pieces = newSeq[PyObject](opArg)
+              for i in countdown(opArg-1, 0):
+                pieces[i] = sPop()
+              var args: seq[PyObject]
+              for piece in pieces:
+                let fast = PySequence_Fast(piece, "argument after * must be an iterable")
+                if fast.isThrownException:
+                  handleException(fast)
+                for item in PySequence_FAST_ITEMS(fast):
+                  args.add item
+              sPush newPyTuple(args)
+
             of OpCode.BuildList:
               var args = newSeq[PyObject](opArg)
               for i in countdown(opArg-1, 0):
@@ -558,6 +572,27 @@ proc evalFrame*(f: PyFrameObject): PyObject =
 
             of OpCode.BuildMap:
               evalBuildMapTo(d)
+              sPush d
+
+            of OpCode.BuildMapUnpackWithCall:
+              var pieces = newSeq[PyObject](opArg)
+              for i in countdown(opArg-1, 0):
+                pieces[i] = sPop()
+              let d = newPyDict()
+              for piece in pieces:
+                if not piece.ofPyDictObject:
+                  let msg = "argument after ** must be a mapping"
+                  handleException(newTypeError(newPyAscii msg))
+                for key, value in PyDictObject(piece):
+                  if not key.ofPyStrObject:
+                    handleException(newTypeError(newPyAscii"keywords must be strings"))
+                  handleHashExc handleException:
+                    if d.hasKey(key):
+                      let msg = "got multiple values for keyword argument"
+                      handleException(newTypeError(newPyStr msg))
+                  let retObj = tpMagic(Dict, setitem)(d, key, value)
+                  if retObj.isThrownException:
+                    handleException(retObj)
               sPush d
 
             of OpCode.LoadAttr:
@@ -816,37 +851,26 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 handleException(retObj)
               sPush retObj
             of OpCode.CallFunction_EX:
-              # cpython/Python/bytecodes.c
-              var args = newseq[PyObject](opArg)
-              for i in 1..opArg:
-                args[^i] = sPop()
-              let funcObjNoCast = sPop()
-
-              let kw = PyDictObject sPop()
-
-              var retObj: PyObject
-              # runtime function, evaluate recursively
-              if funcObjNoCast.ofPyFunctionObject:
-                let msg = "call python non-builtin function with keyword is not implemented yet"
-                return newNotImplementedError(newPyAscii msg) # no need to handle
-
-                #[
-                let funcObj = PyFunctionObject(funcObjNoCast)
-                # may fail because of wrong number of args, etc.
-                let newF = newPyFrame(funcObj, args, f)
-                if newF.isThrownException:
-                  handleException(newF)
-                retObj = PyFrameObject(newF).evalFrame
-              # todo: should first dispatch Nim level function (same as CPython). 
-              # this is of low priority because profit is unknown
-                ]#
-              else:
-                let callFunc = funcObjNoCast.pyType.magicMethods.call
-                if callFunc.isNil:
-                  let msg = fmt"{funcObjNoCast.pyType.name} is not callable"
-                  retObj = newTypeError(newPyStr msg)
+              let kw =
+                if (opArg and 1) != 0:
+                  sPop()
                 else:
-                  retObj = callFunc(funcObjNoCast, args, kw)
+                  PyObject nil
+              let argsObj = sPop()
+              let funcObjNoCast = sPop()
+              let fast = PySequence_Fast(argsObj, "argument after * must be an iterable")
+              if fast.isThrownException:
+                handleException(fast)
+              var args: seq[PyObject]
+              for item in PySequence_FAST_ITEMS(fast):
+                args.add item
+              var retObj: PyObject
+              let callFunc = funcObjNoCast.pyType.magicMethods.call
+              if callFunc.isNil:
+                let msg = fmt"{funcObjNoCast.pyType.name} is not callable"
+                retObj = newTypeError(newPyStr msg)
+              else:
+                retObj = callFunc(funcObjNoCast, args, kw)
               if retObj.isThrownException:
                 handleException(retObj)
               sPush retObj

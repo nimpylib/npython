@@ -1028,24 +1028,72 @@ proc validate_keywords(c: Compiler, keywords: seq[Asdlkeyword]; baseAst: AstCall
       FormatPyObjectError!!raiseSyntaxError(
         &"keyword argument repeated: {name}", baseAst)
 
+proc hasStarredArgs(args: seq[AsdlExpr]): bool =
+  for arg in args:
+    if arg.kind == AsdlExprTk.Starred:
+      return true
+
+proc hasKeywordUnpack(keywords: seq[Asdlkeyword]): bool =
+  for kw in keywords:
+    if kw.arg.isNil:
+      return true
+
+proc compileCallPositionalTuple(c: Compiler, args: seq[AsdlExpr], lineNo: int) =
+  if not args.hasStarredArgs:
+    for arg in args:
+      c.compile(arg)
+    c.addOp(newArgInstr(OpCode.BuildTuple, args.len, lineNo))
+    return
+
+  for arg in args:
+    if arg.kind == AsdlExprTk.Starred:
+      c.compile(AstStarred(arg).value)
+    else:
+      c.compile(arg)
+      c.addOp(newArgInstr(OpCode.BuildTuple, 1, arg.lineNo.value))
+  c.addOp(newArgInstr(OpCode.BuildTupleUnpackWithCall, args.len, lineNo))
+
+proc compileCallKeywordDict(c: Compiler, keywords: seq[Asdlkeyword], baseAst: AstCall) =
+  let lineNo = baseAst.lineNo.value
+  template compile(c: Compiler; dictKey: PyStrObject) =
+    c.addLoadConst dictKey, lineNo
+  if not keywords.hasKeywordUnpack:
+    c.validate_keywords keywords, baseAst
+    c.compileDictFromIt keywords.len, it.arg.value, it.value, keywords, lineNo
+    return
+
+  var normalKeywords: seq[Asdlkeyword]
+  for kw in keywords:
+    if not kw.arg.isNil:
+      normalKeywords.add kw
+  c.validate_keywords normalKeywords, baseAst
+
+  var pieceCount = 0
+  if normalKeywords.len != 0:
+    c.compileDictFromIt normalKeywords.len, it.arg.value, it.value, normalKeywords, lineNo
+    inc pieceCount
+  for kw in keywords:
+    if kw.arg.isNil:
+      c.compile(kw.value)
+      inc pieceCount
+  c.addOp(newArgInstr(OpCode.BuildMapUnpackWithCall, pieceCount, lineNo))
+
 compileMethod Call:
-  let kwL = astNode.keywords.len
-  var op: OpCode
-  if kwL == 0:
-    op = Opcode.CallFunction
-  else:
-    let lineNo = astNode.lineNo.value
-    template compile(c: Compiler; dictKey: PyStrObject) =
-      c.addLoadConst dictKey, lineNo
-    # firstly push kw as a dict
-    c.validate_keywords astNode.keywords, astNode
-    c.compileDictFromIt kwL, it.arg.value, it.value, astNode.keywords, lineNo
-    op = OpCode.CallFunction_EX
+  let lineNo = astNode.lineNo.value
+  if astNode.keywords.len == 0 and not astNode.args.hasStarredArgs:
+    c.compile(astNode.fun)
+    for arg in astNode.args:
+      c.compile(arg)
+    c.addOp(newArgInstr(OpCode.CallFunction, astNode.args.len, lineNo))
+    return
 
   c.compile(astNode.fun)
-  for arg in astNode.args:
-    c.compile(arg)
-  c.addOp(newArgInstr(op, astNode.args.len, astNode.lineNo.value))
+  c.compileCallPositionalTuple(astNode.args, lineNo)
+  var flags = 0
+  if astNode.keywords.len != 0:
+    c.compileCallKeywordDict(astNode.keywords, astNode)
+    flags = 1
+  c.addOp(newArgInstr(OpCode.CallFunction_EX, flags, lineNo))
 
 
 compileMethod JoinedStr:

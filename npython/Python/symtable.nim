@@ -454,6 +454,9 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
             discard
           else:
             unreachable
+        of AsdlexprTk.Starred:
+          let e = AstStarred(astNode)
+          visit e.value
 
         of AsdlExprTk.IfExp:
           let ifExpr = AstIfExp(astNode)

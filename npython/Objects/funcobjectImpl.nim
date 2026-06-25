@@ -1,5 +1,7 @@
+import std/strformat
+
 import pyobject
-import ./[exceptions, tupleobject, codeobject]
+import ./[exceptions, tupleobject, dictobject, codeobject, stringobject, hash]
 import frameobject
 import funcobject
 
@@ -11,65 +13,74 @@ methodMacroTmpl(Function)
 methodMacroTmpl(BoundMethod)
 
 proc callFunction(funcObj: PyFunctionObject, args: openArray[PyObject], kwargs: PyObject, prevF: PyFrameObject = nil): PyObject =
-  #TODO
-  assert kwargs.isNil, "Calling python non-builtin function with keyword is not implemented yey"
-
-  # todo: eliminate the nil
-  # merge defaults for missing positional args before creating frame
   let code = funcObj.code
-  var newF: PyObject
-
-  # if function has vararg, pack extra positional args into tuple and pass fewer positional args
-  # detect vararg either from code.varArgName or by presence of additional localVar slot
-  
-  block initNewFrame:
-    let provided = args.len          
-    let argCount = code.argCount
-
-    var allowVarArg = not code.varArgName.isNil
-    #if not allowVarArg and code.localVars.len > fixedCount: allowVarArg = true
-    let argsNotEnough = provided < argCount
-    if not allowVarArg and not argsNotEnough:
-      # enough args provided, no vararg
-      newF = newPyFrame(funcObj, args, prevF)
-      break initNewFrame
-    var finalArgsSeq = newSeq[PyObject](argCount)
-    var varTuple: PyTupleObject
-
-    var nArgsToFinal: int
-    if argsNotEnough:
-      # missing required positional before vararg: handle defaults if any
-      let need = argCount - provided
-      if funcObj.defaults.isNil or funcObj.defaults.len < need:
-        newF = newPyFrame(funcObj, args, prevF)
-        break initNewFrame
-      let dlen = funcObj.defaults.len
-      for i in 0..<need:
-        finalArgsSeq[provided + i] = funcObj.defaults[dlen - need + i]
-      # build vararg tuple from remaining args (none)
-      if allowVarArg:
-        varTuple = newPyTuple()
-      nArgsToFinal = provided
+  let argCount = code.argCount
+  let provided = args.len
+  let allowVarArg = not code.varArgName.isNil
+  var finalArgsSeq = newSeq[PyObject](argCount)
+  let kwDict =
+    if kwargs.isNil:
+      PyDictObject nil
+    elif kwargs.ofPyDictObject:
+      PyDictObject kwargs
     else:
-      # enough args provided
-      if not allowVarArg:
-        newF = newPyFrame(funcObj, args, prevF)
-        break initNewFrame
-      # pack extra args into vararg tuple
-      var varArgs = newSeq[PyObject](provided - argCount)
-      for i in 0..<varArgs.len:
-        varArgs[i] = args[argCount + i]
-      varTuple = newPyTuple(varArgs)
-      nArgsToFinal = argCount
+      return newTypeError newPyAscii"keyword arguments must be a dict"
 
-    for i in 0..<nArgsToFinal: finalArgsSeq[i] = args[i]
-    if allowVarArg:
-      # build final args seq of fixedCount + 1 (vararg)
-      finalArgsSeq.add varTuple
-    newF = newPyFrame(funcObj, finalArgsSeq, prevF)
+  if not kwDict.isNil:
+    var hasOnlyStringKeys: bool
+    handleHashExc:
+      hasOnlyStringKeys = kwDict.hasOnlyStringKeys
+    if not hasOnlyStringKeys:
+      return newTypeError newPyAscii"keywords must be strings"
 
+  for i in 0..<min(provided, argCount):
+    finalArgsSeq[i] = args[i]
+
+  if not kwDict.isNil:
+    handleHashExc:
+      for key, value in kwDict:
+        let keyStr = PyStrObject key
+        var matched = false
+        for i, argName in code.argNames:
+          if argName == key:
+            if not finalArgsSeq[i].isNil:
+              return newTypeError newPyStr(
+                fmt"{funcObj.name.str}() got multiple values for argument '{keyStr.str}'")
+            finalArgsSeq[i] = value
+            matched = true
+            break
+        if matched:
+          continue
+        for kwName in code.kwOnlyNames:
+          if kwName == key:
+            matched = true
+            break
+        if not matched:
+          return newTypeError newPyStr(
+            fmt"{funcObj.name.str}() got an unexpected keyword argument '{keyStr.str}'")
+
+  if provided > argCount:
+    if not allowVarArg:
+      return newTypeError newPyStr(
+        fmt"{funcObj.name.str}() takes {argCount} positional arguments but {provided} were given")
+    var varArgs = newSeq[PyObject](provided - argCount)
+    for i in 0..<varArgs.len:
+      varArgs[i] = args[argCount + i]
+    finalArgsSeq.add newPyTuple(varArgs)
+  elif allowVarArg:
+    finalArgsSeq.add newPyTuple()
+
+  for i in 0..<argCount:
+    if finalArgsSeq[i].isNil:
+      let missing = argCount - i
+      if funcObj.defaults.isNil or funcObj.defaults.len < missing:
+        return newTypeError newPyStr(
+          fmt"{funcObj.name.str}() missing required positional argument '{code.argNames[i].str}'")
+      finalArgsSeq[i] = funcObj.defaults[funcObj.defaults.len - missing]
+
+  let newF = newPyFrame(funcObj, finalArgsSeq, prevF, kwDict)
   retIfExc newF
-  return PyFrameObject(newF).evalFrame
+  PyFrameObject(newF).evalFrame
 
 implFunctionMagic call:
   callFunction(self, args, kwargs)
