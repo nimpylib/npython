@@ -1,9 +1,9 @@
-import algorithm
-
-
-import macros
-
-import tables
+import std/[
+  algorithm,
+  macros,
+  tables,
+  strutils,
+]
 import ./coreconfig
 import ast
 import asdl
@@ -12,7 +12,7 @@ import opcode
 import ../Parser/parser
 import ../Objects/[
   pyobject, stringobjectImpl, exceptionsImpl,
-  setobject,
+  setobject, listobject,
   codeobject, noneobject]
 import ../Objects/stringobject/strformat
 import ../Utils/utils
@@ -799,8 +799,17 @@ compileMethod Import:
   for n in astNode.names:
     let module = AstAlias(n)
     let name = module.name
-    c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(name.value), lineNo))
-    c.addStoreOp(module.asname, lineNo)
+    if module.asname == module.name:
+      let topName = name.value.extractTopName
+      if topName != name.value:
+        # a.b style
+        c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(name.value), lineNo))
+        c.addOp(OpCode.PopTop, lineNo)
+      c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(topName), lineNo))
+      c.addStoreOp(topName, lineNo)
+    else:
+      c.addOp(newArgInstr(OpCode.ImportName, c.tste.nameId(name.value), lineNo))
+      c.addStoreOp(module.asname.value, lineNo)
 
 compileMethod ImportFrom:
   let lineNo = astNode.lineNo.value

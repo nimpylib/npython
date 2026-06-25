@@ -690,7 +690,7 @@ ast raise_stmt, [AstRaise]:
 template identAt(i: int): untyped =
   newIdentifier(parseNode.children[i].tokenNode.content)
 template identAtOr(i: int; def: AsdlIdentifier): AsdlIdentifier =
-  if parseNode.children.len < i: def
+  if parseNode.children.len <= i: def
   else: identAt i
 
 template initAsName =
@@ -722,9 +722,13 @@ ast dotted_as_names, [seq[AstAlias]]:
 
 # dotted_name  NAME ('.' NAME)*
 ast dotted_name, [AsdlIdentifier]:
-  if parseNode.children.len != 1:
-    raiseSyntaxError("dotted import name not supported", parseNode.children[1])
-  identAt(0)  #TODO:dotted_name
+  var name = parseNode.children[0].tokenNode.content
+  for i in countup(2, parseNode.children.high, 2):
+    let child = parseNode.children[i]
+    assert child.tokenNode.token == Token.Name
+    name.add '.'
+    name.add child.tokenNode.content
+  newIdentifier(name)
 
 
 # import_from ('from' (('.' | '...')* dotted_name | ('.' | '...')+)

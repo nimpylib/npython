@@ -7,7 +7,10 @@ import ast
 import asdl
 import ../Objects/noneobject
 import ../Objects/pyobjectBase
-import ../Objects/stringobject
+import ../Objects/[
+  stringobjectImpl,
+  listobject,
+]
 import ../Utils/utils
 
 type
@@ -75,6 +78,13 @@ proc newSymTableEntry(parent: SymTableEntry): SymTableEntry =
   result.localVars = initTable[PyStrObject, int]()
   result.cellVars = initTable[PyStrObject, int]()
   result.freeVars = initTable[PyStrObject, int]()
+
+proc extractTopName*(s: PyStrObject): PyStrObject =
+  ## internal. unstable.
+  ##  do the same as `s.split('.', 1)[0]` but faster
+  let idx = s.find('.')
+  if idx < 0: return s
+  s.substringUnsafe(0, idx)
 
 {. push inline, cdecl .}
 
@@ -267,6 +277,8 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           for it in itor: itExpr
       template doSeqItFromNames(T; itExpr){.dirty.} =
         doSeqIt `Ast T`(astNode).names, itExpr
+      proc topNameOrAsname(a: AstAlias): PyStrObject =
+        a.asname.value.extractTopName
       if astNode of AsdlStmt:
         case AsdlStmt(astNode).kind
 
@@ -351,10 +363,10 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 
         of AsdlStmtTk.Import:
           doSeqItFromNames Import:
-            ste.addDeclaration(AstAlias(it).asname)
+            ste.addDeclaration(AstAlias(it).topNameOrAsname)
         of AsdlStmtTk.ImportFrom:
           doSeqItFromNames ImportFrom:
-            ste.addDeclaration(AstAlias(it).asname)
+            ste.addDeclaration(AstAlias(it).topNameOrAsname)
         of AsdlStmtTk.Global:
           doSeqItFromNames Global:
             let name = it.value
