@@ -3,7 +3,7 @@ import std/strformat
 import ../[
   pyobject, exceptions,
 ]
-import ../numobjects/intobject/[decl, ops]
+import ../numobjects/intobject/[decl, ]
 import ../typeobject/wraps
 import ./helpers
 

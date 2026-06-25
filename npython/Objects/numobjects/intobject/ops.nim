@@ -1,4 +1,5 @@
 import std/[tables, macros, strutils, math]
+import std/strformat
 
 import ../numobjects_comm
 export intobject_decl except Digit, TwoDigits, SDigit, digitBits, truncate,
@@ -12,7 +13,6 @@ import pkg/intobject/ops
 import ./private/dispatch
 
 export bit_length, signbit, ops_basic_arith, ops_toint
-import ../../stringobject/strformat
 import ../../tupleobject
 import ../floatobject/pow
 import ../../../Include/internal/pycore_int

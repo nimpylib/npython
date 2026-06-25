@@ -9,20 +9,41 @@ import ./[
   setobject,
   tupleobject,
   ]
+import ./dictobject/helpers
+import ./typeobject/apis/attrs
 import ./abstract/[iter, dunder,]
 import ./abstract/sequence/list
 import ./dictobject
 export dictobject
 from ../Utils/utils import DictError, `!!`
 import ../Python/getargs/vargs
-import ../Include/cpython/critical_section
+import ../Include/[
+  cpython/critical_section,
+  internal/pycore_global_strings,
+]
 
 # redeclare this for these are "private" macros
 
 methodMacroTmpl(Dict)
 
 
-
+implDictMagic getitem, [mutable: read]:
+  var
+    res: PyObject
+    exc: PyBaseErrorObject
+  let ret = self.getItemRef(other, res, exc)
+  case ret
+  of Error: return exc
+  of Get: return res
+  of Missing:
+    let key = other
+    if not self.ofExactPyDictObject:
+      # Look up __missing__ method if we're a subclass.
+      let missing = PyObject_LookupSpecial(self, pyDUId(missing))
+      if not missing.isNil:
+        retIfExc missing
+        return call(missing, key)
+    return keyError key
 
 proc updateImpl*(self: PyDictObject, E: PyDictObject){.raises: [].} =
   DictError!!self.update(E)

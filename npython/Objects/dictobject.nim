@@ -92,7 +92,8 @@ template handleBadHash(res; body){.dirty.} =
   handleHashExc setRes:
     body
 
-implDictMagic getitem, [mutable: read]: self.getitem other
+# getitem defined at dictobjectImpl, as it need to handle __missing__
+#implDictMagic getitem, [mutable: read]: self.getitem other
 
 template setItemImpl(self, arg1, arg2) =
   result.handleBadHash:
