@@ -378,7 +378,7 @@ macro checkArgTypes*(nameAndArg, code: untyped): untyped =
       let remainingArgNode = varargId
       let nowNum = argTypes.len
       body.add(quote do:
-        let `remainingArgNode` = @args[`nowNum`..^1]
+        let `remainingArgNode` = if args.len > 0: @args[`nowNum`..^1] else: @[]
       )
 
   template addLetDecl(name, value) =
