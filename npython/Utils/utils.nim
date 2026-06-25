@@ -24,11 +24,12 @@ proc newSyntaxError(msg, fileName: string, lineNo, colNo: int): SyntaxError =
   new result
   result.msg = msg
   result.fileName = fileName
+  assert lineNo > 0, "line no starting from 1"
   result.lineNo = lineNo
   result.colNo = colNo
 
 
-template raiseSyntaxError*(msg: string, fileName:string, lineNo=0, colNo=0) = 
+template raiseSyntaxError*(msg: string, fileName:string, lineNo: int, colNo=0) = 
   raise newSyntaxError(msg, fileName, lineNo, colNo)
 
 const ShouldnotHere = "Shouldn't be here"

@@ -395,7 +395,7 @@ proc getSource*(filename: PyStrObject, lineNo: int, source_obj: var (PyStrObject
     source = "<no source line available (file not found)>"
   ]#
   of GSR_LineNoNotSet, GSR_LineNoOutOfRange:
-    return newIndexError newPyAscii"line number out of range"
+    return newIndexError newPyAscii fmt"line number {lineNo} out of range {source}"
   of GSR_NoSuchFile:
     return newIOError newPyAscii "no such file"
   source_obj = newPyStr source

@@ -1672,8 +1672,8 @@ template addArgTmpl(call: typed, parseNode: ParseNode; argsAttr) =
     let child = parseNode.children[0]
     call.argsAttr.add astTest(child)
   of 2:
-    raiseSyntaxError("*args or **kws not implemented yet", 
-      parseNode.children[1])
+    let errArg = parseNode.children[0]
+    raiseSyntaxError("*args or **kws not implemented yet", errArg)
   of 3:
     call.keywords.add astKeyword(parseNode)
   else:
