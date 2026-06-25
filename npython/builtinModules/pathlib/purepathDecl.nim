@@ -3,7 +3,7 @@ import std/hashes
 export Hash
 
 import ../private/utils
-import ../os/funcs/fspathUtils/fspath
+import ../private/fspathUtils/fspath
 export fspath
 
 impObjects [

@@ -4,7 +4,7 @@ import ../[pyobjectBase,
   byteobjects,
   ]
 import ./meth
-import ../../builtinModules/os/funcs/fspathUtils/fspath
+import ../../builtinModules/private/fspathUtils/fspath
 
 proc PyUnicode_DecodeFSDefault*(s: string): PyStrObject =
   #TODO:decode

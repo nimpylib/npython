@@ -29,9 +29,10 @@ macro initTypes*(modu: typed; types: static openArray[string]) =
     result.add quote do:
       `modu`.`p` = `typ`
 
-template genInit*(module; types: static openArray[string]) =
+template genInit*(module; types: static openArray[string];
+    moduleName: untyped = astToStr(module)) =
   bind initTypes
-  const `module ModuleName`* = astToStr(module)
+  const `module ModuleName`* = moduleName
 
   proc `PyInit module`*: PyObject =
     result = PyModule_CreateInitialized(`module`)
@@ -39,10 +40,13 @@ template genInit*(module; types: static openArray[string]) =
     let modu = `Py module ModuleObject` result
     modu.initTypes types
 
-template genModuleWithTypes*(module; types: static openArray[string]) =
+template genModuleWithTypes*(module; types: static openArray[string];
+    moduleName: untyped = astToStr(module)) =
   genModuleType module, types
-  genInit module, types
+  genInit module, types, moduleName
 
-template genModule*(module) = genModuleWithTypes module, []
+template genModule*(module;
+    moduleName: untyped = astToStr(module)) =
+  genModuleWithTypes module, [], moduleName
 
 

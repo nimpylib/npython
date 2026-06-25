@@ -1,5 +1,5 @@
 
-import ../trans_pyimp
+import ../utils
 
 impObjects [
   pyobject,
