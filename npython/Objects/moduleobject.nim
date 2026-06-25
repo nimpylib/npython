@@ -69,7 +69,7 @@ template newPyModuleImpl*(T: typedesc[PyModuleObject]; typ: PyTypeObject; nam: P
     when tp_alloc_may_exc:
       static:assert result is_not PyModuleObject,
         "tp_alloc_may_exc is true but we cannot return exception for type " &
-          $typeof(result)
+          system.`$` typeof(result)
       retIfExc resObj
     let res = T resObj
     res.pyType = typ

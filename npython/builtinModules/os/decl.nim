@@ -8,3 +8,4 @@ impObjects [
 
 declarePyType OsModule(base(Module)):
   dotname{.member"name", readonly.}: PyStrObject  # name exists in module (md_name in CPython)
+  path{.member.}: PyObject # os.path
