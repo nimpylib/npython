@@ -169,8 +169,8 @@ implDictMethod copy(), [mutable: read]:
 # this function is used internally
 
 
-proc update*(d1, d2: PyDictObject) = 
+proc update*(d1, d2: PyDictObject){.raises: [].} = 
   for k, v in d2.table.pairs:
-    d1[k] = v
+    DictError!!(d1[k] = v)
 
 # .__init__, .update, .keys, etc method is defined in ./dictobjectImpl
