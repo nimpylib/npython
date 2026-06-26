@@ -34,6 +34,7 @@ proc pathLikeProcDefForClinic(prc: NimNode): NimNode =
 template genClinicGen*(os; DefExceptions: untyped = []) {.dirty.} =
   bind clinicGenStaticMethodOfKindImpl, getProcDefFromSpec
   bind pathLikeProcDefForClinic, normalizePathLikeParamForClinic
+  bind ccconf
   const osS = astToStr(os)
   proc auditEventForPrc(prc: NimNode): string =
     var name = prc.name
@@ -46,11 +47,11 @@ template genClinicGen*(os; DefExceptions: untyped = []) {.dirty.} =
       auditArgs: untyped = nil): untyped =
     let prc = pathLikeProcDefForClinic spec.getImpl
     clinicGenStaticMethodOfKindImpl(ident(osModuleS), NPyMethodKind.Common,
-      exceptions, prc, auditArgs=auditArgs, auditEvent=prc.auditEventForPrc)
+      exceptions, prc, conf=ccconf(prc.auditEventForPrc, auditArgs))
 
   macro `clinicGen os Sig`*(spec: untyped, exceptions: untyped = DefExceptions,
       auditArgs: untyped = nil): untyped =
     let prc = pathLikeProcDefForClinic getProcDefFromSpec spec
     clinicGenStaticMethodOfKindImpl(ident(osModuleS), NPyMethodKind.Common,
-      exceptions, prc, auditArgs=auditArgs, auditEvent=prc.auditEventForPrc)
+      exceptions, prc, conf=ccconf(prc.auditEventForPrc, auditArgs))
 
