@@ -2,7 +2,7 @@
 
 import std/macros
 import ./private/[utils, gen, dispatch,]
-import ./private/fspathUtils/fspath
+import ./private/fspathUtils/[fspath, consts,]
 imp Python, getargs/tovals
 imp Python, getargs/topys
 import pkg/handy_sugars/trans_imp
@@ -43,9 +43,9 @@ template fspathAs(x: untyped{atom}; funcname: string; Str, Bytes): untyped =
   var res: PyObject
   retIfExc fspath(x, res)
   if res.`ofPy Bytes Object`:
-    return newTypeError newPyAscii "Can't mix strings and bytes in path components"
+    return cannotMixPathLikeError()
   if not res.`ofPy Str Object`:
-    return newTypeError newPyStr funcname & "() argument must be str, bytes, or os.PathLike, not " & x.typeName
+    return shouldBePathLike3Error(res, funcname)
   `Py Str Object` res
 
 proc join*(a: PyObject, args: varargs[PyObject]): PyObject =
