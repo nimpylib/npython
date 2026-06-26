@@ -19,6 +19,13 @@ import ../../Objects/exceptions/oserr/convert
 proc auditArgsEmpty(auditArgs: NimNode): bool =
   auditArgs.kind == nnkNilLit
 
+proc splitParamDef(pDef: NimNode): seq[NimNode] =
+  if pDef.kind != nnkIdentDefs or pDef.len == 3:
+    return @[pDef]
+
+  for i in 0..<pDef.len - 2:
+    result.add newIdentDefs(pDef[i], pDef[^2], pDef[^1])
+
 proc addAuditCall(body: NimNode; eventName: string; auditArgs: NimNode) =
   if auditArgs.auditArgsEmpty:
     return
@@ -51,18 +58,17 @@ proc clinicGenAuxHelper(hasSelfParam, passSelfToOrigin: bool,
   if passSelfToOrigin: start = 2
 
   for i in start..<params.len:
-    let
-      pDef = params[i]
-      oldPName = pDef[0].getNameOfParam
-      pName = freshIdentLike oldPName
-    assert pDef.len == 3, "#TODO:clinic current each param match one type (e.g. `a, b: int` shall be written as `a: int, b: int`)"
-    callOriArgs.add pName
-    if beginKwOnly:
-      kwOnlyList.add pName.strVal
-    elif pDef[0].isKwOnlyStartImpl:
-      beginKwOnly = true
-      kwOnlyList.add pName.strVal
-    vargs.add pDef
+    for pDef in params[i].splitParamDef:
+      let
+        oldPName = pDef[0].getNameOfParam
+        pName = freshIdentLike oldPName
+      callOriArgs.add pName
+      if beginKwOnly:
+        kwOnlyList.add pName.strVal
+      elif pDef[0].isKwOnlyStartImpl:
+        beginKwOnly = true
+        kwOnlyList.add pName.strVal
+      vargs.add pDef
   let
     nparam_args = ident"args"
     nparam_kwargs = ident"kwargs"
