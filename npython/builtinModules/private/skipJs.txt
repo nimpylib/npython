@@ -4,3 +4,4 @@ turtle
 curser
 mmap
 msvcrt
+pathlib

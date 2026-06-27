@@ -20,12 +20,16 @@ var state{.threadVar.}: PathLikeParseState
 
 proc restorePathLikeParseState* = state = psNone
 {.push raises: [].}
-proc toPy*(x: PyPathStr, res: var PyObject): PyBaseErrorObject =
+when PyPathStr is_not PyStr:
+ proc toPy*(x: PyPathStr, res: var PyObject): PyBaseErrorObject =
   assert state != psNone
   if state == psStr:
     res = newPyStr string(x)
   else:
     res = newPyBytes string(x)
+else:
+  imp Python, getargs/topys
+  export toPy
 proc toval*(x: PyObject, res: var PyPathStr): PyBaseErrorObject =
   var obj: PyObject
   retIfExc fspath(x, obj)
@@ -46,7 +50,8 @@ proc toval*(x: PyObject, res: var PyPathStr): PyBaseErrorObject =
 converter toPyPathStr*(s: PyStr|PyBytes): PyPathStr = PyPathStr s
 type PyPathStrTup = (PyPathStr, PyPathStr)  #tuple[a, b: PyPathStr]
 converter toPyPathStr*[T: PyStr|PyBytes](s: (T, T)): PyPathStrTup = (PyPathStr s[0], PyPathStr s[1])
-proc toPy*(x: PyPathStrTup, res: var PyObject): PyBaseErrorObject =
+when PyPathStr is_not PyStr:
+ proc toPy*(x: PyPathStrTup, res: var PyObject): PyBaseErrorObject =
   var pyt: array[2, PyObject]
   retIfExc toPy(x[0], pyt[0])
   retIfExc toPy(x[1], pyt[1])

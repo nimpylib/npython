@@ -38,6 +38,12 @@ clinicGenpathSig basename(p: PathLike)
 clinicGenpathSig getsize(p: PathLike), [OSError]
 clinicGenpath samefile, [OSError, ValueError]
 
+template genGetXTime(getmtime) {.dirty.} =
+  clinicGenpathSig getmtime(p: PathLike), [OSError]
+genGetXTime getmtime
+genGetXTime getatime
+genGetXTime getctime
+
 template fspathAs(x: untyped{atom}; funcname: string; Str, Bytes): untyped =
   ## genericpath._check_arg_types
   var res: PyObject
@@ -70,7 +76,8 @@ const OsPathStrConsts* = [
 genConsts OsPathStrConsts
 
 const duallFuncs = [
-   "normcase","isabs",
+   "normcase",
+   "isabs",
    #@above
    #"join",
    "splitdrive",
@@ -82,8 +89,9 @@ const duallFuncs = [
    #"commonprefix",
    #@above: ambig against macros.getSize
    #"getsize",
-   "getmtime",
-   "getatime","getctime","islink",
+   #@above: ambig against ??? iff js (idk what the hell)
+   #"getmtime", "getatime","getctime",
+   "islink",
    #"exists","lexists",
    "isdir","isfile",
    #"ismount",
