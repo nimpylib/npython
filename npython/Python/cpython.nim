@@ -116,7 +116,9 @@ proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsyn
     # fix: initOptParser will call paramCount.
     #   which is only defined when -d:nodejs
     var cmdline =
-      if cmdline.len == 0: @["-"]
+      if cmdline.len == 0:
+        when defined(nodejs): @[]
+        else: @["-"]
       else: commandLineParamsCompat()
   var
     args: seq[string]
