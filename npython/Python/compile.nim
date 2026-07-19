@@ -273,6 +273,8 @@ proc assemble(cu: CompilerUnit, fileName: PyStrObject): PyCodeObject =
   result.varArgName = cu.ste.varArg
   result.kwOnlyNames = cu.ste.kwOnlyArgs
   result.kwOnlyDefaults = cu.ste.kwOnlyDefaults
+  if cu.ste.isGenerator:
+    result.flags = typeof(result.flags)(result.flags.ord or CO.GENERATOR.ord)
 
 
 proc makeFunction(c: Compiler, cu: CompilerUnit, 
@@ -534,6 +536,16 @@ compileMethod Return:
     c.compile(astNode.value)
   c.addOp(newInstr(OpCode.ReturnValue, astNode.lineNo.value))
   c.tcb.seenReturn = true
+
+compileMethod Yield:
+  if astNode.value.isNil:
+    c.addLoadConst(pyNone, astNode.lineNo.value)
+  else:
+    c.compile(astNode.value)
+  c.addOp(newInstr(OpCode.YieldValue, astNode.lineNo.value))
+
+compileMethod YieldFrom:
+  raiseSyntaxError("yield from not implemented", astNode)
 
 
 compileMethod Assign:

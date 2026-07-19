@@ -41,6 +41,7 @@ type
     kwOnlyArgs*: seq[PyStrObject]
     kwOnlyDefaults*: seq[PyObject]
 
+    isGenerator*: bool
     declaredVars: HashSet[PyStrObject]
     usedVars: HashSet[PyStrObject]
 
@@ -506,6 +507,14 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           visit node.value
         of AsdlexprTk.JoinedStr:
           visitSeq AstJoinedStr(astNode).values
+        of AsdlExprTk.Yield:
+          ste.isGenerator = true
+          visit AstYield(astNode).value
+
+        of AsdlExprTk.YieldFrom:
+          ste.isGenerator = true
+          visit AstYieldFrom(astNode).value
+
 
         else:
           unreachable $AsdlExpr(astNode).kind

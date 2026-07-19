@@ -667,13 +667,22 @@ ast return_stmt, [AsdlStmt]:
   node
   
 ast yield_expr, [Asdlexpr]:
-  raiseSyntaxError("Yield not implemented")
+  let node = newAstYield()
+  setNo(node, parseNode.children[0])
+  if parseNode.children.len == 1:
+    return node
+  let arg = parseNode.children[1]
+  if arg.children.len == 2:
+    raiseSyntaxError("yield from not implemented", arg)
+  node.value = astTestList(arg.children[0])
+  node
 
 #ast yield_arg:
 #  discard
 
 ast yield_stmt, [AsdlStmt]:
-  raiseSyntaxError("Yield not implemented")
+  let node = newAstExpr(astYieldExpr(parseNode.children[0]))
+  node
   
 # raise_stmt: 'raise' [test ['from' test]]
 ast raise_stmt, [AstRaise]:
@@ -1367,7 +1376,7 @@ ast atom, [AsdlExpr]:
       let child = parseNode.children[1]
       case child.tokenNode.token
       of Token.yield_expr:
-        raiseSyntaxError("Yield expression not implemented", child)
+        result = astYieldExpr(child)
       of Token.testlist_comp:
         let testListComp = astTestlistComp(child, newTuple)
         if testListComp.kind == AsdlExprTk.ListComp:

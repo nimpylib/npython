@@ -1,17 +1,19 @@
 import std/strformat
 
 import pyobject
-import ./[exceptions, tupleobject, dictobject, codeobject, stringobject, hash]
+import ./[exceptions, tupleobject, dictobject, codeobject, stringobject, hash, generatorobject]
 import frameobject
 import funcobject
 
 import ../Python/neval
+import ../Include/cpython/compile
 
 export funcobject
 
 methodMacroTmpl(Function)
 methodMacroTmpl(BoundMethod)
 
+methodMacroTmpl(Generator)
 proc callFunction(funcObj: PyFunctionObject, args: openArray[PyObject], kwargs: PyObject, prevF: PyFrameObject = nil): PyObject =
   let code = funcObj.code
   let argCount = code.argCount
@@ -80,7 +82,26 @@ proc callFunction(funcObj: PyFunctionObject, args: openArray[PyObject], kwargs: 
 
   let newF = newPyFrame(funcObj, finalArgsSeq, prevF, kwDict)
   retIfExc newF
+  if code.flags & CO.GENERATOR:
+    let frame = PyFrameObject(newF)
+    frame.privateOwner = FRAME_OWNED_BY_GENERATOR
+    return newPyGenerator(frame)
   PyFrameObject(newF).evalFrame
+
+implGeneratorMagic iter:
+  self
+
+implGeneratorMagic iternext:
+  if self.finished:
+    return newStopIterError()
+  let value = self.frame.evalFrame
+  if value.isThrownException:
+    self.finished = true
+    return value
+  if self.frame.completed:
+    self.finished = true
+    return newStopIterError()
+  value
 
 implFunctionMagic call:
   callFunction(self, args, kwargs)

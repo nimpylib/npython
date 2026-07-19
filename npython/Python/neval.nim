@@ -160,7 +160,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   # instructions are fetched so frequently that we should build a local cache
   # instead of doing tons of dereference
   var rt = newEvaluator(evalFrame)
-  var lastI = -1
+  var lastI = f.lastInstruction
 
   # instruction helpers
   template fetchInstr: (OpCode, OpArg) = 
@@ -184,7 +184,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
   # in future, should get rid of the abstraction of seq and use a dynamically
   # created buffer directly. This can reduce time cost of the core neval function
   # by 25%
-  var valStack: seq[PyObject]
+  var valStack = f.valueStack
 
   # retain these templates for future optimization
   template sTop: PyObject = 
@@ -436,8 +436,17 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               sPush KeyError!bltinDict[newPyAscii"__build_class__"]
               
             of OpCode.ReturnValue:
+              f.completed = true
               return sPop()
 
+
+            of OpCode.YieldValue:
+              let yielded = sPop()
+              # The value of a bare `yield` expression after resumption is None.
+              sPush pyNone
+              f.lastInstruction = lastI
+              f.valueStack = valStack
+              return yielded
             of OpCode.PopBlock:
               if sEmpty:
                 # no need to reset stack because it's already empty

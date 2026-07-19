@@ -19,6 +19,7 @@ import ../Include/cpython/[critical_section, compile]
 import ../Include/internal/pycore_interpframe_struct
 export PyInterpFrameOwner
 
+## A generator frame preserves its instruction pointer and value stack while suspended.
 declarePyType Frame(mutable):
   #TODO:frame see CPython's frame.c:take_ownership and frameobject.c:PyFrame_GetBack
   back{.member"f_back", readonly, nil2none.}: PyFrameObject
@@ -33,6 +34,9 @@ declarePyType Frame(mutable):
   # builtins: PyDictObject
   fastLocals: seq[PyObject]
   cellVars: seq[PyCellObject]
+  lastInstruction: int = -1
+  valueStack: seq[PyObject]
+  completed: bool
   owner{.private.}: PyInterpFrameOwner
 
 func privateOwner*(f: PyFrameObject): var PyInterpFrameOwner{.inline.} =
