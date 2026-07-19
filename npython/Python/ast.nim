@@ -156,6 +156,7 @@ proc astNotTest(parseNode: ParseNode): AsdlExpr
 proc astComparison(parseNode: ParseNode): AsdlExpr
 proc astCompOp(parseNode: ParseNode): AsdlCmpop
 
+proc astYieldExpr(parseNode: ParseNode): AsdlExpr
 proc astExpr(parseNode: ParseNode): AsdlExpr
 proc astXorExpr(parseNode: ParseNode): AsdlExpr
 proc astAndExpr(parseNode: ParseNode): AsdlExpr
@@ -535,7 +536,10 @@ ast expr_stmt, [AsdlStmt]:
   of Token.Equal: # simple cases like `x=1`
     if not (parseNode.children.len == 3):
       raiseSyntaxError("Only support simple assign like x=1", middleChild)
-    let testlistStarExpr2 = astTestlistStarExpr(parseNode.children[2])
+    let rhs = parseNode.children[2]
+    let testlistStarExpr2 = if rhs.tokenNode.token == Token.yield_expr:
+      astYieldExpr(rhs)
+    else: astTestlistStarExpr(rhs)
     let node = newAstAssign()
     setNo(node, middleChild)
     testlistStarExpr1.setStore

@@ -1,7 +1,8 @@
 import std/strformat
 
 import pyobject
-import ./[exceptions, tupleobject, dictobject, codeobject, stringobject, hash, generatorobject]
+import ./[exceptions, tupleobject, dictobject, codeobject, stringobject, hash, generatorobject, noneobject, boolobject]
+from ./exceptions/extra_utils import PyErr_CreateException
 import frameobject
 import funcobject
 
@@ -88,13 +89,14 @@ proc callFunction(funcObj: PyFunctionObject, args: openArray[PyObject], kwargs: 
     return newPyGenerator(frame)
   PyFrameObject(newF).evalFrame
 
-implGeneratorMagic iter:
-  self
-
-implGeneratorMagic iternext:
+proc resumeGenerator(self: PyGeneratorObject): PyObject =
   if self.finished:
     return newStopIterError()
+  if self.running:
+    return newValueError newPyAscii("generator already executing")
+  self.running = true
   let value = self.frame.evalFrame
+  self.running = false
   if value.isThrownException:
     self.finished = true
     return value
@@ -102,6 +104,55 @@ implGeneratorMagic iternext:
     self.finished = true
     return newStopIterError()
   value
+
+implGeneratorMagic iter:
+  self
+
+implGeneratorMagic iternext:
+  self.resumeGenerator
+
+implGeneratorMethod send(value: PyObject):
+  if self.finished:
+    return newStopIterError()
+  let frame = self.frame
+  if frame.lastInstruction == -1:
+    if not value.isPyNone:
+      return newTypeError newPyAscii("can't send non-None value to a just-started generator")
+  else:
+    assert frame.valueStack.len != 0
+    frame.valueStack[^1] = value
+  self.resumeGenerator
+
+genProperty Generator, "gi_code", gi_code, self.frame.code
+genProperty Generator, "gi_frame", gi_frame, (if self.finished: pyNone else: self.frame)
+genProperty Generator, "gi_running", gi_running, newPyBool self.running
+genProperty Generator, "gi_suspended", gi_suspended,
+  newPyBool(not self.finished and not self.running and self.frame.lastInstruction >= 0)
+
+genProperty Generator, "gi_yieldfrom", gi_yieldfrom, pyNone
+implGeneratorMethod close():
+  if not self.finished:
+    self.finished = true
+    self.frame.completed = true
+    self.frame.valueStack.setLen(0)
+  pyNone
+
+#TODO:exc throw(tp, value, tb)
+#TODO:PyErr_NormalizeException
+implGeneratorMethod throw(exc: PyObject):
+  let thrown =
+    if exc.ofPyExceptionClass:
+      PyErr_CreateException(PyTypeObject(exc), nil)
+    else:
+      exc
+  if not thrown.ofPyExceptionObject:
+    return newTypeError newPyStr("exceptions must be classes or instances " &
+                     "deriving from BaseException, not " & thrown.typeName)
+  self.finished = true
+  PyExceptionObject(thrown).thrown = true
+  self.frame.completed = true
+  self.frame.valueStack.setLen(0)
+  thrown
 
 implFunctionMagic call:
   callFunction(self, args, kwargs)
