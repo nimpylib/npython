@@ -545,7 +545,10 @@ compileMethod Yield:
   c.addOp(newInstr(OpCode.YieldValue, astNode.lineNo.value))
 
 compileMethod YieldFrom:
-  raiseSyntaxError("yield from not implemented", astNode)
+  let lineNo = astNode.lineNo.value
+  c.compile(astNode.value)
+  c.addOp(newInstr(OpCode.GetIter, lineNo))
+  c.addOp(newInstr(OpCode.YieldFrom, lineNo))
 
 
 compileMethod Assign:

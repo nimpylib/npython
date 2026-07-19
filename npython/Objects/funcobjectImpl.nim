@@ -118,6 +118,9 @@ implGeneratorMethod send(value: PyObject):
   if frame.lastInstruction == -1:
     if not value.isPyNone:
       return newTypeError newPyAscii("can't send non-None value to a just-started generator")
+  elif not frame.yieldFrom.isNil:
+    if not value.isPyNone:
+      return newTypeError newPyAscii("sending non-None values to yield from is not implemented")
   else:
     assert frame.valueStack.len != 0
     frame.valueStack[^1] = value
@@ -129,11 +132,12 @@ genProperty Generator, "gi_running", gi_running, newPyBool self.running
 genProperty Generator, "gi_suspended", gi_suspended,
   newPyBool(not self.finished and not self.running and self.frame.lastInstruction >= 0)
 
-genProperty Generator, "gi_yieldfrom", gi_yieldfrom, pyNone
+genProperty Generator, "gi_yieldfrom", gi_yieldfrom, (if self.frame.yieldFrom.isNil: pyNone else: self.frame.yieldFrom)
 implGeneratorMethod close():
   if not self.finished:
     self.finished = true
     self.frame.completed = true
+    self.frame.yieldFrom = nil
     self.frame.valueStack.setLen(0)
   pyNone
 
@@ -151,6 +155,7 @@ implGeneratorMethod throw(exc: PyObject):
   self.finished = true
   PyExceptionObject(thrown).thrown = true
   self.frame.completed = true
+  self.frame.yieldFrom = nil
   self.frame.valueStack.setLen(0)
   thrown
 

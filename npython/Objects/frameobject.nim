@@ -37,6 +37,7 @@ declarePyType Frame(mutable):
   lastInstruction: int = -1
   valueStack: seq[PyObject]
   completed: bool
+  yieldFrom: PyObject
   owner{.private.}: PyInterpFrameOwner
 
 func privateOwner*(f: PyFrameObject): var PyInterpFrameOwner{.inline.} =

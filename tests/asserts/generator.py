@@ -60,3 +60,21 @@ except ValueError:
 assert threw
 assert thrower.gi_frame is None
 print("ok")
+
+
+def delegated():
+    yield from [3, 4]
+
+
+delegate = delegated()
+assert delegate.send(None) == 3
+assert delegate.gi_yieldfrom is not None
+assert delegate.send(None) == 4
+assert list(delegated()) == [3, 4]
+
+
+def delegation_result():
+    result = yield from [5]
+    yield result
+
+assert list(delegation_result()) == [5, None]

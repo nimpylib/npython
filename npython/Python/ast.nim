@@ -677,7 +677,10 @@ ast yield_expr, [Asdlexpr]:
     return node
   let arg = parseNode.children[1]
   if arg.children.len == 2:
-    raiseSyntaxError("yield from not implemented", arg)
+    let fromNode = newAstYieldFrom()
+    setNo(fromNode, parseNode.children[0])
+    fromNode.value = astTest(arg.children[1])
+    return fromNode
   node.value = astTestList(arg.children[0])
   node
 

@@ -447,6 +447,25 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               f.lastInstruction = lastI
               f.valueStack = valStack
               return yielded
+            of OpCode.YieldFrom:
+              let iter = sTop()
+              let nextFunc = iter.getMagic(iternext)
+              if nextFunc.isNil:
+                handleException(newTypeError newPyAscii("yield from argument is not iterable"))
+              let yielded = nextFunc(iter)
+              if yielded.isStopIter:
+                discard sPop()
+                sPush pyNone
+                f.yieldFrom = nil
+              elif yielded.isThrownException:
+                handleException(yielded)
+              else:
+                f.yieldFrom = iter
+                # Re-execute this instruction when the generator resumes.
+                f.lastInstruction = lastI - 1
+                f.valueStack = valStack
+                return yielded
+
             of OpCode.PopBlock:
               if sEmpty:
                 # no need to reset stack because it's already empty
@@ -457,7 +476,6 @@ proc evalFrame*(f: PyFrameObject): PyObject =
                 # previous `except` clause failed to handle the exception
                 if top.isThrownException:
                   handleException(top)
-
             of OpCode.PopExcept:
               # remove the exception object left on stack and pop the try-block
               excpObj = sPop()
