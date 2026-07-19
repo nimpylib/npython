@@ -240,11 +240,23 @@ template argPtr(value: FFIValue): pointer = value.p
 proc resultToPy(info: CTypeInfo, resultValue: FFIValue, restype: PyObject): PyObject{.raises: [].} =
   template asT(T): untyped =
     cast[ptr T](resultValue.p)[]
+  template signedValue: int64 =
+    case info.ffiType.size
+    of 1: int64(asT(int8))
+    of 2: int64(asT(int16))
+    of 4: int64(asT(int32))
+    else: int64(asT(int64))
+  template unsignedValue: uint64 =
+    case info.ffiType.size
+    of 1: uint64(asT(uint8))
+    of 2: uint64(asT(uint16))
+    of 4: uint64(asT(uint32))
+    else: uint64(asT(uint64))
   case info.kind
   of ckVoid: pyNone
   of ckBool:    newPyBool(asT bool)
-  of ckSigned:   newPyInt(asT int64)
-  of ckUnsigned: newPyInt(asT uint64)
+  of ckSigned:   newPyInt(signedValue)
+  of ckUnsigned: newPyInt(unsignedValue)
   of ckFloat:  newPyFloat(asT float32)
   of ckDouble: newPyFloat(asT float64)
   of ckPointer:
