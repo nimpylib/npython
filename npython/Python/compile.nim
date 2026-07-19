@@ -937,8 +937,11 @@ proc genComp[A: AsdlExpr](c: Compiler, astNode: A,
 
   #TODO:prof do not use function for loopVar scoop in listcomp
   c.units.add(newCompilerUnit(c.st, astNode, newPyAscii("<"&name&">")))
+  if opAdd == OpCode.YieldValue:
+    c.tste.isGenerator = true
   #if non-func-impl: LoadFastAndClear
-  c.addOp(newArgInstr(opBuild, 0, lineNo))
+  if opBuild != OpCode.Nop:
+    c.addOp(newArgInstr(opBuild, 0, lineNo))
   c.addLoadOp(newPyAscii(".0"), astNode.lineNo.value) # the implicit iterator argument
 
   var loops = newSeqOfCap[tuple[header, after: BasicBlock]]( astNode.generators.len )
@@ -970,7 +973,11 @@ proc genComp[A: AsdlExpr](c: Compiler, astNode: A,
   # Innermost body
   let eltLineNo = eltLineNo.value
   c.compile(elt)
-  c.addOp(newArgInstr(opAdd, loops.len + 1, eltLineNo))
+  if opAdd == OpCode.YieldValue:
+    c.addOp(newInstr(OpCode.YieldValue, eltLineNo))
+    c.addOp(OpCode.PopTop, eltLineNo)
+  else:
+    c.addOp(newArgInstr(opAdd, loops.len + 1, eltLineNo))
   c.addOp(newJumpInstr(OpCode.JumpAbsolute, loops[^1].header, eltLineNo))
 
   # Add the `after` blocks for each loop
@@ -983,6 +990,8 @@ proc genComp[A: AsdlExpr](c: Compiler, astNode: A,
       c.addOp(newJumpInstr(OpCode.JumpAbsolute, loops[i-1].header, 0))
 
   #c.addOp(OpCode.PopTop, 0) # if non-func-impl
+  if opBuild == OpCode.Nop:
+    c.addLoadConst(pyNone, lineNo)
   c.addOp(OpCode.ReturnValue, lineNo)
 
   let genNode = AstComprehension(astNode.generators[0])
@@ -1001,6 +1010,7 @@ proc genComp[A: AsdlExpr](c: Compiler, astNode: A,
 compileMethod ListComp: genComp(c, astNode, astNode.elt, OpCode.BuildList, OpCode.ListAppend, "listcomp")
 compileMethod SetComp:  genComp(c, astNode, astNode.elt, OpCode.BuildSet,  OpCode.SetAdd, "setcomp")
 
+compileMethod GeneratorExp: genComp(c, astNode, astNode.elt, OpCode.Nop, OpCode.YieldValue, "genexpr")
 type KwPair = tuple[key, value: AsdlExpr]
 template compile(c: Compiler; n: KwPair) =
   c.compile(n.key)

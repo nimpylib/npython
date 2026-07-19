@@ -59,7 +59,6 @@ except ValueError:
 
 assert threw
 assert thrower.gi_frame is None
-print("ok")
 
 
 def delegated():
@@ -78,3 +77,5 @@ def delegation_result():
     yield result
 
 assert list(delegation_result()) == [5, None]
+assert list(x * 2 for x in [1, 2, 3]) == [2, 4, 6]
+print("ok")

@@ -260,6 +260,8 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 
       if astNode of AstListComp:
         prepareCompSte(AstListComp)
+      elif astNode of AstGeneratorExp:
+        prepareCompSte(AstGeneratorExp)
       elif astNode of AstSetComp:
         prepareCompSte(AstSetComp)
       elif astNode of AstDictComp:
@@ -427,6 +429,8 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
         of AsdlExprTk.ListComp: prepareComp(AstListComp)
  
         of AsdlExprTk.SetComp: prepareComp(AstSetComp)
+        of AsdlExprTk.GeneratorExp: prepareComp(AstGeneratorExp)
+
 
         of AsdlExprTk.DictComp:
           let dcomp = AstDictComp(astNode)

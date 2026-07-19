@@ -1387,9 +1387,13 @@ ast atom, [AsdlExpr]:
       of Token.testlist_comp:
         let testListComp = astTestlistComp(child, newTuple)
         if testListComp.kind == AsdlExprTk.ListComp:
-          raiseSyntaxError("generator expression not implemented", child)
+          let listComp = AstListComp(testListComp)
+          let genExp = newAstGeneratorExp()
+          genExp.elt = listComp.elt
+          genExp.generators = listComp.generators
+          result = genExp
         # 1-element tuple or things like (1 + 2) * 3
-        if testListComp.kind == AsdlExprTk.Tuple and
+        elif testListComp.kind == AsdlExprTk.Tuple and
           (let tup = AstTuple(testListComp); tup.elts.len == 1) and
           not (
             child.children.len == 2 and  # 1-element tuple. e.g. (1,)
@@ -1708,14 +1712,20 @@ template addArgTmpl(call: typed, parseNode: ParseNode; argsAttr) =
     let child = parseNode.children[0]
     call.argsAttr.add astTest(child)
   of 2:
-    let starArg = parseNode.children[0]
-    case starArg.tokenNode.token
+    let firstArg = parseNode.children[0]
+    let secondArg = parseNode.children[1]
+    case firstArg.tokenNode.token
     of Token.Star:
       call.argsAttr.add astStarred parseNode
     of Token.Doublestar:
       call.keywords.add astKeywordUnpack parseNode
     else:
-      unreachable
+      assert secondArg.tokenNode.token == Token.comp_for
+      let genExp = newAstGeneratorExp()
+      genExp.elt = astTest(firstArg)
+      genExp.generators = astCompFor(secondArg)
+      copyNo(genExp, genExp.elt)
+      call.argsAttr.add genExp
   of 3:
     call.keywords.add astKeyword(parseNode)
   else:
