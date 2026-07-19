@@ -1,12 +1,16 @@
 
+when defined(nimPrviewSlimSystem):
+  import std/assertions
 include ./aheader
 import pkg/libffi
 import pkg/py_locale_utf8_encoding/wchar_t as wcharLib
-import ../../[cdata, funcs]
+import ../../cdata
 impObjects [
   boolobjectImpl,
+  dictobject,
   listobject,
   tupleobject,
+  typeobject,
   abstract/sequence/list,
 ]
 impObjects numobjects/floatobject
@@ -14,7 +18,7 @@ impObjects numobjects/intobject/ops_toint
 
 impFrom Objects, hash, nil
 imp Utils, [addr0, destroyPatch, utils]
-imp Python, getargs/tovals
+imp Python, [getargs/tovals, call]
 proc hash(obj: PyTypeObject): Hash{.raises: [].} = hash.rawHash obj
 
 type
@@ -41,6 +45,13 @@ type
     pIsAlloced: bool
     p2pIsAlloced: bool
     keepalive: PyObject
+
+proc isCFuncType*(typ: PyTypeObject): bool {.raises: [].} =
+  var cur = typ
+  while not cur.isNil:
+    if cur.isType pyCFuncObjectType:
+      return true
+    cur = cur.base
 
 
 defdestroy FFIValue:
@@ -111,6 +122,9 @@ proc ctypeInfo(tp: PyTypeObject): CTypeInfo =
       target: tp.pointerTargetType,
     )
 
+  if tp.isCFuncType:
+    return CTypeInfo(kind: ckPointer, ffiType: addr type_pointer, target: tp)
+
   CTypeInfo(kind: ckVoid, ffiType: nil)
 
 proc ctypeInfo(tp: PyObject, allowVoidInC: bool): CTypeInfo =
@@ -126,6 +140,11 @@ proc ctypeInfo(tp: PyObject, allowVoidInC: bool): CTypeInfo =
   let typ = PyTypeObject tp
   ctypeInfo(typ)
 
+
+proc ctypeSizeUnsafe(typ: PyTypeObject): int {.raises: [].} =
+  let size = PyDictObject(typ.dict).getOptionalItem(newPyAscii"_npy_ctype_size_")
+  assert size.ofPyIntObject
+  PyIntObject(size).toSomeSignedIntUnsafe[:int]
 
 proc inferArgInfo(arg: PyObject): CTypeInfo =
   if arg.ofPySimpleCDataObject:
@@ -186,7 +205,7 @@ proc prepareArg(arg: PyObject, info: CTypeInfo, res: var FFIValue): PyBaseErrorO
     if arg.ofPySimpleCDataObject:
       let raw = PySimpleCDataObject(arg)
       #TODO:ctypes: check type/size
-      res.p = addressof(raw)
+      res.p = raw.addressof
     else:
       handlePyObj
   case info.kind
@@ -199,6 +218,13 @@ proc prepareArg(arg: PyObject, info: CTypeInfo, res: var FFIValue): PyBaseErrorO
   of ckPointer:
     if arg.isPyNone:
       res.initFrom pointer(nil)
+    elif arg.ofPyCFuncObject:
+      let cfunc = PyCFuncObject(arg)
+      if not info.target.isNil and not cfunc.pyType.isType(info.target):
+        return newTypeError newPyStr("expected " & info.target.name &
+          " instance instead of " & arg.typeName)
+      res.keepalive = arg
+      res.initFrom cfunc.handle
     elif arg.ofPyPointerObject:
       res.keepalive = arg
       res.initFrom PyPointerObject(arg).c_value
@@ -269,6 +295,100 @@ proc resultToPy(info: CTypeInfo, resultValue: FFIValue, restype: PyObject): PyOb
     newPyBytes(asT cstring)
   of ckCWString:
     newPyStr(asT (ptr wchar_t))
+
+proc callbackSignature(typ: PyTypeObject, restype, argtypes: var PyObject): PyBaseErrorObject =
+  let dict = PyDictObject(typ.dict)
+  restype = dict.getOptionalItem(newPyAscii"_restype_")
+  argtypes = dict.getOptionalItem(newPyAscii"_argtypes_")
+  if restype.isNil or argtypes.isNil:
+    return newTypeError newPyStr(typ.name & " is not a callback type")
+
+proc callbackAbi(typ: PyTypeObject): TABI =
+  let abi = PyDictObject(typ.dict).getOptionalItem(newPyAscii"_npy_abi_")
+  assert abi.ofPyIntObject
+  cast[TABI](PyIntObject(abi).toSomeSignedIntUnsafe[:int])
+
+proc callbackTrampoline(cif: var TCif, ret: pointer, args: UncheckedArray[pointer], userData: pointer) {.cdecl.} =
+  let self = cast[PyCFuncObject](userData)
+  var restype, argtypes: PyObject
+  let exc = self.pyType.callbackSignature(restype, argtypes)
+  assert exc.isNil, $exc
+  let fastArgtypes = PySequence_Fast(argtypes, "callback argtypes must be a sequence")
+  if fastArgtypes.isThrownException:
+    zeroMem(ret, cif.rtype.size)
+    return
+  var pyArgs = newSeq[PyObject](int cif.nargs)
+  for i in 0..<pyArgs.len:
+    let argtype = PySequence_Fast_GET_ITEM(fastArgtypes, i)
+    let info = ctypeInfo(argtype, allowVoidInC = false)
+    if info.ffiType.isNil:
+      zeroMem(ret, cif.rtype.size)
+      return
+    let value = FFIValue(kind: info.kind, p: args[i])
+    pyArgs[i] = resultToPy(info, value, argtype)
+  let value = self.callback.fastCall(pyArgs)
+  if value.isThrownException:
+    zeroMem(ret, cif.rtype.size)
+    return
+  let retInfo = ctypeInfo(restype, allowVoidInC = true)
+  if retInfo.kind == ckVoid:
+    return
+  var resultValue: FFIValue
+  let err = prepareArg(value, retInfo, resultValue)
+  if not err.isNil:
+    zeroMem(ret, cif.rtype.size)
+    return
+  copyMem(ret, resultValue.p, cif.rtype.size)
+
+proc newPyCallback*(typ: PyTypeObject, callback: PyObject): PyObject {.raises: [].} =
+  if callback.pyType.magicMethods.call.isNil:
+    return newTypeError newPyStr("expected a callable, got " & callback.typeName)
+  var restype, argtypes: PyObject
+  retIfExc typ.callbackSignature(restype, argtypes)
+  let retInfo = ctypeInfo(restype, allowVoidInC = true)
+  if retInfo.ffiType.isNil:
+    return unsupportedCType(restype)
+  let fastArgtypes = PySequence_Fast(argtypes, "callback argtypes must be a sequence")
+  retIfExc fastArgtypes
+  let self = PyCFuncObject typ.tp_alloc(typ, 0)
+  self.callback = callback
+  self.restype = restype
+  self.argtypes = argtypes
+  self.ffiTypes.setLen(PySequence_Fast_GET_SIZE(fastArgtypes))
+  for i in 0..<self.ffiTypes.len:
+    let argtype = PySequence_Fast_GET_ITEM(fastArgtypes, i)
+    let info = ctypeInfo(argtype, allowVoidInC = false)
+    if info.ffiType.isNil:
+      return unsupportedCType(argtype)
+    self.ffiTypes[i] = info.ffiType
+  if prep_cif(self.cif, typ.callbackAbi, cuint self.ffiTypes.len, retInfo.ffiType, self.ffiTypes.addr0) != OK:
+    return newRuntimeError newPyAscii"ffi_prep_cif failed"
+  self.closure = closure_alloc(self.handle)
+  if self.closure.isNil:
+    return newMemoryError newPyAscii"ffi_closure_alloc failed"
+  if prep_closure_loc(self.closure, self.cif, callbackTrampoline, cast[pointer](self), self.handle) != OK:
+    closure_free(self.closure)
+    self.closure = nil
+    return newRuntimeError newPyAscii"ffi_prep_closure_loc failed"
+  self
+
+proc newCFuncType*(restype: PyObject, argtypes: openArray[PyObject], abi = DEFAULT_ABI): PyObject {.raises: [].} =
+  let retInfo = ctypeInfo(restype, allowVoidInC = true)
+  if retInfo.ffiType.isNil:
+    return unsupportedCType(restype)
+  for argtype in argtypes:
+    if ctypeInfo(argtype, allowVoidInC = false).ffiType.isNil:
+      return unsupportedCType(argtype)
+  let typ = newPyType[PyCFuncObject]("CFunctionType", base = pyCFuncObjectType)
+  typ.pyType = pyTypeObjectType
+  typ.kind = PyTypeToken.Type
+  typ.magicMethods.New = pyCFuncObjectType.magicMethods.New
+  typ.typeReady true
+  let dict = PyDictObject typ.dict
+  dict[newPyAscii"_restype_"] = restype
+  dict[newPyAscii"_argtypes_"] = newPyTuple(argtypes)
+  dict[newPyAscii"_npy_abi_"] = newPyInt(ord abi)
+  typ
 
 implDynCall:
   let argtypes = argtypeItems(self, args.len)

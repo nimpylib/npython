@@ -1,9 +1,11 @@
 
+import pkg/libffi
 
 import pkg/py_locale_utf8_encoding/wchar_t as wcharLib
 when defined(nimPreviewSlimSystem): import std/assertions
 import ../private/[utils]
 import ./[decl, cdata, ]
+import ./ffi/ffi
 impObjects stringobject/wchars/torunes
 impObjects [
   pyobject,
@@ -59,6 +61,33 @@ proc POINTERPyCTypesModuleObjectMethod*(selfNoCast: PyObject,
 
 pyCtypesModuleObjectType.registerBltinMethod("POINTER",
   (POINTERPyCTypesModuleObjectMethod, false))
+proc winFuncAbi(): TABI =
+  when defined(windows) and defined(x86): STDCALL
+  else: DEFAULT_ABI
+
+proc callbackTypeMethod(selfNoCast: PyObject, args: openArray[PyObject], kwargs: PyKwArgType, name: string, abi: TABI): PyObject {.pyCFuncPragma.} =
+  PyArg_NoKw name
+  checkArgNumAtLeast 1, name
+  if args.len == 1:
+    return newCFuncType(args[0], [], abi)
+  newCFuncType(args[0], args.toOpenArray(1, args.high), abi)
+
+proc CFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
+  callbackTypeMethod(selfNoCast, args, kwargs, "CFUNCTYPE", DEFAULT_ABI)
+
+proc WINFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
+  callbackTypeMethod(selfNoCast, args, kwargs, "WINFUNCTYPE", winFuncAbi())
+
+proc PYFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
+  callbackTypeMethod(selfNoCast, args, kwargs, "PYFUNCTYPE", DEFAULT_ABI)
+
+pyCtypesModuleObjectType.registerBltinMethod("CFUNCTYPE",
+  (CFUNCTYPEPyCTypesModuleObjectMethod, false))
+pyCtypesModuleObjectType.registerBltinMethod("WINFUNCTYPE",
+  (WINFUNCTYPEPyCTypesModuleObjectMethod, false))
+pyCtypesModuleObjectType.registerBltinMethod("PYFUNCTYPE",
+  (PYFUNCTYPEPyCTypesModuleObjectMethod, false))
+
 
 implCTypesModuleMethod pointer(obj: PyCDataObject):
   newPyPointerTo(obj)

@@ -1,6 +1,7 @@
 
 import ../dll/decl
 import ../../private/[utils]
+import pkg/libffi
 
 impObjects [
   pyobject,
@@ -15,3 +16,7 @@ declarePyType CFunc(dict):
   handle: pointer
   argtypes{.member, nil2none.}: PyObject  # tuple/list
   restype{.member, nil2none.}: PyObject
+  callback: PyObject
+  closure: ptr Closure
+  cif: TCif
+  ffiTypes: seq[ptr Type]
