@@ -28,6 +28,8 @@ proc normalizePathLikeParamForClinic(params, postdo: NimNode) =
     let p1 = p[^2]
     let PPStr = bindSym"PyPathStr"
     if p1.eqIdent"PathLike":
+      if p[^1].kind != nnkEmpty and (p[^1].kind != nnkCall or not p[^1][0].eqIdent"defaultPyPathStr"):
+        error("PathLike defaults must use defaultPyPathStr(...) to establish their str/bytes kind", p[^1])
       p[^2] = PPStr
     elif (p1.kind == nnkBracketExpr and
           p1[0].eqIdent"PathLike"):

@@ -11,5 +11,5 @@ imp Python, getargs/tovals
 
 gen_listdir seq, add
 
-clinicGenOsSig listdir((path: PathLike) = PyPathStr"."), auditArgs=(path,)
+clinicGenOsSig listdir((path: PathLike) = defaultPyPathStr(".")), auditArgs=(path,)
 

@@ -19,6 +19,11 @@ type PathLikeParseState = enum
 var state{.threadVar.}: PathLikeParseState
 
 proc restorePathLikeParseState* = state = psNone
+proc defaultPyPathStr*(value: string): PyPathStr {.raises: [].} =
+  ## Default path arguments are Python strings, so establish their kind before
+  ## audit/result conversion calls `toPy`.
+  state = psStr
+  PyPathStr value
 {.push raises: [].}
 when PyPathStr is_not PyStr:
  proc toPy*(x: PyPathStr, res: var PyObject): PyBaseErrorObject =
