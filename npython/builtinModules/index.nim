@@ -50,18 +50,12 @@ template reg_builtin_module*(modu) =
   ## like `PyImport_AppendInittab`
   reg_builtin_moduleImpl(get_bltnames(), modu)
 
+when defined(js):
+  import ./private/skipHandleUtil
+else:
+  template skipHandled(modname, body) {.dirty.} = body
 static:
   const dir = currentSourcePath().parentDir
-  const Js = defined(js)
-  when Js:
-    const skips = slurp(dir/"private/skipJs.txt").splitLines().toHashSet
-    template skipHandled(modname, body) {.dirty.} =
-      bind skips
-      if modname not_in skips:
-        body
-  else:
-    template skipHandled(modname, body) {.dirty.} = body
-
   for (k, i) in walkDir(dir, relative=true):
     if k == pcDir: continue
     if i == "index.nim": continue

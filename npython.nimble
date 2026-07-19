@@ -3,7 +3,7 @@ from "npython/versionInfo" import Version
 from "npython/Modules/getbuildinfo" import BuildInfoCacheFile, genBuildCacheContent
 before install:
   writeFile "npython/Modules/" & BuildInfoCacheFile, genBuildCacheContent()
-
+from "npython/builtinModules/private/skipHandleUtil" import skipHandled
 import std/macros; macro asgnVer = quote do: version = `Version`
 asgnVer()  # declarative parser of nimble requires version to be literals
 #version       = libver.Version
@@ -14,7 +14,8 @@ description   = "Python interpreter implemented in Nim, supporting JS backends"
 license       = "MIT"
 srcDir        = "."
 installExt   = @["nim", "nims"]
-installFiles  = @["LICENSE", "npython/Parser/Grammar"]
+installFiles  = @["LICENSE", "npython/Parser/Grammar",
+  "npython/builtinModules/private/skipJs.txt"]
 skipDirs = @["tests"]
 binDir        = "bin"
 
@@ -87,17 +88,47 @@ template taskWithArgs(name, taskDesc, body){.dirty.} =
 import std/os
 let binPathWithoutExt = absolutePath(binDir / namedBin[srcName])
 
-proc test(pre, pyExe, pyExeToCheckExists: string, args: openArray[string]) =
+proc pytest(pyExe: string, i: string) =
+  echo "testing " & i
+  exec pyExe & ' ' & i
+proc testCwd(pyExe: string) =
+  for i in listFiles ".": pyExe.pytest i
+proc testInDirDepth1(pyExe: string, args: openArray[string]) =
   let subTest =
     if args.len == 0: "asserts"
     else: args[0]
+  withDir "tests/" & subTest:
+    pyExe.testCwd
+
+proc testLibs(pyExe: string, args: openArray[string], js: static[bool] = false) =
+  let dest = "tests/Lib"
+  template check(i; body) =
+    let last = i.lastPathPart
+    if not last.startsWith"test_": continue
+    let moduName = last[5..^1]
+    when js:
+      skipHandled moduName: body
+    else:
+      body
+  for testFile in listFiles dest:
+    check testFile:
+      pyExe.pytest testFile
+  for testDir in listDirs dest:
+    check testDir:
+      echo "==Entering ", testDir
+      withDir testDir:
+        pyExe.testCwd
+
+proc test(pre, pyExe, pyExeToCheckExists: string, args: openArray[string], js: static[bool] = false) =
   if not fileExists pyExeToCheckExists:
     raise newException(OSError, "please firstly run `nimble " & pre & "`")
-  withDir "tests/" & subTest:
-    for i in listFiles ".":
-      echo "testing " & i
-      exec pyExe & ' ' & i
+  testInDirDepth1 pyExe, args
+  testLibs pyExe, args, js=js
+  let pyExe = binPathWithoutExt.toExe
 
+taskWithArgs testPyLib, "lib test, assuming after build":
+  let pyExe = binPathWithoutExt.toExe
+  testLibs pyExe, args
 taskWithArgs test, "test, assuming after build":
   let pyExe = binPathWithoutExt.toExe
   test "build", pyExe, pyExe, args
@@ -106,7 +137,7 @@ taskWithArgs testNodeJs, "test nodejs backend, assuming after build":
   let
     pyExeFile = binPathWithoutExt & ".js"
     pyExe = "node " & pyExeFile
-  test "buildJs", pyExe, pyExeFile, args
+  test "buildJs", pyExe, pyExeFile, args, js=true
 
 taskWithArgs testJsLib, "test lib for js, assuming after build":
   let
@@ -116,7 +147,7 @@ taskWithArgs testJsLib, "test lib for js, assuming after build":
 
 using args: openArray[string]
 proc selfExecWithSrcAdd(cmd: string; args) =
-  selfExec cmd & ' ' &
+  selfExec cmd & " --hints:off --warnings:off" & ' ' &
     args.quoteShellCommand & ' '& srcDir & '/' & srcName
 proc selfExecBuildWithSrcAdd(cmd, outfile: string; args) =
   selfExecWithSrcAdd(cmd & " -o:" & outfile, args)
