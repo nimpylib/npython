@@ -120,7 +120,7 @@ implGeneratorMethod send(value: PyObject):
       return newTypeError newPyAscii("can't send non-None value to a just-started generator")
   elif not frame.yieldFrom.isNil:
     if not value.isPyNone:
-      return newTypeError newPyAscii("sending non-None values to yield from is not implemented")
+      frame.yieldFromSend = value
   else:
     assert frame.valueStack.len != 0
     frame.valueStack[^1] = value
@@ -138,6 +138,7 @@ implGeneratorMethod close():
     self.finished = true
     self.frame.completed = true
     self.frame.yieldFrom = nil
+    self.frame.yieldFromSend = nil
     self.frame.valueStack.setLen(0)
   pyNone
 
@@ -156,6 +157,7 @@ implGeneratorMethod throw(exc: PyObject):
   PyExceptionObject(thrown).thrown = true
   self.frame.completed = true
   self.frame.yieldFrom = nil
+  self.frame.yieldFromSend = nil
   self.frame.valueStack.setLen(0)
   thrown
 

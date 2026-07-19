@@ -38,6 +38,7 @@ declarePyType Frame(mutable):
   valueStack: seq[PyObject]
   completed: bool
   yieldFrom: PyObject
+  yieldFromSend: PyObject
   owner{.private.}: PyInterpFrameOwner
 
 func privateOwner*(f: PyFrameObject): var PyInterpFrameOwner{.inline.} =

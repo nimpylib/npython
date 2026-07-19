@@ -77,5 +77,19 @@ def delegation_result():
     yield result
 
 assert list(delegation_result()) == [5, None]
+
+
+def forwarding_target():
+    received = yield 1
+    yield received
+
+
+def forwarding_outer():
+    yield from forwarding_target()
+
+
+forwarder = forwarding_outer()
+assert forwarder.send(None) == 1
 assert list(x * 2 for x in [1, 2, 3]) == [2, 4, 6]
+assert forwarder.send(7) == 7
 print("ok")

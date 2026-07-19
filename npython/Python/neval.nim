@@ -449,14 +449,24 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               return yielded
             of OpCode.YieldFrom:
               let iter = sTop()
-              let nextFunc = iter.getMagic(iternext)
-              if nextFunc.isNil:
-                handleException(newTypeError newPyAscii("yield from argument is not iterable"))
-              let yielded = nextFunc(iter)
+              var yielded: PyObject
+              if f.yieldFromSend.isNil:
+                let nextFunc = iter.getMagic(iternext)
+                if nextFunc.isNil:
+                  handleException(newTypeError newPyAscii("yield from argument is not iterable"))
+                yielded = nextFunc(iter)
+              else:
+                let sendValue = f.yieldFromSend
+                f.yieldFromSend = nil
+                let sendFunc = iter.callMagic(getattr, newPyAscii"send")
+                if sendFunc.isThrownException:
+                  handleException(sendFunc)
+                yielded = sendFunc.fastCall([sendValue])
               if yielded.isStopIter:
                 discard sPop()
                 sPush pyNone
                 f.yieldFrom = nil
+                f.yieldFromSend = nil
               elif yielded.isThrownException:
                 handleException(yielded)
               else:
