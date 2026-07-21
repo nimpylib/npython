@@ -524,8 +524,7 @@ proc getNextTokenImpl(
         return
     of '#': # Comment line
       idx = line.len
-      break
-
+      return
     # the following will be executed just once (not to be in loop)
     of {'a'..'z', 'A'..'Z', '_'} - StrLitPrefix:
       addId
@@ -729,6 +728,8 @@ proc lexOneLine(lexer: Lexer, line: string, mode: Mode) {.inline, raises: [Synta
         break
 
     if idx == line.len or line[idx] == '#': # Full of spaces or comment line
+      if mode == Mode.Single:
+        lexer.add(Token.NEWLINE, idx)
       return
 
     # Compare the calculated indentation level with the stack
