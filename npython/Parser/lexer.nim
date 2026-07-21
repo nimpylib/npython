@@ -18,6 +18,9 @@ type
   # save source file for traceback info
   Source = ref object
     lines: seq[string]
+  SourceMark* = object
+    exists: bool
+    lineCount: int
 
 const
   BPrefix = {'b', 'B'}
@@ -30,11 +33,30 @@ const
 template indentLevel(lexer: Lexer): int = lexer.indentStack[^1]
 
 var sourceFiles = initTable[string, Source]()
+template getmSrc(filePath: string): untyped =
+  sourceFiles.mgetOrPut(filePath, new Source)
+template addSourceImpl(filePath: string, content) =
+  let s = getmSrc filePath
+  s.lines.add content
+proc addSource*(filePath, content: string) =
+ filePath.addSourceImpl content.split('\n')
+proc addSourceLine*(filePath, line: string) =
+ filePath.addSourceImpl line
 
-proc addSource*(filePath, content: string) = 
-  let s = sourceFiles.mgetOrPut(filePath, new Source)
-  # s.lines.add content.split("\n")
-  s.lines.addCompat content.split("\n")
+proc markSource*(filePath: string): SourceMark =
+  sourceFiles.withValue filePath, value:
+    return SourceMark(exists: true, lineCount: value.lines.len)
+  SourceMark()
+
+proc restoreSource*(filePath: string, mark: SourceMark) =
+  if mark.exists:
+    let source = sourceFiles.mgetOrPut(filePath, new Source)
+    source.lines.setLen(mark.lineCount)
+  else:
+    sourceFiles.del(filePath)
+
+proc clearSource*(filePath: string) =
+  sourceFiles.del(filePath)
 
 type
   GetSourceRes* = enum
@@ -742,10 +764,11 @@ proc lexString*(lexer: Lexer, input: string, mode=Mode.File) =
     addSource(lexer.fileName, input)
     return
 
+  let s = getmSrc lexer.fileName
   for line in input.split('\n'):
     # lineNo starts from 1
     inc lexer.lineNo
-    addSource(lexer.fileName, input)
+    s.lines.add line
     lexer.lexOneLine(line, mode)
   when defined(debug_token):
     echo lexer.tokenNodes

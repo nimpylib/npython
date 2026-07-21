@@ -34,6 +34,7 @@ declarePyType Code(tpToken, typeName("code")):
     # for tracebacks
     codeName{.member"co_name", readonly.}: PyStrObject
     fileName{.member"co_filename", readonly.}: PyStrObject
+    source{.private.}: PyStrObject
 
     # cache
     code_adaptive_cached{.private.}: PyBytesObject
@@ -79,6 +80,9 @@ proc newPyCode*(codeName, fileName: PyStrObject, length: int): PyCodeObject =
   result.code = newSeqOfCap[(OpCode, OpArg)] length
   result.codeName = codeName
   result.fileName = fileName
+
+proc tracebackSource*(self: PyCodeObject): PyStrObject = self.source
+proc `tracebackSource=`*(self: PyCodeObject, source: PyStrObject) = self.source = source
 
 proc len*(code: PyCodeObject): int {. inline .} = 
   code.code.len

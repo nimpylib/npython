@@ -47,6 +47,8 @@ template run_modAux(interactive: static bool): untyped{.dirty.} =
   retIfExc compileRes
   let co = PyCodeObject compileRes
   when interactive:
+    if not generate_new_source:
+      co.tracebackSource = interactive_src
     when declared(PyImport_ImportModuleAttr):
       let print_tb_func = PyImport_ImportModuleAttr("linecache", "_register_code")
       retIfExc print_tb_func
@@ -257,12 +259,10 @@ using str: string
 proc PyRun_StringFlagsWithName(str; name: PyStrObject, mode; globals; locals; flags; generate_new_source: bool): PyObject{.raises: [].} =
   var modu: Asdlmodl
   Py_DECLARE_STR(anon_string, "<string>")
-  var source: PyStrObject
   var name = name
-  if not name.isNil:
-    source = newPyStr(str)
-  else:
+  if name.isNil:
     name = Py_STR(anon_string)
+  let source = newPyStr(str)
   retIfExc PyParser_ASTFromString(str, name, mode, flags, modu)
   result = run_mod(modu, name, globals, locals, flags, source, generate_new_source)
 

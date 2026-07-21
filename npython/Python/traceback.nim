@@ -1,5 +1,6 @@
 from std/unicode import size
 import std/strformat
+from std/strutils import split
 
 import ../Include/cpython/pyerrors
 import ../Include/cpython/critical_section
@@ -67,7 +68,7 @@ func IS_WHITESPACE(c: char): bool{.inline.} = c in {' ', '\t', '\f'}
 
 proc display_source_lineNotNil(f; filename_obj: PyStrObject, lineno, indent: int;
                   margin_indent; margin;
-                  truncation: var int, line: var PyStrObject): PyBaseErrorObject =
+                  truncation: var int, line: var PyStrObject; sourceOverride: PyStrObject = nil): PyBaseErrorObject =
 
   # open the file
   if filename_obj.len == 0:
@@ -82,8 +83,9 @@ proc display_source_lineNotNil(f; filename_obj: PyStrObject, lineno, indent: int
       return
 
   # Try to get the source line using existing helper
-  var lineobj: PyStrObject
-  retIfExc getSource(filename_obj, lineno, lineobj)
+  var lineobj = sourceOverride
+  if lineobj.isNil:
+    retIfExc getSource(filename_obj, lineno, lineobj)
   #if src.isNil or not src.ofPyStrObject: return
 
   let L = lineobj.len
@@ -272,8 +274,13 @@ proc extract_anchors_from_line(filename: PyStrObject, line: PyStrObject,
 
 
   var module: Asdlmodl
+  let fnS = $filename
+  # PtParser_AST* will pollute the REPL’s source cache.
+  # So we snapshot the cache and restored around that diagnostic parse.
+  let sourceMark = markSource(fnS)
   let exc = PyParser_ASTFromString(segment_str, filename, Mode.File,
                      flags, module)
+  restoreSource(fnS, sourceMark)
   if not exc.isNil:
     return false
 
@@ -328,13 +335,20 @@ proc tb_displayline(tb: PyTracebackObject, f; filename: PyStrObject,
   retIfExc PyFile_WritelineString(line, f) # , Py_PRINT_RAW)
 
   var truncation = TRACEBACK_SOURCE_LINE_INDENT
+  let code = frame.code
   var source_line: PyStrObject = nil
+  var sourceOverride: PyStrObject = nil
+
+  if not code.tracebackSource.isNil:
+    let lines = code.tracebackSource.asUTF8.split('\n')
+    if lineno > 0 and lineno <= lines.len:
+      sourceOverride = newPyStr(lines[lineno - 1])
 
 
-  result = display_source_line(
+  result = display_source_lineNotNil(
           f, filename, lineno, TRACEBACK_SOURCE_LINE_INDENT,
           margin_indent, margin,
-          truncation, source_line);
+          truncation, source_line, sourceOverride)
   if not result.isNil or source_line.isNil:
     # ignore errors since we can't report them, can we?
     if ignore_source_errors(result):
@@ -342,7 +356,6 @@ proc tb_displayline(tb: PyTracebackObject, f; filename: PyStrObject,
 
   let
     code_offset = tb.tb_lasti
-    code = frame.code
     source_line_len = source_line.len
 
   var
