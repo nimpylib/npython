@@ -13,6 +13,7 @@ import ../Objects/[
   codeobject,
   frameobject,
 ]
+import ../Objects/stringobject/meth/extra
 import ../Objects/codeobject/locApis
 import ../Objects/exceptions/ioerror
 import ../Objects/numobjects/intobject
@@ -338,12 +339,8 @@ proc tb_displayline(tb: PyTracebackObject, f; filename: PyStrObject,
   let code = frame.code
   var source_line: PyStrObject = nil
   var sourceOverride: PyStrObject = nil
-
   if not code.tracebackSource.isNil:
-    let lines = code.tracebackSource.asUTF8.split('\n')
-    if lineno > 0 and lineno <= lines.len:
-      sourceOverride = newPyStr(lines[lineno - 1])
-
+    sourceOverride = code.tracebackSource.getLineOf(lineno, keepEnd=false)
 
   result = display_source_lineNotNil(
           f, filename, lineno, TRACEBACK_SOURCE_LINE_INDENT,
