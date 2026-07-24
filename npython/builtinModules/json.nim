@@ -3,6 +3,8 @@ import std/streams
 import std/parsejson
 import std/math
 
+import std/strformat
+
 import ./private/[utils, gen]
 
 impObjects [
@@ -11,17 +13,47 @@ impObjects [
   moduleobjectImpl,
   noneobject,
   boolobject,
-  stringobject,
+  stringobjectImpl,
   byteobjects,
   listobject,
   tupleobject,
   dictobject,
   numobjects,
 ]
+impObjects exceptions/ioerror
+impObjects exceptions/oserr/convert
 #imp Python, getargs/tovals
 import pkg/intobject
 
 genModule json
+
+declarePyError JSONDecode, Value:
+  msg{.member.}: PyStrObject
+  doc{.member.}: PyStrObject
+  pos{.member.}: int
+  lineno{.member.}: int
+  colno{.member.}: int
+
+template gen_var(nam, variable) {.dirty.} =
+  genProperty JsonModule, astToStr(nam), nam: variable
+gen_var JSONDecodeError, pyJSONDecodeErrorObjectType
+
+proc newJSONDecodeError(msg, doc: PyStrObject, pos: int, lineno: int): PyBaseErrorObject =
+  let c = doc.rfind('\n', 0, pos)
+  var colno = pos
+  if c >= 0: colno -= c
+
+  let detailedMsg = msg & newPyAscii fmt": line {lineno} column {colno} (char {pos})"
+  let res = newJSONDecodeError(detailedMsg)
+  res.msg = msg
+  res.doc = doc
+  res.pos = pos
+  res.lineno = lineno
+  res.colno = colno
+  result = res
+proc newJSONDecodeError(msg, doc: PyStrObject, pos: int): PyBaseErrorObject =
+  let lineno = doc.count('\n', 0, pos) + 1
+  newJSONDecodeError(msg, doc, pos, lineno)
 
 #XXX: why not use std/json:
 #[
@@ -30,55 +62,70 @@ genModule json
 - so as for `rawFloats`; in addition, python's json accepts
   `NaN`, `Infinity`, `-Infinity` as float, which is not valid RFC 7159 JSON.
 ]#
-proc parseJsonAsPy(p: var JsonParser): PyObject =
+template retE(p: var JsonParser, msg: PyStrObject) =
+  return newJSONDecodeError(msg, newPyStr p.buf, p.bufpos, p.lineNumber)
+template myeat(p: var JsonParser, ttok: TokKind) =
+  if p.tok == ttok: discard getTok(p)
+  else: p.retE newPyAscii("excepted " & $ttok)
+proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.raises: [IOError, OSError].} =
   ## Parses JSON from a JSON Parser `p`.
   case p.tok
   of tkString:
-    result = newPyStr p.a
+    res = newPyStr p.a
     discard getTok(p)
   of tkInt:
-    result = newPyInt p.a
+    try:
+      res = newPyInt p.a
+    except ValueError as e:
+      return newValueError newPyAscii e.msg
     discard getTok(p)
   of tkFloat:
-    result = PyFloat_FromString newPyAscii p.a
+    var fres: PyFloatObject
+    let exc = PyFloat_FromString(newPyAscii p.a, fres)
+    if not exc.isNil:
+      p.retE PyStrObject exc.args[0]
+    res = fres
     discard getTok(p)
   of tkTrue:
-    result = pyTrueObj
+    res = pyTrueObj
     discard getTok(p)
   of tkFalse:
-    result = pyFalseObj
+    res = pyFalseObj
     discard getTok(p)
   of tkNull:
-    result = pyNone
+    res = pyNone
     discard getTok(p)
   of tkCurlyLe:
     #if depth > DepthLimit: raiseParseErr(p, "}")
-    let res: PyDictObject = newPyDict() #newJObject()
-    result = res
+    let resObj: PyDictObject = newPyDict() #newJObject()
+    res = resObj
     discard getTok(p)
     while p.tok != tkCurlyRi:
       if p.tok != tkString:
-        raiseParseErr(p, "string literal as key")
+        p.retE newPyAscii "string literal as key"
       var key = newPyStr p.a
       discard getTok(p)
-      eat(p, tkColon)
-      let val = p.parseJsonAsPy #parseJson(p, rawIntegers, rawFloats, depth+1)
-      res[key] = val
+      myeat(p, tkColon)
+      var val: PyObject
+      retIfExc p.parseJsonAsPy val
+      resObj[key] = val
       if p.tok != tkComma: break
       discard getTok(p)
-    eat(p, tkCurlyRi)
+    myeat(p, tkCurlyRi)
   of tkBracketLe:
     #if depth > DepthLimit: raiseParseErr(p, "]")
-    let res: PyListObject = newPyList() #newJArray()
-    result = res
+    let resObj: PyListObject = newPyList() #newJArray()
+    res = resObj
     discard getTok(p)
     while p.tok != tkBracketRi:
-      res.add(p.parseJsonAsPy) #parseJson(p, rawIntegers, rawFloats, depth+1))
+      var val: PyObject
+      retIfExc p.parseJsonAsPy val
+      resObj.add(val) #parseJson(p, rawIntegers, rawFloats, depth+1))
       if p.tok != tkComma: break
       discard getTok(p)
-    eat(p, tkBracketRi)
+    myeat(p, tkBracketRi)
   of tkError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
-    raiseParseErr(p, "{")
+    p.retE newPyAscii "{" & " excepted"
 
 proc encodeString(value: string): string = $(%value)
 
@@ -142,21 +189,17 @@ proc toJsonString(obj: PyObject, output: var string): PyBaseErrorObject =
 
 proc decodeJson(s: Stream): PyObject =
   const filename = ""
-  try:
-    var p: JsonParser = default(JsonParser)
-    p.open(s, filename)
+  handleOsErrRetPyObj:
     try:
-      discard getTok(p) # read first token
-      result = p.parseJsonAsPy #parseJson(p, rawIntegers, rawFloats, 0)
-      eat(p, tkEof) # check if there is no extra data
-    finally:
-      p.close()
-  except JsonParsingError as exc:
-    return newValueError newPyAscii(exc.msg)
-  except IOError as exc: return newValueError newPyAscii(exc.msg)
-  except OSError as exc: return newValueError newPyAscii(exc.msg)
-  except ValueError as exc:
-    return newValueError newPyAscii(exc.msg)
+      var p: JsonParser = default(JsonParser)
+      p.open(s, filename)
+      try:
+        discard getTok(p) # read first token
+        retIfExc p.parseJsonAsPy result #parseJson(p, rawIntegers, rawFloats, 0)
+        myeat(p, tkEof) # check if there is no extra data
+      finally:
+        p.close()
+    except IOError as exc: return newIOError exc
 
 proc decodeJson(s: string): PyObject = decodeJson newStringStream(s)
 
