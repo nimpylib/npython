@@ -203,17 +203,28 @@ when true:
   genIndex index, find
   genIndex rindex, rfind
 
-  implStrMethod count:
-    implMethodGenStrTargetAndStartStop
-    var count: int
-    template cntAll(it) =
-      for _ in it: count.inc
+  template cntAll(it) =
+    for _ in it: result.inc
+  proc count*(self: PyStrObject, target: char, start=0, stop=self.len): int =
+    if self.isAscii:
+      cntAll self.str.asciiStr.findAll(target, start, stop)
+    else:
+      cntAll self.str.unicodeStr.findAll(Rune target, start, stop)
+  proc count*(self: PyStrObject, target: Rune, start=0, stop=self.len): int =
+    if self.isAscii:
+      if target.ord > char.high.ord: return
+      cntAll self.str.asciiStr.findAll(char(target), start, stop)
+    else:
+      cntAll self.str.unicodeStr.findAll(target, start, stop)
+  proc count*(self: PyStrObject, target: PyStrObject, start=0, stop=self.len): int =
     doKindsWith2It(self.str, target.str):
       cntAll doFind findAll
       cntAll doFind findAllExpanded
       cntAll doFind findAllExpanded
       cntAll doFind findAll
-    newPyInt(count)
+  implStrMethod count:
+    implMethodGenStrTargetAndStartStop
+    newPyInt(self.count(target, start, stop))
 
 template prefind{.dirty.} =
   let le = self.len
