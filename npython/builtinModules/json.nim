@@ -74,11 +74,18 @@ proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.ra
     res = newPyStr p.a
     discard getTok(p)
   of tkInt:
-    try:
-      res = newPyInt p.a
-    except ValueError as e:
-      return newValueError newPyAscii e.msg
-    discard getTok(p)
+    if p.a == "-":
+      discard getTok(p)
+      if p.tok != tkError or p.a != "Infinity":
+        p.retE newPyAscii "invalid token"
+      res = newPyFloat NegInf
+      discard getTok(p)
+    else:
+      try:
+        res = newPyInt p.a
+      except ValueError as e:
+        return newValueError newPyAscii e.msg
+      discard getTok(p)
   of tkFloat:
     var fres: PyFloatObject
     let exc = PyFloat_FromString(newPyAscii p.a, fres)
@@ -124,7 +131,17 @@ proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.ra
       if p.tok != tkComma: break
       discard getTok(p)
     myeat(p, tkBracketRi)
-  of tkError, tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
+  of tkError:
+    case p.a
+    of "NaN":
+      res = newPyFloat NaN
+    of "Infinity":
+      res = newPyFloat Inf
+    # -Infinity is handled in tkInt case
+    else:
+      p.retE newPyAscii "invalid token"
+    discard getTok(p)
+  of tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
     p.retE newPyAscii "{" & " excepted"
 
 proc encodeString(value: string): string = $(%value)
