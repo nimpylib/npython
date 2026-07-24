@@ -1,11 +1,16 @@
-import std/json as nimJson
 import std/streams
 import std/parsejson
-import std/math
 
-import std/strformat
+from std/strutils import repeat, toHex, toLowerAscii
 
 import ./private/[utils, gen]
+import pkg/handy_sugars/trans_imp
+import ./json/[
+  dumpUtils, objFields,
+]
+impExpCwd json, [
+  err,
+]
 
 impObjects [
   pyobject,
@@ -13,7 +18,7 @@ impObjects [
   moduleobjectImpl,
   noneobject,
   boolobject,
-  stringobjectImpl,
+  stringobject,
   byteobjects,
   listobject,
   tupleobject,
@@ -22,38 +27,17 @@ impObjects [
 ]
 impObjects exceptions/ioerror
 impObjects exceptions/oserr/convert
-#imp Python, getargs/tovals
+impObjects abstract/call
+imp Python, [call, getargs/kwargs, getargs/va_and_kw,
+  getargs/vargs, getargs/topys]
+import ../Objects/listobject/sort
 import pkg/intobject
 
 genModule json
 
-declarePyError JSONDecode, Value:
-  msg{.member.}: PyStrObject
-  doc{.member.}: PyStrObject
-  pos{.member.}: int
-  lineno{.member.}: int
-  colno{.member.}: int
-
 template gen_var(nam, variable) {.dirty.} =
   genProperty JsonModule, astToStr(nam), nam: variable
 gen_var JSONDecodeError, pyJSONDecodeErrorObjectType
-
-proc newJSONDecodeError(msg, doc: PyStrObject, pos: int, lineno: int): PyBaseErrorObject =
-  let c = doc.rfind('\n', 0, pos)
-  var colno = pos
-  if c >= 0: colno -= c
-
-  let detailedMsg = msg & newPyAscii fmt": line {lineno} column {colno} (char {pos})"
-  let res = newJSONDecodeError(detailedMsg)
-  res.msg = msg
-  res.doc = doc
-  res.pos = pos
-  res.lineno = lineno
-  res.colno = colno
-  result = res
-proc newJSONDecodeError(msg, doc: PyStrObject, pos: int): PyBaseErrorObject =
-  let lineno = doc.count('\n', 0, pos) + 1
-  newJSONDecodeError(msg, doc, pos, lineno)
 
 #XXX: why not use std/json:
 #[
@@ -67,7 +51,13 @@ template retE(p: var JsonParser, msg: PyStrObject) =
 template myeat(p: var JsonParser, ttok: TokKind) =
   if p.tok == ttok: discard getTok(p)
   else: p.retE newPyAscii("excepted " & $ttok)
-proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.raises: [IOError, OSError].} =
+proc parseConstant(name: string, default: float, opt: DecodeOptions): PyObject =
+  if opt.parse_constant.isPyNone:
+    return newPyFloat default
+  opt.parse_constant.call(newPyAscii name)
+
+proc parseJsonAsPy(p: var JsonParser, res: var PyObject,
+                   opt: DecodeOptions): PyBaseErrorObject {.raises: [IOError, OSError].} =
   ## Parses JSON from a JSON Parser `p`.
   case p.tok
   of tkString:
@@ -78,20 +68,29 @@ proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.ra
       discard getTok(p)
       if p.tok != tkError or p.a != "Infinity":
         p.retE newPyAscii "invalid token"
-      res = newPyFloat NegInf
+      res = parseConstant("-Infinity", NegInf, opt)
+      retIfExc res
       discard getTok(p)
     else:
-      try:
-        res = newPyInt p.a
-      except ValueError as e:
-        return newValueError newPyAscii e.msg
+      if opt.parse_int.isPyNone:
+        try:
+          res = newPyInt p.a
+        except ValueError as e:
+          return newValueError newPyAscii e.msg
+      else:
+        res = opt.parse_int.call(newPyAscii p.a)
+        retIfExc res
       discard getTok(p)
   of tkFloat:
-    var fres: PyFloatObject
-    let exc = PyFloat_FromString(newPyAscii p.a, fres)
-    if not exc.isNil:
-      p.retE PyStrObject exc.args[0]
-    res = fres
+    if opt.parse_float.isPyNone:
+      var fres: PyFloatObject
+      let exc = PyFloat_FromString(newPyAscii p.a, fres)
+      if not exc.isNil:
+        p.retE PyStrObject exc.args[0]
+      res = fres
+    else:
+      res = opt.parse_float.call(newPyAscii p.a)
+      retIfExc res
     discard getTok(p)
   of tkTrue:
     res = pyTrueObj
@@ -105,7 +104,7 @@ proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.ra
   of tkCurlyLe:
     #if depth > DepthLimit: raiseParseErr(p, "}")
     let resObj: PyDictObject = newPyDict() #newJObject()
-    res = resObj
+    let pairs = newPyList()
     discard getTok(p)
     while p.tok != tkCurlyRi:
       if p.tok != tkString:
@@ -114,11 +113,20 @@ proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.ra
       discard getTok(p)
       myeat(p, tkColon)
       var val: PyObject
-      retIfExc p.parseJsonAsPy val
+      retIfExc p.parseJsonAsPy(val, opt)
       resObj[key] = val
+      pairs.add newPyTuple([PyObject key, val])
       if p.tok != tkComma: break
       discard getTok(p)
     myeat(p, tkCurlyRi)
+    if not opt.object_pairs_hook.isPyNone:
+      res = opt.object_pairs_hook.call(pairs)
+      retIfExc res
+    elif not opt.object_hook.isPyNone:
+      res = opt.object_hook.call(resObj)
+      retIfExc res
+    else:
+      res = resObj
   of tkBracketLe:
     #if depth > DepthLimit: raiseParseErr(p, "]")
     let resObj: PyListObject = newPyList() #newJArray()
@@ -126,7 +134,7 @@ proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.ra
     discard getTok(p)
     while p.tok != tkBracketRi:
       var val: PyObject
-      retIfExc p.parseJsonAsPy val
+      retIfExc p.parseJsonAsPy(val, opt)
       resObj.add(val) #parseJson(p, rawIntegers, rawFloats, depth+1))
       if p.tok != tkComma: break
       discard getTok(p)
@@ -134,19 +142,22 @@ proc parseJsonAsPy(p: var JsonParser, res: var PyObject): PyBaseErrorObject {.ra
   of tkError:
     case p.a
     of "NaN":
-      res = newPyFloat NaN
+      res = parseConstant("NaN", NaN, opt)
     of "Infinity":
-      res = newPyFloat Inf
+      res = parseConstant("Infinity", Inf, opt)
     # -Infinity is handled in tkInt case
     else:
       p.retE newPyAscii "invalid token"
+    retIfExc res
     discard getTok(p)
   of tkCurlyRi, tkBracketRi, tkColon, tkComma, tkEof:
     p.retE newPyAscii "{" & " excepted"
 
-proc encodeString(value: string): string = $(%value)
 
-proc toJsonString(obj: PyObject, output: var string): PyBaseErrorObject =
+proc toJsonString(obj: PyObject, output: var string, opt: EncodeOptions,
+                  markers: var seq[PyObject], depth: int,
+                  itemSeparator, keySeparator, indentUnit: string,
+                  indented: bool): PyBaseErrorObject =
   if obj.isPyNone:
     output.add "null"
   elif obj.ofPyBoolObject:
@@ -154,27 +165,25 @@ proc toJsonString(obj: PyObject, output: var string): PyBaseErrorObject =
   elif obj.ofPyIntObject:
     output.add $PyIntObject(obj).v
   elif obj.ofPyFloatObject:
-    let value = PyFloatObject(obj).v
-    if value.isNaN:
-      output.add "NaN"
-    elif value == Inf:
-      output.add "Infinity"
-    elif value == NegInf:
-      output.add "-Infinity"
-    else:
-      output.add $value
+    retIfExc floatToken(PyFloatObject(obj).v, opt.allow_nan, output)
   elif obj.ofPyStrObject:
-    output.add encodeString(PyStrObject(obj).asUTF8)
+    output.add encodeString(PyStrObject(obj), opt.ensure_ascii)
   elif obj.ofPyListObject or obj.ofPyTupleObject:
+    let markerCount = markers.len
+    retIfExc pushMarker(obj, opt.check_circular, markers)
     output.add '['
     var first = true
     template addItem(item: PyObject) =
       if first:
         first = false
       else:
-        output.add ", "
-      let exc = toJsonString(item, output)
+        output.add itemSeparator
+      if indented:
+        output.addIndent(indentUnit, depth + 1)
+      let exc = toJsonString(item, output, opt, markers, depth + 1,
+                             itemSeparator, keySeparator, indentUnit, indented)
       if not exc.isNil:
+        markers.setLen markerCount
         return exc
     if obj.ofPyListObject:
       for item in PyListObject(obj):
@@ -182,29 +191,69 @@ proc toJsonString(obj: PyObject, output: var string): PyBaseErrorObject =
     else:
       for item in PyTupleObject(obj):
         addItem item
+    if indented and not first:
+      output.addIndent(indentUnit, depth)
     output.add ']'
+    markers.setLen markerCount
   elif obj.ofPyDictObject:
+    let markerCount = markers.len
+    retIfExc pushMarker(obj, opt.check_circular, markers)
     output.add '{'
     var first = true
-    for key, value in PyDictObject(obj).pairs:
-      if not key.ofPyStrObject:
-        return newTypeError newPyAscii(
-          "keys must be str, int, float, bool or None, not " & key.typeName)
+    var keys = newPyList()
+    for key in PyDictObject(obj).keys:
+      keys.add key
+    if opt.sort_keys:
+      let exc = keys.sort()
+      if not exc.isNil:
+        markers.setLen markerCount
+        return exc
+    for key in keys:
+      var encodedKey = ""
+      let keyExc = encodeKey(key, opt, encodedKey)
+      if not keyExc.isNil:
+        markers.setLen markerCount
+        return keyExc
+      if encodedKey.len == 0:
+        continue
       if first:
         first = false
       else:
-        output.add ", "
-      output.add encodeString(PyStrObject(key).asUTF8)
-      output.add ": "
-      let exc = toJsonString(value, output)
-      if not exc.isNil:
-        return exc
+        output.add itemSeparator
+      if indented:
+        output.addIndent(indentUnit, depth + 1)
+      output.add encodedKey
+      output.add keySeparator
+      let value = PyDictObject(obj).getItem(key)
+      if value.isThrownException:
+        markers.setLen markerCount
+        return PyBaseErrorObject value
+      let valueExc = toJsonString(value, output, opt, markers, depth + 1,
+                                  itemSeparator, keySeparator, indentUnit,
+                                  indented)
+      if not valueExc.isNil:
+        markers.setLen markerCount
+        return valueExc
+    if indented and not first:
+      output.addIndent(indentUnit, depth)
     output.add '}'
+    markers.setLen markerCount
   else:
-    return newTypeError newPyAscii(
-      "Object of type " & obj.typeName & " is not JSON serializable")
+    if opt.default.isPyNone:
+      return newTypeError newPyStr(
+        "Object of type " & obj.typeName & " is not JSON serializable")
+    let markerCount = markers.len
+    retIfExc pushMarker(obj, opt.check_circular, markers)
+    let replacement = opt.default.call(obj)
+    if replacement.isThrownException:
+      markers.setLen markerCount
+      return PyBaseErrorObject replacement
+    let exc = toJsonString(replacement, output, opt, markers, depth,
+                           itemSeparator, keySeparator, indentUnit, indented)
+    markers.setLen markerCount
+    return exc
 
-proc decodeJson(s: Stream): PyObject =
+proc decodeJson(s: Stream, opt: DecodeOptions): PyObject =
   const filename = ""
   handleOsErrRetPyObj:
     try:
@@ -212,37 +261,127 @@ proc decodeJson(s: Stream): PyObject =
       p.open(s, filename)
       try:
         discard getTok(p) # read first token
-        retIfExc p.parseJsonAsPy result #parseJson(p, rawIntegers, rawFloats, 0)
+        retIfExc p.parseJsonAsPy(result, opt)
         myeat(p, tkEof) # check if there is no extra data
       finally:
         p.close()
     except IOError as exc: return newIOError exc
 
-proc decodeJson(s: string): PyObject = decodeJson newStringStream(s)
+proc decodeJson(s: string, opt: DecodeOptions): PyObject =
+  decodeJson(newStringStream(s), opt)
 
 proc toString(s: openArray[char]): string =
   result = newStringUninit(s.len)
   for i, c in s: result[i] = c
-proc decodeJson(s: openArray[char]): PyObject = decodeJson(toString(s))
+proc decodeJson(s: openArray[char], opt: DecodeOptions): PyObject =
+  decodeJson(toString(s), opt)
 
-proc loads*(s: PyStrObject): PyObject = decodeJson(s.asUTF8)
-proc loads*(s: PyBytesObject|PybytearrayObject): PyObject = decodeJson(s.items)
+proc loads*(s: PyStrObject, opt: DecodeOptions): PyObject =
+  decodeJson(s.asUTF8, opt)
+proc loads*(s: PyBytesObject|PybytearrayObject, opt: DecodeOptions): PyObject =
+  decodeJson(s.items, opt)
 
-proc loads*(s: PyObject): PyObject =
-  if s.ofPyStrObject: loads(PyStrObject(s))
-  elif s.ofPyBytesObject: loads(PyBytesObject(s))
-  elif s.ofPyByteArrayObject: loads(PyByteArrayObject(s))
+proc loads*(s: PyObject, opt: DecodeOptions): PyObject =
+  if s.ofPyStrObject: loads(PyStrObject(s), opt)
+  elif s.ofPyBytesObject: loads(PyBytesObject(s), opt)
+  elif s.ofPyByteArrayObject: loads(PyByteArrayObject(s), opt)
   else:
     newTypeError newPyStr(
       "the JSON object must be str, bytes or bytearray, not " & s.typeName)
 
-proc dumps(obj: PyObject): PyObject =
+proc dumps*(obj: PyObject, opt: EncodeOptions): PyObject =
   var encoded = ""
-  let exc = toJsonString(obj, encoded)
+  var markers: seq[PyObject]
+  var itemSeparator, keySeparator, indentUnit: string
+  var indented: bool
+  retIfExc resolveFormatting(opt, itemSeparator, keySeparator,
+                             indentUnit, indented)
+  let exc = toJsonString(obj, encoded, opt, markers, 0,
+                         itemSeparator, keySeparator, indentUnit, indented)
   retIfExc exc
   newPyStr encoded
 
+template setKeyword[T](kwargs: PyDictObject, name: string, value: T,
+                omitNone: static[bool] = false) =
+  var valueObj: PyObject
+  retIfExc toPy(value, valueObj)
+  if not omitNone or not valueObj.isPyNone:
+    kwargs[newPyStr name] = valueObj
+
+proc unexpectedKeyword(funcName: string,
+                       kwargs: PyDictObject): PyBaseErrorObject =
+  if kwargs.isNil: return
+  for key in kwargs.keys:
+    return newTypeError newPyStr(
+      funcName & "() got an unexpected keyword argument '" & $key & "'")
+
+
+template loadsOrDumps(arg; loads; optT: typedesc; omitNoneArgs: bool,
+    clsMeth: string): untyped =
+  if not cls.isPyNone:
+    let kwargs = if extraKeywords.isNil: newPyDict() else: extraKeywords
+    forFields itS, it, optT:
+      kwargs.setKeyword(itS, it, omitNone = omitNoneArgs)
+    let decoder = fastCall(cls, [], kwargs)
+    retIfExc decoder
+    return decoder.callMethod(newPyAscii(clsMeth), arg)
+
+  retIfExc unexpectedKeyword(astToStr(loads), extraKeywords)
+  let opt = initFromLocals optT
+  loads(arg, opt)
+
+{.push warning[ImplicitDefaultValue]: off.}
+proc loads*(s: PyObject,
+    cls, objectHook, parseFloat, parseInt,
+    parseConstant, objectPairsHook: PyObject = pyNone,
+    extraKeywords: PyDictObject = nil): PyObject =
+  loadsOrDumps s,
+    loads, DecodeOptions, omitNoneArgs = true, clsMeth = "decode"
+
+proc dumps*(obj: PyObject,
+    skipkeys = false, ensureAscii = true, checkCircular = true,
+    allowNan = true, cls, indent: PyObject = pyNone,
+    separators = none Separators,
+    default: PyObject, sortKeys = false,
+    extraKeywords: PyDictObject = nil): PyObject =
+  loadsOrDumps obj,
+    dumps, EncodeOptions, omitNoneArgs = false, clsMeth = "encode"
+{.pop.}
+
 #TODO:io: load, dump
-#TODO:json: kw
-impljsonModuleMethod loads(s): loads(s)
-impljsonModuleMethod dumps(obj): dumps(obj)
+impljsonModuleMethod loads:
+  let kw = PyDictObject kwargs
+
+  retIfExc PyArg_ParseTupleAndKeywordsAs(
+    "loads", args, kw,
+    DecodeOptions.fieldNameArrayAdded("cls"),
+    s: PyObject,
+    cls = PyObject pyNone,
+    object_hook = PyObject pyNone,
+    parse_float = PyObject pyNone,
+    parse_int = PyObject pyNone,
+    parse_constant = PyObject pyNone,
+    object_pairs_hook = PyObject pyNone,
+    **extraKeywords)
+  loads(s, cls, object_hook, parse_float, parse_int, parse_constant,
+        object_pairs_hook, extraKeywords)
+
+impljsonModuleMethod dumps:
+  let kw = PyDictObject kwargs
+
+  retIfExc PyArg_ParseTupleAndKeywordsAs(
+    "dumps", args, kw,
+    EncodeOptions.fieldNameArrayAdded("cls"),
+    obj: PyObject,
+    skipkeys = false,
+    ensure_ascii = true,
+    check_circular = true,
+    allow_nan = true,
+    cls = PyObject pyNone,
+    indent = PyObject pyNone,
+    separators = none Separators,
+    default = PyObject pyNone,
+    sort_keys = false,
+    **extraKeywords)
+  dumps(obj, skipkeys, ensure_ascii, check_circular, allow_nan,
+        cls, indent, separators, default, sort_keys, extraKeywords)
