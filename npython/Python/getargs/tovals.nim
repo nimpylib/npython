@@ -13,6 +13,7 @@ import ../../Objects/[
 ]
 import ../../Objects/numobjects/intobject/ops_imp_warn
 import ../../Objects/numobjects/floatobject
+import ../../Objects/abstract/sequence/list
 
 genToValGeneric(float, double, Float)
 genToValGeneric(float32, float, Float)
@@ -52,3 +53,17 @@ proc handleOption[T](x: PyObject, res: var Option[T]): PyBaseErrorObject =
   res = some(val)
 
 genToVal1T Option, handleOption
+type Tuple2[T] = (T, T)
+proc handleTuple2[T](x: PyObject, res: var Tuple2[T]): PyBaseErrorObject =
+  let items = PySequence_Fast(x, "argument must be an iterable")
+  retIfExc items
+  if PySequence_Fast_GET_SIZE(items) != 2:
+    return newValueError newPyAscii(
+      "argument must contain exactly two items")
+  var e0, e1: T
+  retIfExc toval(PySequence_Fast_GET_ITEM(items, 0), e0)
+  retIfExc toval(PySequence_Fast_GET_ITEM(items, 1), e1)
+
+  res = (e0, e1)
+
+genToVal1T Tuple2, handleTuple2

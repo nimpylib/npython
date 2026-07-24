@@ -13,6 +13,7 @@ import ../../Objects/[
   stringobject,
   byteobjects,
   listobject,
+  tupleobject,
 ]
 import ../../Objects/numobjects/intobject/ops_imp_warn
 import ../../Objects/numobjects/floatobject
@@ -51,3 +52,11 @@ genToPyWithTBody Option:
     res = pyNone
     return
   toPy(x.unsafeGet(), res)
+
+type Tuple2[T] = (T, T)
+genToPyWithTBody Tuple2:
+  var e0, e1: PyObject
+  retIfExc toPy(x[0], e0)
+  retIfExc toPy(x[1], e1)
+  res = newPyTuple([e0, e1])
+
