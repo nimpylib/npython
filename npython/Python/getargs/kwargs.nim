@@ -70,6 +70,21 @@ template implWithVars(){.dirty.} =
     for i, v in vars:
       asgn(v, v.getPyNameOfParamAsStr)
 
+template implWithKeywordsAndRest(restKwargs){.dirty.} =
+  let parseBlk = genSym(nskLabel, "blk_of_PyArg_UnpackKeywords")
+  let unpackKnown = newStmtList()
+  for i, k in keywords:
+    unpackKnown.add newCall(
+      bindSym"lukImpl", exc, kwargs, vars[i], newLit(k), parseBlk)
+  result.add quote do:
+    if not `kwargs`.isNil:
+      `unpackKnown`
+  result.add quote do:
+    `restKwargs` =
+      if `kwargs`.isNil: newPyDict()
+      else: `kwargs`
+  result = newBlockStmt(parseBlk, result)
+
 template resStmt{.dirty.} =  
   result = newStmtList()
   let fnameNode = genSym(nskLet, "currentPyFuncName")
@@ -103,6 +118,13 @@ template genPyArg_VaUnpackKeywords(Vars){.dirty.} =
     resStmt; wrapExcAsRet implWithKeywords
 genPyArg_VaUnpackKeywords NimNode
 genPyArg_VaUnpackKeywords openArray[NimNode]
+
+proc PyArg_VaUnpackKeywordsWithRest*(fname: NimNode#[string]#;
+    kwargs: NimNode#[PyDictObject]#; keywords: openArray[string];
+    vars: openArray[NimNode]; restKwargs: NimNode#[PyDictObject]#): NimNode =
+  ## to sup `**kw` after kw-only args
+  resStmt
+  wrapExcAsRet implWithKeywordsAndRest(restKwargs)
 
 macro PyArg_UnpackKeywords*(fname: string; kwargs: PyDictObject; keywords: static openArray[string], vars: varargs[typed]): PyBaseErrorObject =
   PyArg_VaUnpackKeywords(fname, kwargs, keywords, vars)
