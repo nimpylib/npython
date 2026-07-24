@@ -7,19 +7,20 @@ import ../pyobject
 
 var subErrs*{.compileTime.}: seq[string]  ## all subclasses' (including subsub, etc) names of BaseException except Exception
 proc declareSubErrorImplAux(pyTypeName: NimNode; baseTypeName: NimNode;
-    fields: NimNode): NimNode =
+    fields: NimNode, isBltin: bool): NimNode =
   let
     eeS = pyTypeName.strVal
     typ = ident "py" & pyTypeName.strVal & "ObjectType"
     btyp = ident "py" & baseTypeName.strVal & "ObjectType"
-  subErrs.add eeS
+  if isBltin:
+    subErrs.add eeS
   result = quote do:
     declarePyType(`pyTypeName`(base(`baseTypeName`)), `fields`)
     `addTp`(`typ`, `btyp`)
     `typ`.name = `eeS`
 
-proc declareSubErrorImpl(pyTypeName, errTok: NimNode; baseTypeName: NimNode; fields: NimNode): NimNode =
-  result = declareSubErrorImplAux(pyTypeName, baseTypeName, fields)
+proc declareSubErrorImpl(pyTypeName, errTok: NimNode; baseTypeName: NimNode; fields: NimNode, isBltin: bool): NimNode =
+  result = declareSubErrorImplAux(pyTypeName, baseTypeName, fields, isBltin)
   result.add quote do:
     newProcTmpl(`pyTypeName`, `errTok`)
 
@@ -27,13 +28,20 @@ template prepare{.dirty.} =
   let
     basePyTypeName = ident baseE.strVal & "Error"
     pyTypeName = ident E.strVal & "Error"
+
+macro declarePyError*(E, baseE; fields) =
+  bind prepare, declareSubErrorImpl
+  prepare
+  declareSubErrorImpl(pyTypeName, baseE, basePyTypeName, fields, false)
+template declarePyError*(E, baseE) = declarePyError(E, baseE): discard
+
 macro declareSubError(E, baseE; fields) =
   prepare
-  declareSubErrorImpl(pyTypeName, baseE, basePyTypeName, fields)
+  declareSubErrorImpl(pyTypeName, baseE, basePyTypeName, fields, true)
 
 macro declareSubSubError(E, baseE; fields) =
   prepare
-  declareSubErrorImplAux(pyTypeName, basePyTypeName, fields)
+  declareSubErrorImplAux(pyTypeName, basePyTypeName, fields, true)
 template declareSubError(E, baseE) = declareSubError(E, baseE): discard
 template declareSubSubError(E, baseE) = declareSubSubError(E, baseE): discard
 
