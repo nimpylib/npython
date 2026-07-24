@@ -28,7 +28,7 @@ declarePyType Instance(dict):
 
 # todo: should move to the base object when inheritance and mro is ready
 # todo: should support more complicated arg declaration
-implInstanceMagic New(tp: PyTypeObject, *actualArgs):
+implInstanceMagic New(tp: PyTypeObject, *actualArgs, **kwargs):
   result = newPyInstanceSimple()
   result.pyType = tp
 
@@ -63,13 +63,13 @@ template instanceBltinFuncTmpl(idx: int, nameIdent: untyped) =
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
     let fun = KeyError!self.getTypeDict[magicNameStr]
-    return fun.fastCall(args)
+    return fun.fastCall(args, PyDictObject kwargs)
 
 template instanceBltinMethodTmpl(idx: int, nameIdent: untyped) = 
   implInstanceMagic nameIdent:
     let magicNameStr = magicNameStrs[idx]
     let fun = KeyError!self.getTypeDict[magicNameStr]
-    return fun.fastCall(@[PyObject(self)] & @args)
+    return fun.fastCall(@[PyObject(self)] & @args, PyDictObject kwargs)
 
 
 macro implInstanceMagics: untyped = 
