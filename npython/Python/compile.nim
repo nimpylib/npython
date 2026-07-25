@@ -273,6 +273,7 @@ proc assemble(cu: CompilerUnit, fileName: PyStrObject): PyCodeObject =
   result.varArgName = cu.ste.varArg
   result.kwOnlyNames = cu.ste.kwOnlyArgs
   result.kwOnlyDefaults = cu.ste.kwOnlyDefaults
+  result.kwArgName = cu.ste.kwArg
   if cu.ste.isGenerator:
     result.flags = typeof(result.flags)(result.flags.ord or CO.GENERATOR.ord)
 
@@ -317,6 +318,11 @@ proc makeFunction(c: Compiler, cu: CompilerUnit,
     flag = flag or 16
     when defined(debug):
       echo "DEBUG: compile.makeFunction found vararg " & $cu.ste.varArg
+  if not cu.ste.kwArg.isNil:
+    c.tcu.addLoadConst(cu.ste.kwArg, lineNo)
+    flag = flag or 32
+    when defined(debug):
+      echo "DEBUG: compile.makeFunction found kwarg " & $cu.ste.kwArg
   c.tcu.addLoadConst(co, lineNo)
   c.tcu.addLoadConst(functionName, lineNo)
   # currently flag may be 0 or 8 or include extraFlags

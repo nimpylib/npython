@@ -40,6 +40,7 @@ type
     varArg*: PyStrObject
     kwOnlyArgs*: seq[PyStrObject]
     kwOnlyDefaults*: seq[PyObject]
+    kwArg*: PyStrObject
 
     isGenerator*: bool
     declaredVars: HashSet[PyStrObject]
@@ -196,6 +197,11 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
     ste.kwOnlyDefaults = newSeq[PyObject](args.kw_defaults.len)
     for i in 0..<args.kw_defaults.len:
       ste.kwOnlyDefaults[i] = pyNone
+    # kwarg
+    if not args.kwarg.isNil:
+      let kw = AstArg(args.kwarg)
+      ste.kwArg = kw.arg.value
+      ste.addDeclaration(kw.arg)
 
   while toVisit.len != 0:
     let (astNode, parentSte) = toVisit.pop

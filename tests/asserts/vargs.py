@@ -36,3 +36,39 @@ assert o.f() == [1]
 assert o.f() == [1, 1]
 
 o.m(2, 1, 2)
+
+
+def collect(**kw):
+    return kw
+
+
+assert collect() == {}
+assert collect(a=1, b=2) == {'a': 1, 'b': 2}
+assert collect(**{'x': 3}) == {'x': 3}
+
+
+def mixed(a=1, *args, flag=2, **kw):
+    return a, args, flag, kw
+
+
+assert mixed() == (1, (), 2, {})
+assert mixed(3, 4, flag=5, extra=6) == (3, (4,), 5, {'extra': 6})
+assert mixed(a=7, other=8) == (7, (), 2, {'other': 8})
+
+
+class K:
+    def method(self, value, **kw):
+        return value, kw
+
+
+assert K().method(1, answer=42) == (1, {'answer': 42})
+assert (lambda **kw: kw)(value=9) == {'value': 9}
+
+
+def capture(**kw):
+    def inner():
+        return kw
+    return inner()
+
+
+assert capture(captured=True) == {'captured': True}

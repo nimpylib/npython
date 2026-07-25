@@ -917,24 +917,28 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               # opArg bit 0x1 : positional defaults tuple present
               # opArg bit 0x2 : kw-only defaults dict present
               # opArg bit 0x8 : closure tuple present
-              # opArg bit 0x10: vararg name constant present
               let name = sPop()
               let code = sPop()
               var varargName: PyObject = nil
+              var kwargName: PyObject = nil
               var defaults: PyObject = nil
               var kwDefaults: PyObject = nil
               var closure: PyObject = nil
+              if (opArg and 32) != 0:
+                kwargName = sPop()
               if (opArg and 16) != 0:
                 varargName = sPop()
               if (opArg and 8) != 0:
                 closure = sPop()
-              if (opArg and 1) != 0:
-                defaults = sPop()
               if (opArg and 2) != 0:
                 kwDefaults = sPop()
+              if (opArg and 1) != 0:
+                defaults = sPop()
               let funObj = newPyFunc(PyStrObject(name), PyCodeObject(code), f.globals, PyTupleObject(closure), PyTupleObject(defaults))
               if not varargName.isNil:
                 funObj.code.varArgName = PyStrObject(varargName)
+              if not kwargName.isNil:
+                funObj.code.kwArgName = PyStrObject(kwargName)
               # attach kwDefaults to code object for call-time handling
               if not kwDefaults.isNil:
                 # kwDefaults is a tuple of values corresponding to code.kwOnlyNames

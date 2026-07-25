@@ -30,6 +30,7 @@ declarePyType Code(tpToken, typeName("code")):
     varArgName: PyStrObject  ## name of *args parameter if present
     kwOnlyNames: seq[PyStrObject]
     kwOnlyDefaults: seq[PyObject]
+    kwArgName: PyStrObject  ## name of **kwargs parameter if present
 
     # for tracebacks
     codeName{.member"co_name", readonly.}: PyStrObject

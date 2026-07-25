@@ -64,6 +64,17 @@ proc newPyFrame*(fun: PyFunctionObject,
                  back: PyFrameObject,
                  kwargs: PyDictObject = nil): PyObject{.raises: [].}
 
+proc setNamedArgument(frame: PyFrameObject, code: PyCodeObject,
+                      name: PyStrObject, value: PyObject): bool =
+  let localIdx = code.localVars.find(name)
+  if localIdx >= 0:
+    frame.fastLocals[localIdx] = value
+    return true
+  let cellIdx = code.cellVars.find(name)
+  if cellIdx >= 0:
+    frame.cellVars[cellIdx].refObj = value
+    return true
+
 proc newPyFrame*(fun: PyFunctionObject): PyFrameObject = 
   let obj = newPyFrame(fun, @[], nil)
   if obj.isThrownException:
@@ -124,14 +135,8 @@ proc newPyFrame*(fun: PyFunctionObject,
       unreachable("arguments can't be free")
   # assign vararg tuple to its local if present
   if not code.varArgName.isNil and not varargTuple.isNil:
-    # find local index for varArgName
-    var varIdx = -1
-    for i, name in code.localVars:
-      if name == code.varArgName:
-        varIdx = i
-        break
-    if varIdx >= 0:
-      frame.fastLocals[varIdx] = varargTuple
+    let res = frame.setNamedArgument(code, code.varArgName, varargTuple)
+    assert res
   # setup closures. Note some are done when setting up arguments
   if fun.closure.isNil:
     assert code.freeVars.len == 0
@@ -140,23 +145,19 @@ proc newPyFrame*(fun: PyFunctionObject,
     for idx, c in fun.closure.items:
       assert c.ofPyCellObject
       frame.cellVars[code.cellVars.len + idx] = PyCellObject(c)
+
   # apply kw-only defaults if any
   if code.kwOnlyNames.len > 0:
     for i, name in code.kwOnlyNames:
-      # find local index
-      var localIdx = -1
-      for j, ln in code.localVars:
-        if ln == name:
-          localIdx = j
-          break
-      if localIdx >= 0 and frame.fastLocals[localIdx].isNil:
-        var kwValue: PyObject = nil
-        if not kwargs.isNil:
-          kwValue = kwargs.getOptionalItem(name)
-        if not kwValue.isNil:
-          frame.fastLocals[localIdx] = kwValue
-        elif i < code.kwOnlyDefaults.len:
-          frame.fastLocals[localIdx] = code.kwOnlyDefaults[i]
-        else:
-          frame.fastLocals[localIdx] = pyNone
+      var kwValue: PyObject
+      if not kwargs.isNil and kwargs.pop(name, kwValue):
+        discard frame.setNamedArgument(code, name, kwValue)
+      elif i < code.kwOnlyDefaults.len:
+        discard frame.setNamedArgument(code, name, code.kwOnlyDefaults[i])
+      else:
+        discard frame.setNamedArgument(code, name, pyNone)
+  if not code.kwArgName.isNil:
+    let kwargValue = if kwargs.isNil: newPyDict() else: kwargs
+    let res = frame.setNamedArgument(code, code.kwArgName, kwargValue)
+    assert res
   frame

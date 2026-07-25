@@ -413,6 +413,8 @@ template astArgListAux(parseNode: ParseNode; xfpdef) =
   result = newAstArguments()
   var idx = 0
   var parsingKwOnly = false
+  template curTokenEqKind(tokenKind: Token): bool =
+    idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == tokenKind
   while idx < parseNode.children.len:
     let child = parseNode.children[idx]
     case child.tokenNode.token
@@ -423,7 +425,7 @@ template astArgListAux(parseNode: ParseNode; xfpdef) =
         result.kwonlyargs.add(`ast xfpdef`(child))
       inc idx
       # optional default: '=' test
-      if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.Equal:
+      if curTokenEqKind Token.Equal:
         if idx + 1 >= parseNode.children.len:
           raiseSyntaxError("invalid default value", parseNode.children[idx])
         let defNode = parseNode.children[idx + 1]
@@ -435,15 +437,18 @@ template astArgListAux(parseNode: ParseNode; xfpdef) =
     of Token.Star:
       # start kw-only args or vararg
       inc idx
-      if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.xfpdef:
+      if curTokenEqKind Token.xfpdef:
         result.vararg = `ast xfpdef`(parseNode.children[idx])
         inc idx
       parsingKwOnly = true
-      if idx < parseNode.children.len and parseNode.children[idx].tokenNode.token == Token.Comma:
+      if curTokenEqKind Token.Comma:
         inc idx
     of Token.DoubleStar:
-      # **kwargs not implemented yet
-      raiseSyntaxError("**kwargs not implemented", child)
+      inc idx
+      result.kwarg = `ast xfpdef`(parseNode.children[idx])
+      parsingKwOnly = true
+      if curTokenEqKind Token.Comma:
+        inc idx
     of Token.Comma:
       inc idx
     else:

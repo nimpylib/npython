@@ -36,6 +36,10 @@ proc callFunction(funcObj: PyFunctionObject, args: openArray[PyObject], kwargs: 
     if not hasOnlyStringKeys:
       return newTypeError newPyAscii"keywords must be strings"
 
+  var remainingKwargs =
+    if kwDict.isNil: PyDictObject nil
+    else: newPyDict()
+
   for i in 0..<min(provided, argCount):
     finalArgsSeq[i] = args[i]
 
@@ -58,7 +62,11 @@ proc callFunction(funcObj: PyFunctionObject, args: openArray[PyObject], kwargs: 
           if kwName == key:
             matched = true
             break
-        if not matched:
+        if matched:
+          remainingKwargs[key] = value
+        elif not code.kwArgName.isNil:
+          remainingKwargs[key] = value
+        else:
           return newTypeError newPyStr(
             fmt"{funcObj.name.str}() got an unexpected keyword argument '{keyStr.str}'")
 
@@ -81,7 +89,7 @@ proc callFunction(funcObj: PyFunctionObject, args: openArray[PyObject], kwargs: 
           fmt"{funcObj.name.str}() missing required positional argument '{code.argNames[i].str}'")
       finalArgsSeq[i] = funcObj.defaults[funcObj.defaults.len - missing]
 
-  let newF = newPyFrame(funcObj, finalArgsSeq, prevF, kwDict)
+  let newF = newPyFrame(funcObj, finalArgsSeq, prevF, remainingKwargs)
   retIfExc newF
   if code.flags & CO.GENERATOR:
     let frame = PyFrameObject(newF)
