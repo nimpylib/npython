@@ -38,11 +38,10 @@ jobs:
     - name: BuildC
       run: ${{ env.build_exe_cmd }}
     - name: Test C backend
-      if: &linux-only runner.os == 'Linux'
       run: nimble test
 
     - name: BuildJs
-      if: *linux-only
+      if: &linux-only runner.os == 'Linux'
       run: nimble buildJs -d:nodejs --warning[Spacing]:off
     - name: Test NodeJS backend
       if: *linux-only
