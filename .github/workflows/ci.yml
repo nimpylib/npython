@@ -38,9 +38,9 @@ jobs:
       run: nimble testNodeJs
 
     - name: BuildJsLib
-      run: nimble buildLibJs --warning[Spacing]:off
+      run: nimble buildJsLib --warning[Spacing]:off
     - name: Test es6 backend
-      run: nimble testLibJs
+      run: nimble testJsLib
 
     - name: setup wasi sdk
       uses: konsumer/install-wasi-sdk@v1
