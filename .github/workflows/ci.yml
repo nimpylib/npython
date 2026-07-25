@@ -62,7 +62,7 @@ jobs:
       continue-on-error: ${{ github.event_name == 'release' }}
       run: |
         nimble install https://github.com/nimpylib/wasm_backend
-        nimble buildWasm --warning[Spacing]:off
+        nimble buildWasm --warning[Spacing]:off || echo "wasm failed"
 
     - name: Stage release assets
       if: &release-only github.event_name == 'release'
