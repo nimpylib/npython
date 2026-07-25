@@ -10,11 +10,19 @@ on:
       - '.github/workflows/ci.yml'
   pull_request:
   workflow_dispatch:
+  release:
+    types: [published]
 env:
   nim-version: '2.2.8'
+  build_exe_cmd: 'nimble build --warning[Spacing]:off'
+permissions:
+  contents: write
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ${{ fromJSON(github.event_name == 'release' && '["ubuntu-latest","windows-latest","macos-15-intel"]' || '["ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
     - name: Cache nimble
@@ -28,23 +36,53 @@ jobs:
         nim-version: ${{ env.nim-version }}
 
     - name: BuildC
-      run: nimble build --warning[Spacing]:off
+      run: ${{ env.build_exe_cmd }}
     - name: Test C backend
+      if: &linux-only runner.os == 'Linux'
       run: nimble test
 
     - name: BuildJs
+      if: *linux-only
       run: nimble buildJs -d:nodejs --warning[Spacing]:off
     - name: Test NodeJS backend
+      if: *linux-only
       run: nimble testNodeJs
 
     - name: BuildJsLib
+      if: *linux-only
       run: nimble buildJsLib --warning[Spacing]:off
     - name: Test es6 backend
+      if: *linux-only
       run: nimble testJsLib
 
     - name: setup wasi sdk
+      if: *linux-only
       uses: konsumer/install-wasi-sdk@v1
     - name: BuildWasm
+      if: *linux-only
       run: |
         nimble install https://github.com/nimpylib/wasm_backend
         nimble buildWasm --warning[Spacing]:off
+
+    - name: Stage release assets
+      if: &release-only github.event_name == 'release'
+      shell: bash
+      run: |
+        mkdir release-assets
+        extension=
+        if [[ "$RUNNER_OS" == Windows ]]; then
+          extension=.exe
+        fi
+        mv "bin/npython$extension" \
+          "release-assets/npython-$RUNNER_OS-$RUNNER_ARCH$extension"
+        if [[ "$RUNNER_OS" == Linux ]]; then
+          mv bin/* release-assets/
+        fi
+    - name: Upload release assets
+      if: *release-only
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: >-
+        gh release upload "${{ github.event.release.tag_name }}"
+        release-assets/* --clobber
