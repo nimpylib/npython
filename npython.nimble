@@ -119,31 +119,31 @@ proc testLibs(pyExe: string, args: openArray[string], js: static[bool] = false) 
       withDir testDir:
         pyExe.testCwd
 
-proc test(pre, pyExe, pyExeToCheckExists: string, args: openArray[string], js: static[bool] = false) =
+proc testNoLib(pre, pyExe, pyExeToCheckExists: string, args: openArray[string], js: static[bool] = false) =
   if not fileExists pyExeToCheckExists:
     raise newException(OSError, "please firstly run `nimble " & pre & "`")
   testInDirDepth1 pyExe, args
-  testLibs pyExe, args, js=js
-  let pyExe = binPathWithoutExt.toExe
 
 taskWithArgs testPyLib, "lib test, assuming after build":
   let pyExe = binPathWithoutExt.toExe
   testLibs pyExe, args
 taskWithArgs test, "test, assuming after build":
   let pyExe = binPathWithoutExt.toExe
-  test "build", pyExe, pyExe, args
+  testNoLib "build", pyExe, pyExe, args
+  testLibs pyExe, args, js=false
 
 taskWithArgs testNodeJs, "test nodejs backend, assuming after build":
   let
     pyExeFile = binPathWithoutExt & ".js"
     pyExe = "node " & pyExeFile
-  test "buildJs", pyExe, pyExeFile, args, js=true
+  testNoLib "buildJs", pyExe, pyExeFile, args
+  testLibs pyExe, args, js=true
 
 taskWithArgs testJsLib, "test lib for js, assuming after build":
   let
     pyExeFile = binPathWithoutExt & ".lib.js"
     pyExe = "node "
-  test "buildJsLib", pyExe, pyExeFile, @["js/lib"] & args
+  testNoLib "buildJsLib", pyExe, pyExeFile, @["js/lib"] & args
 
 using args: openArray[string]
 proc selfExecWithSrcAdd(cmd: string; args) =
