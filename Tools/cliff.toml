@@ -28,7 +28,6 @@ body = """
         {%- for commit in commits %}
             - {{ commit.message | split(pat="\n") | first | trim }} \
                 ({{ commit.id | truncate(length=7, end="") }})\
-                {% if commit.remote.username %} by @{{ commit.remote.username }}{%- endif -%}
                 {% if commit.remote.pr_number %} in \
                 [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }}) \
                 {%- endif -%}
