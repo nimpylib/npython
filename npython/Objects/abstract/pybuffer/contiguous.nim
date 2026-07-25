@@ -1,4 +1,6 @@
 
+when defined(nimPreviewSlimSystem):
+  import std/assertions
 import ../../[
   pybuffer,
 ]

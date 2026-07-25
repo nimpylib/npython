@@ -1,5 +1,7 @@
 
 import std/macros
+when defined(nimPreviewSlimSystem):
+  import std/assertions
 
 proc parseOneParam*(child: NimNode): tuple[name, tp, defval: NimNode] =
   var name: NimNode
