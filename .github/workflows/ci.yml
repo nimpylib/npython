@@ -11,7 +11,7 @@ on:
   pull_request:
   workflow_dispatch:
 env:
-  nim-version: 'stable'
+  nim-version: '2.2.8'
 jobs:
   ci:
     runs-on: ubuntu-latest

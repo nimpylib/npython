@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  nim-version: 'stable'
+  nim-version: '2.2.8'
   git-repo-url: https://github.com/${{ github.repository }}
   deploy-dir: .gh-pages
 jobs:
