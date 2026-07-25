@@ -1,6 +1,9 @@
 
-import std/strformat
 include ./comm
+when ucs2:
+  impObjects exceptions
+else:
+  import std/strformat
 
 proc newPyStr*(c: wchar_t): PyObject =
   newPyStr @[Rune c]
