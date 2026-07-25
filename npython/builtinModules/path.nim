@@ -36,7 +36,7 @@ genGenX Consts, "gen_const"
 
 clinicGenpathSig basename(p: PathLike)
 clinicGenpathSig getsize(p: PathLike), [OSError]
-clinicGenpath samefile, [OSError, ValueError]
+clinicGenpath samefile, [OSError, ValueError, NotImplementedError]
 
 template genGetXTime(getmtime) {.dirty.} =
   clinicGenpathSig getmtime(p: PathLike), [OSError]
