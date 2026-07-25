@@ -1,7 +1,6 @@
 
 import std/unicode
 from std/strutils import toHex
-import pkg/handy_sugars/backendMark
 
 include ./comm
 impObjects [
@@ -22,8 +21,6 @@ template toWchar*(rune: Rune): wchar_t =
           unicodeEscapeContent & "' cannot be converted to a single wchar_t character"
       )
   cast[wchar_t](rune)
-
-type WideCString = ptr wchar_t
 
 when ucs2:
   proc toAllocedWideCString(source: openArray[Rune], result: var WideCString) =
@@ -50,7 +47,8 @@ when ucs2:
 template newWStr(L: int): untyped =
   cast[WideCString](alloc (L+1) * sizeof(wchar_t))
 
-proc asWideCharString*(x: PyStrObject; size: var int): WideCString{.noWeirdBackend, npyexportc: "PyUnicode_AsWideCharString".} =
+
+proc asWideCharString*(x: PyStrObject; size: var int): WideCString{.noWeirdBackend, npyexportcNoJs: "PyUnicode_AsWideCharString".} =
   let L = x.len
   result = newWStr L
   when ucs2:

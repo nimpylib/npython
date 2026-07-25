@@ -70,7 +70,7 @@ proc newPyStr*(s: openArray[wchar_t]): PyObject{.npyexportc: "PyUnicode_FromWide
   ## like `PyUnicode_FromWideChar`, but 
   newPyStrFromWChars(s.len, s)
 
-proc newPyStr*(s: ptr wchar_t): PyObject{.npyexportc: "PyUnicode_FromWideCharNullEnd".} =
+proc newPyStr*(s: WideCString): PyObject{.noWeirdBackend, npyexportcNoJs: "PyUnicode_FromWideCharNullEnd".} =
   var L = 0
   iterator chars(s: ptr wchar_t): wchar_t =
     while true:
