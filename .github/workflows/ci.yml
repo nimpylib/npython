@@ -60,6 +60,7 @@ jobs:
       uses: konsumer/install-wasi-sdk@v1
     - name: BuildWasm
       if: *linux-only
+      continue-on-error: ${{ github.event_name == 'release' }}
       run: |
         nimble install https://github.com/nimpylib/wasm_backend
         nimble buildWasm --warning[Spacing]:off
