@@ -7,6 +7,7 @@ impObjects [
   exceptions,
 ]
 when ucs2:
+  import std/sequtils
   imp Utils, utils
   #import std/widestrs
   # std/widestrs lacks `Runes -> ptr wchar_t` conversion, so we implement it ourselves here
@@ -14,7 +15,7 @@ when ucs2:
 
 template toWchar*(rune: Rune): wchar_t =
   when ucs2:
-    if rune > high wchar_t:
+    if rune >% Rune high wchar_t:
       let unicodeEscapeContent = rune.ord.toHex(8)
       return newTypeError newPyAscii(
         r"the string '\U" & 
@@ -23,13 +24,15 @@ template toWchar*(rune: Rune): wchar_t =
   cast[wchar_t](rune)
 
 when ucs2:
-  proc toAllocedWideCString(source: openArray[Rune], result: var WideCString) =
+  proc `[]=`(ucs: WideCString; i: int; val: Utf16Char) {.noWeirdBackend.} =
+    cast[ptr Utf16Char]( cast[int](ucs) + i * sizeof(wchar_t) )[] = val
+  proc toAllocedWideCString(source: openArray[Rune], result: WideCString) =
     var d = 0
-    for r in sources:
+    for r in source:
       let ch = cast[uint32](r)
       if ch <= UNI_MAX_BMP:
         if ch >= UNI_SUR_HIGH_START and ch <= UNI_SUR_LOW_END:
-          result[d] = UNI_REPLACEMENT_CHAR
+          result[d] = Utf16Char UNI_REPLACEMENT_CHAR
         else:
           result[d] = cast[Utf16Char](ch)
       elif ch > UNI_MAX_UTF16:
@@ -56,10 +59,10 @@ proc asWideCharString*(x: PyStrObject; size: var int): WideCString{.noWeirdBacke
       for i, r in x.pairs:
         result[i] = cast[wchar_t](r)
     else:
-      let extraN = x.str.unicodeStr.countIt it %> Rune UNI_MAX_BMP
+      let extraN = x.str.unicodeStr.countIt it >% Rune UNI_MAX_BMP
       if extraN != 0:
         let nSize = L + 1 + extraN
-        result = realloc(result, nSize * sizeof(wchar_t))
+        result = cast[WideCString](realloc(result, nSize * sizeof(wchar_t)))
       toAllocedWideCString(x.str.unicodeStr, result)
 
   else:

@@ -13,8 +13,6 @@ const ucs2 = sizeof(wchar_t) == 2
 
 type WideCString = ptr wchar_t
 when ucs2:
-  proc `[]=`(ucs: WideCString; i: int; val: wchar_t) {.noWeirdBackend.} =
-    cast[ptr wchar_t]( cast[int](ucs) + i * sizeof(wchar_t) )[] = val
   #copied from nim-lang/Nim:std/widestr.nim when v2.3.1
   # with some modifications to fit our needs
   const

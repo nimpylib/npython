@@ -1,8 +1,10 @@
 
 include ./comm
+import std/strformat
 when ucs2:
   impObjects exceptions
-import std/strformat
+  proc outUniRngMsg(x, m: int): string{.cdecl, inline.} =
+      fmt"character U+{x:x} is not in range [U+0000; U+{m:x}]"
 
 proc newPyStr*(c: wchar_t): PyObject =
   newPyStr @[Rune c]
@@ -60,7 +62,7 @@ template newPyStrFromWChars(L: int; chars): PyStrObject =
         ]#
         
         if ch > MAX_UNICODE_val:
-          return newValueError newPyAscii fmt"character U+{ch:x} is not in range [U+0000; U+{MAX_UNICODE:x}]"
+          return newValueError newPyAscii outUniRngMsg(ch, MAX_UNICODE)
 
         ls[lsI] = cast[Rune](ch)
         lsI.inc

@@ -156,6 +156,7 @@ implOSErrorMagic str:
     if x.isNil: pyNone else: x
 
   template f(ts, xerr){.dirty.} =
+   block:
     let s = ts
     let err = self.xerr
     if not err.isNil and not self.filename.isNil:
