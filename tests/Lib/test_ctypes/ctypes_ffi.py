@@ -1,6 +1,9 @@
 import ctypes
 from math import cos, pi, sin
 
+import sys
+if sys.platform == 'win32': sys.exit()
+
 libc = ctypes.cdll['libc.so.6']
 libm = ctypes.cdll['libm.so.6']
 
