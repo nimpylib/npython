@@ -5,7 +5,7 @@ import ../../private/[utils]
 import ../../../Objects/exceptions/baseapi
 import ../../../Objects/exceptions
 import ../../../Objects/stringobject
-import pkg/libffi
+import ./ffi/libffi
 impObjects [
   pyobject,
   noneobject,

@@ -1,7 +1,7 @@
 
 import ../dll/decl
 import ../../private/[utils]
-import pkg/libffi
+import ./ffi/libffi
 
 impObjects [
   pyobject,

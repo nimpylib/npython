@@ -1,5 +1,4 @@
 
-import pkg/libffi
 
 import pkg/py_locale_utf8_encoding/wchar_t as wcharLib
 when defined(nimPreviewSlimSystem): import std/assertions
