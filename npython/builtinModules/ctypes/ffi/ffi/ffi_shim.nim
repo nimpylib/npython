@@ -12,6 +12,10 @@ template withCStringArg(arg: PyObject, body: untyped): untyped =
     body
   else:
     return newTypeError newPyAscii"ctypes argument must be str or bytes for now"
+proc newPyCallback*(typ: PyTypeObject, callback: PyObject): PyObject {.raises: [].} =
+  newNotImplementedError newPyAscii("ctypes callback not implemented due to " &
+    "lack support of libffi for nim"
+  )
 
 implDynCall:
   if self.name == pyId"Py_Initialize":
