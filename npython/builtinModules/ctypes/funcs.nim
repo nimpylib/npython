@@ -49,45 +49,6 @@ implCTypesModuleMethod sizeof(x):
   if result.isExceptionOf Attribute:
     return newTypeError newPyAscii"this type has no size"
 
-proc POINTERPyCTypesModuleObjectMethod*(selfNoCast: PyObject,
-    args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
-  PyArg_NoKw "POINTER"
-  checkArgNum 1, "POINTER"
-  let tp = args[0]
-  if not tp.ofPyTypeObject:
-    return newTypeError newPyStr("POINTER() expected a ctypes type, got " &
-      tp.typeName)
-  POINTER(PyTypeObject(tp))
-
-pyCtypesModuleObjectType.registerBltinMethod("POINTER",
-  (POINTERPyCTypesModuleObjectMethod, false))
-proc winFuncAbi(): TABI =
-  when defined(windows) and defined(x86): STDCALL
-  else: DEFAULT_ABI
-
-proc callbackTypeMethod(selfNoCast: PyObject, args: openArray[PyObject], kwargs: PyKwArgType, name: string, abi: TABI): PyObject {.pyCFuncPragma.} =
-  PyArg_NoKw name
-  checkArgNumAtLeast 1, name
-  if args.len == 1:
-    return newCFuncType(args[0], [], abi)
-  newCFuncType(args[0], args.toOpenArray(1, args.high), abi)
-
-proc CFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
-  callbackTypeMethod(selfNoCast, args, kwargs, "CFUNCTYPE", DEFAULT_ABI)
-
-proc WINFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
-  callbackTypeMethod(selfNoCast, args, kwargs, "WINFUNCTYPE", winFuncAbi())
-
-proc PYFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
-  callbackTypeMethod(selfNoCast, args, kwargs, "PYFUNCTYPE", DEFAULT_ABI)
-
-pyCtypesModuleObjectType.registerBltinMethod("CFUNCTYPE",
-  (CFUNCTYPEPyCTypesModuleObjectMethod, false))
-pyCtypesModuleObjectType.registerBltinMethod("WINFUNCTYPE",
-  (WINFUNCTYPEPyCTypesModuleObjectMethod, false))
-pyCtypesModuleObjectType.registerBltinMethod("PYFUNCTYPE",
-  (PYFUNCTYPEPyCTypesModuleObjectMethod, false))
-
 
 implCTypesModuleMethod pointer(obj: PyCDataObject):
   newPyPointerTo(obj)
