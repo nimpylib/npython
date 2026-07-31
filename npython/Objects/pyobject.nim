@@ -795,7 +795,13 @@ macro declarePyType*(prototype, fields: untyped): untyped =
   let emptyn = newEmptyNode()
   var defval = emptyn
   proc addField(recList, name, tp: NimNode, fieldPrivate=false)=
-    let fid = if fieldPrivate: name else: name.postfix"*"
+    var fid = if fieldPrivate: name else: name.postfix"*"
+    when not defined(js):
+      if name.eqIdent"errno":
+        fid = nnkPragmaExpr.newTree(fid,
+          nnkPragma.newTree nnkExprColonExpr.newTree(
+            ident"exportc", newStrLitNode"myerrno")
+        )
     let newField = nnkIdentDefs.newTree(fid, tp, defval)  
     recList.add(newField)
   let pyObjType = ident "py" & nameIdent.strVal & "ObjectType"
