@@ -16,6 +16,9 @@ else:
 import ./os_findExe_patch
 from std/strutils import stripLineEnd, `%`
 
+proc lineEndStriped(s: string): string =
+  result = s
+  result.stripLineEnd
 ## see CPython/configure.ac
 
 const BuildInfoCacheFile* = ".npython_build_info_cache.nim"  ## internal.
@@ -35,7 +38,8 @@ else:
   const srcdir_git = currentSourcePath().parentDir.parentDir /../ ".git"
   template execEx(git: typeof(git); sub: string): untyped =
     bind git
-    gorgeEx(git.exe & " --git-dir " & srcdir_git & " " & sub)
+    let tup = gorgeEx(git.exe & " --git-dir " & srcdir_git & " " & sub)
+    (output: tup.output.lineEndStriped, exitCode: tup.exitCode)
 
 const versionRes = git.execEx"rev-parse --short HEAD"
 const useCache = hasCache and versionRes.exitCode != 0
@@ -47,9 +51,7 @@ else:
   template exec(git: typeof(git); sub: string): string =
     let res = execEx(git, sub)
     assert res.exitCode == 0, res.output
-    var outp = res.output
-    outp.stripLineEnd
-    outp
+    res.output
   const
     version = versionRes.output
     tag = git.exec"describe --all --always --dirty"
