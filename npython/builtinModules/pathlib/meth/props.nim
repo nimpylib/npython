@@ -54,9 +54,10 @@ proc getPathName(str: string, sep: char, start=0): string =
   let idx = str.rfind(sep, start)
   if idx < 0: return str[start..^1]
   str[idx + 1 .. ^1]
-method name*(self): string {.base, raises: [].} = self.str.getPathName self.getSep()
+proc getNameBase(self): string {.raises: [].} = self.str.getPathName self.getSep()
+method name*(self): string {.base, raises: [].} = self.getNameBase
 proc getWinName*(self: PyPurePathObject): string {.raises: [].} =
-  if not self.str.startsWith("//"): return self.name
+  if not self.str.startsWith("//"): return self.getNameBase
   if self.str.len == 2: return  # '//'
 
   # skip srv name
