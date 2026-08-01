@@ -22,6 +22,14 @@ genToVal SomeInteger, PyNumber_AsSomeInteger
 proc converterr(expected: string, arg: PyObject): string {.raises: [].} =
   fmt"must be {expected:.50s}, not {arg.typeName:.50s}"
 
+proc shalltyp(obj: PyObject, res: var PyTypeObject): PyBaseErrorObject =
+  if obj.ofPyTypeObject:
+    res = PyTypeObject obj
+    return
+  newTypeError newPyAscii converterr("type", obj)
+
+genToVal PyTypeObject, shalltyp
+
 proc handlestr(obj: PyObject, res: var PyStrObject): PyBaseErrorObject {.raises: [].} =
   if obj.ofPyStrObject:
     res = PyStrObject obj

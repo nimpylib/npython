@@ -45,7 +45,7 @@ template implPointerCData*() {.dirty.} =
 
   proc newPyPointerTo*(obj: PyCDataObject): PyObject {.raises: [].}
 
-  proc POINTER*(target: PyTypeObject): PyObject {.raises: [].} =
+  proc POINTER*(target: PyTypeObject): PyObject {.clinicGenStaticMethod(CtypesModule).} =
     if not target.isCDataType:
       return newTypeError newPyStr("must be a ctypes type, not " & target.name)
 

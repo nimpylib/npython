@@ -4,4 +4,4 @@ import ./ffi/consts
 when NoFFI:
   impExpCwd ffi, [ffi_shim]
 else:
-  impExpCwd ffi, [ffi_full_ugly]
+  impExpCwd ffi, [ffi_full_ugly, funcs]

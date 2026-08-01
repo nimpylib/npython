@@ -2,6 +2,7 @@
 when defined(nimPrviewSlimSystem):
   import std/assertions
 include ./aheader
+import ./abi_consts
 import pkg/libffi
 import pkg/py_locale_utf8_encoding/wchar_t as wcharLib
 import ../../cdata
@@ -16,129 +17,11 @@ impObjects [
 impObjects numobjects/floatobject
 impObjects numobjects/intobject/ops_toint
 
-impFrom Objects, hash, nil
 imp Utils, [addr0, destroyPatch, utils]
 imp Python, [getargs/tovals, call]
-proc hash(obj: PyTypeObject): Hash{.raises: [].} = hash.rawHash obj
-
-type
-  CTypeKind = enum
-    ckVoid,
-    ckBool,
-    ckSigned,
-    ckUnsigned,
-    ckFloat,
-    ckDouble,
-    ckPointer,
-    ckCString,
-    ckCWString,
-
-type
-  CTypeInfo = object
-    kind: CTypeKind
-    ffiType: ptr Type
-    target: PyTypeObject
-
-  FFIValue = object
-    kind: CTypeKind
-    p: pointer
-    pIsAlloced: bool
-    p2pIsAlloced: bool
-    keepalive: PyObject
-
-proc isCFuncType*(typ: PyTypeObject): bool {.raises: [].} =
-  var cur = typ
-  while not cur.isNil:
-    if cur.isType pyCFuncObjectType:
-      return true
-    cur = cur.base
-
-
-defdestroy FFIValue:
-  if self.p2pIsAlloced:
-    dealloc (cast[ptr pointer](self.p))[]
-  if self.pIsAlloced: dealloc self.p
-
-template typeInfo(k: CTypeKind, ffiTypeObj: untyped): CTypeInfo =
-  CTypeInfo(kind: k, ffiType: addr ffiTypeObj)
-
-
-template genUnOrSigned(signed; sint) {.dirty.} =
-  template signed(T: typedesc): CTypeInfo =
-    typeInfo(`ck signed`, 
-      when sizeof(T) <= 1: `type sint 8`
-      elif sizeof(T) <= 2: `type sint 16`
-      elif sizeof(T) <= 4: `type sint 32`
-      else: `type sint 64`
-    )
-genUnOrSigned   signed, sint
-genUnOrSigned unsigned, uint
-
-template signedOf(typeT): CTypeInfo =
-  typeInfo(ckSigned, `type_s typeT`)
-template unsignedOf(typeT): CTypeInfo =
-  typeInfo(ckUnsigned, `type typeT`)
-
-proc ctypeInfo(tp: PyTypeObject): CTypeInfo =
-
-  let tab{.global.} = toTable {
-     pyCVoidPObjectType:     typeInfo(ckPointer, type_pointer)
-    ,pyCCharPObjectType:     typeInfo(ckCString, type_pointer)
-    ,pyCWcharPObjectType:    typeInfo(ckCWString,type_pointer)
-    ,pyCBoolObjectType:      typeInfo(ckBool,    type_uint8)
-    ,pyCFloatObjectType:     typeInfo(ckFloat,   type_float)
-    ,pyCDoubleObjectType:    typeInfo(ckDouble,  type_double)
-    ,pyCCharObjectType:      signedOf(int8)
-    ,pyCWcharObjectType:     unsigned(wchar_t)
-    ,pyCByteObjectType:      signedOf(int8)
-    ,pyCUbyteObjectType:     unsignedOf(uint8)
-    ,pyCShortObjectType:     signed(cshort)
-    ,pyCUshortObjectType:    unsigned(cushort)
-    ,pyCIntObjectType:       signed(cint)
-    ,pyCUintObjectType:      unsigned(cuint)
-    ,pyCLongObjectType:      signed(clong)
-    ,pyCUlongObjectType:     unsigned(culong)
-    ,pyCLonglongObjectType:  signed(clonglong)
-    ,pyCUlonglongObjectType: unsigned(culonglong)
-    ,pyCInt8ObjectType:      signedOf(int8)
-    ,pyCUint8ObjectType:     unsignedOf(uint8)
-    ,pyCInt16ObjectType:     signedOf(int16)
-    ,pyCUint16ObjectType:    unsignedOf(uint16)
-    ,pyCInt32ObjectType:     signedOf(int32)
-    ,pyCUint32ObjectType:    unsignedOf(uint32)
-    ,pyCInt64ObjectType:     signedOf(int64)
-    ,pyCUint64ObjectType:    unsignedOf(uint64)
-    ,pyCSizeTObjectType:     unsigned(csize_t)
-    ,pyCSsizeTObjectType:    signed(csize_t)
-    ,pyCTimeTObjectType:     signed(int)
-  }
-  tab.withValue tp, value:
-    return value
-
-  if tp.isPointerType:
-    return CTypeInfo(
-      kind: ckPointer,
-      ffiType: addr type_pointer,
-      target: tp.pointerTargetType,
-    )
-
-  if tp.isCFuncType:
-    return CTypeInfo(kind: ckPointer, ffiType: addr type_pointer, target: tp)
-
-  CTypeInfo(kind: ckVoid, ffiType: nil)
-
-proc ctypeInfo(tp: PyObject, allowVoidInC: bool): CTypeInfo =
-  if tp.isNil:
-    return signed(cint)
-  if tp.isPyNone:
-    if allowVoidInC:
-      return typeInfo(ckVoid, type_void)
-    return CTypeInfo(kind: ckVoid, ffiType: nil)
-
-  if not (tp of PyTypeObject):
-    return CTypeInfo(kind: ckVoid, ffiType: nil)
-  let typ = PyTypeObject tp
-  ctypeInfo(typ)
+import ./ffi_full/[
+  types, utils,
+]
 
 
 proc ctypeSizeUnsafe(typ: PyTypeObject): int {.raises: [].} =
@@ -169,11 +52,6 @@ proc inferArgInfo(arg: PyObject): CTypeInfo =
       return typeInfo(ckBool, type_uint8)
     # CFunc defaults to use cint as argtype
     return signed(cint)
-
-proc unsupportedCType(tp: PyObject): PyObject =
-  if tp.isNil:
-    return newNotImplementedError newPyAscii"ctypes ffi does not support this type"
-  newNotImplementedError newPyStr("ctypes ffi does not support " & tp.typeName)
 
 proc argtypeItems(self: PyCFuncObject, argsLen: int): PyObject =
   if self.argtypes.isNil or self.argtypes.isPyNone:
@@ -304,7 +182,7 @@ proc callbackSignature(typ: PyTypeObject, restype, argtypes: var PyObject): PyBa
     return newTypeError newPyStr(typ.name & " is not a callback type")
 
 proc callbackAbi(typ: PyTypeObject): TABI =
-  let abi = PyDictObject(typ.dict).getOptionalItem(newPyAscii"_npy_abi_")
+  let abi = PyDictObject(typ.dict).getOptionalItem(newPyAscii AbiAttrName)
   assert abi.ofPyIntObject
   cast[TABI](PyIntObject(abi).toSomeSignedIntUnsafe[:int])
 
@@ -372,24 +250,6 @@ proc newPyCallback*(typ: PyTypeObject, callback: PyObject): PyObject {.raises: [
     return newRuntimeError newPyAscii"ffi_prep_closure_loc failed"
   self
 
-proc newCFuncType*(restype: PyObject, argtypes: openArray[PyObject], abi = DEFAULT_ABI): PyObject {.raises: [].} =
-  let retInfo = ctypeInfo(restype, allowVoidInC = true)
-  if retInfo.ffiType.isNil:
-    return unsupportedCType(restype)
-  for argtype in argtypes:
-    if ctypeInfo(argtype, allowVoidInC = false).ffiType.isNil:
-      return unsupportedCType(argtype)
-  let typ = newPyType[PyCFuncObject]("CFunctionType", base = pyCFuncObjectType)
-  typ.pyType = pyTypeObjectType
-  typ.kind = PyTypeToken.Type
-  typ.magicMethods.New = pyCFuncObjectType.magicMethods.New
-  typ.typeReady true
-  let dict = PyDictObject typ.dict
-  dict[newPyAscii"_restype_"] = restype
-  dict[newPyAscii"_argtypes_"] = newPyTuple(argtypes)
-  dict[newPyAscii"_npy_abi_"] = newPyInt(ord abi)
-  typ
-
 implDynCall:
   let argtypes = argtypeItems(self, args.len)
   if not argtypes.isNil:
@@ -428,44 +288,4 @@ implDynCall:
   call(cif, cast[proc(){.cdecl.}](self.handle), argPtr(resultValue),
       argPointers.addr0)
   resultToPy(retInfo, resultValue, restype)
-
-proc POINTERPyCTypesModuleObjectMethod*(selfNoCast: PyObject,
-    args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
-  PyArg_NoKw "POINTER"
-  checkArgNum 1, "POINTER"
-  let tp = args[0]
-  if not tp.ofPyTypeObject:
-    return newTypeError newPyStr("POINTER() expected a ctypes type, got " &
-      tp.typeName)
-  POINTER(PyTypeObject(tp))
-
-import ../../decl
-pyCtypesModuleObjectType.registerBltinMethod("POINTER",
-  (POINTERPyCTypesModuleObjectMethod, false))
-proc winFuncAbi(): TABI =
-  when defined(windows) and defined(x86): STDCALL
-  else: DEFAULT_ABI
-
-proc callbackTypeMethod(selfNoCast: PyObject, args: openArray[PyObject], kwargs: PyKwArgType, name: string, abi: TABI): PyObject {.pyCFuncPragma.} =
-  PyArg_NoKw name
-  checkArgNumAtLeast 1, name
-  if args.len == 1:
-    return newCFuncType(args[0], [], abi)
-  newCFuncType(args[0], args.toOpenArray(1, args.high), abi)
-
-proc CFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
-  callbackTypeMethod(selfNoCast, args, kwargs, "CFUNCTYPE", DEFAULT_ABI)
-
-proc WINFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
-  callbackTypeMethod(selfNoCast, args, kwargs, "WINFUNCTYPE", winFuncAbi())
-
-proc PYFUNCTYPEPyCTypesModuleObjectMethod*(selfNoCast: PyObject, args: openArray[PyObject] = @[], kwargs: PyKwArgType = nil): PyObject {.pyCFuncPragma.} =
-  callbackTypeMethod(selfNoCast, args, kwargs, "PYFUNCTYPE", DEFAULT_ABI)
-
-pyCtypesModuleObjectType.registerBltinMethod("CFUNCTYPE",
-  (CFUNCTYPEPyCTypesModuleObjectMethod, false))
-pyCtypesModuleObjectType.registerBltinMethod("WINFUNCTYPE",
-  (WINFUNCTYPEPyCTypesModuleObjectMethod, false))
-pyCtypesModuleObjectType.registerBltinMethod("PYFUNCTYPE",
-  (PYFUNCTYPEPyCTypesModuleObjectMethod, false))
 

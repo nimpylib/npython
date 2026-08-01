@@ -1,5 +1,5 @@
 import ../private/[utils]
-import ./[dll]
+import ./dll/decl
 
 impObjects [
   pyobject,

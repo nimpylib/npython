@@ -7,6 +7,7 @@ import ../private/[utils]
 import ./common
 import ./dll/decl
 import ./cdata/[ints, pointers, arrays]
+import ./decl
 
 impObjects stringobject/wchars
 impObjects [
@@ -23,6 +24,7 @@ impObjects [
   pyobject_apis/strings
 ]
 imp Python, getargs/tovals
+imp Python, getargs/dispatch
 
 template notImpl = doAssert false, "notImpl"
 

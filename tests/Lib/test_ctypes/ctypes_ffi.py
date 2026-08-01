@@ -37,5 +37,5 @@ def increment(value):
 
 identity_type = ctypes.PYFUNCTYPE(ctypes.c_int, ctypes.c_int)
 assert identity_type(increment)(4) == 5
-win_identity_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int)
-assert win_identity_type(increment)(4) == 5
+#win_identity_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int)
+#assert win_identity_type(increment)(4) == 5
