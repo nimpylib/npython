@@ -114,13 +114,13 @@ macro tpMagic*(tp, methodName: untyped): untyped =
   ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectMagic")
 
 macro tpMethod*(tp, methodName: untyped): untyped = 
-  ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectMethod")
+  ident(methodName.strVal & "Py" & tp.strVal & "ObjectMethod")
 
 macro tpGetter*(tp, methodName: untyped): untyped = 
-  ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectGetter")
+  ident(methodName.strVal & "Py" & tp.strVal & "ObjectGetter")
 
 macro tpSetter*(tp, methodName: untyped): untyped = 
-  ident(methodName.strVal.toLowerAscii & "Py" & tp.strVal & "ObjectSetter")
+  ident(methodName.strVal & "Py" & tp.strVal & "ObjectSetter")
 
 proc registerBltinMethod*(t: PyTypeObject, name: string, fun: BltinMethodDef) =
   if t.bltinMethods.hasKey(name):
@@ -526,14 +526,15 @@ proc toIdentStr(s: string): string =
   elif s[hi] == '_':
     ends = SU
     hi.dec
-  result.add s.toOpenArray(lo, hi).toLower
+  for i in s.toOpenArray(lo, hi):
+    result.add i
   result.add ends
 
 proc toIdentStr(n: NimNode): string =
   if n.kind == nnkStrLit:
     n.strVal.toIdentStr
   else: # shall be valid already
-    ($n).toLowerAscii
+    $n
 
 proc addRegisterMethod*(result: NimNode, typeObjNode, methodName, meth: NimNode, classmethod: bool, kind: NPyMethodKind) =
   case kind
@@ -571,22 +572,23 @@ proc implMethod*(methodName, argTypes: NimNode, ObjectType, pragmas, body: NimNo
   ObjectType.expectKind(nnkIdent)
   body.expectKind(nnkStmtList)
   pragmas.expectKind({nnkBracket, nnkPragma})
+  # implListMagic str = strPyListObjectMagic
+  # implListMethod append = appendPyListObjectMethod
+  # use tpMagic and tpMethod to build the name for internal use
+  var methodNimNameStr = methodName.toIdentStr
   var tail: string
   case kind
   of NPyMethodKind.Common:
     tail = "Method"
   of NPyMethodKind.Magic:
+    # use `toLowerAscii` because we used uppercase in declaration to prevent conflict with
+    # Nim keywords. mainly for magic `New`
     tail = "Magic"
+    methodNimNameStr = methodNimNameStr.toLowerAscii
   of NPyMethodKind.Getter:
     tail = "Getter"
   of NPyMethodKind.Setter:
     tail = "Setter"
-  # use `toLowerAscii` because we used uppercase in declaration to prevent conflict with
-  # Nim keywords. Now it's not necessary as we append lots of things
-  # implListMagic str = strPyListObjectMagic
-  # implListMethod append = appendPyListObjectMethod
-  # use tpMagic and tpMethod to build the name for internal use
-  let methodNimNameStr = methodName.toIdentStr
   let name = ident(methodNimNameStr & $ObjectType & tail)
   var typeObjName = objName2tpObjName($ObjectType)
   let typeObjNode = ident(typeObjName)
