@@ -254,17 +254,23 @@ proc clinicGenMethodOfKindImpl*(typ: NimNode; kind: NPyMethodKind, exceptions,
   result.addRegisterMethod(pytypObj, methodName, methId, classmethod=classmethod, kind=kind)
 
 proc clinicGenStaticMethodOfKindImpl*(typ: NimNode; kind: NPyMethodKind,
-    exceptions, prc: NimNode, conf = ccconf PrcNameAsAuditEvent): NimNode =
+    exceptions, prc: NimNode, conf = ccconf PrcNameAsAuditEvent, includeOriginal=false): NimNode =
   clinicGenMethodOfKindImpl(typ, kind, exceptions, prc,
-    classmethod=false, includeOriginal=false,
+    classmethod=false, includeOriginal=includeOriginal,
     passSelfToOrigin=false,
     conf=conf)
+
+template emptyB: NimNode = nnkBracket.newNimNode
+macro clinicGenStaticMethod*(typ; prc) =
+  ## Also used for define function of module
+  clinicGenStaticMethodOfKindImpl(typ, Common, emptyB, prc, includeOriginal=true)
+macro clinicGenStaticMethodAndRaises*(typ; exceptions; prc) =
+  clinicGenStaticMethodOfKindImpl(typ, Common, exceptions, prc, includeOriginal=true)
 
 macro clinicGenMethodOfKind*(typ; kind: static[NPyMethodKind] = NPyMethodKind.Common, exceptions: untyped = []; prc) =
   clinicGenMethodOfKindImpl(typ, kind, exceptions, prc)
 
 macro clinicGenMethod*(typ; prc) =
-  clinicGenMethodOfKindImpl(typ, NPyMethodKind.Common, nnkBracket.newNimNode, prc)
-
+  clinicGenMethodOfKindImpl(typ, NPyMethodKind.Common, emptyB, prc)
 macro clinicGenMethodRaises*(typ; exceptions; prc) =
   clinicGenMethodOfKindImpl(typ, NPyMethodKind.Common, exceptions, prc)

@@ -76,11 +76,11 @@ template gen_funii(nam) {.dirty.} =
 template gen_fuiii(nam) {.dirty.} =
   implMathModuleMethod nam(x: IntObject, y: IntObject): newPyInt(nam(x, y)).orRetValOrOvfErr
 
-proc isclose(self: PyMathModuleObject;
+proc isclose(
         x: float, y: float,
         rel_tol{.startKwOnly.}: float = 1e-09, abs_tol: float = 0.0
-    ): PyBoolObject{.clinicGenMethodRaises(MathModule, [ValueError]).} =
-  newPyBool(pymath.isclose(x, y, rel_tol, abs_tol))
+    ): bool{.clinicGenStaticMethodAndRaises(MathModule, [ValueError]).} =
+  pymath.isclose(x, y, rel_tol, abs_tol)
 
 gen_func1 acos
 gen_func1 acosh
