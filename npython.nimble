@@ -27,8 +27,6 @@ when declared(feature):  # nimble v0.18+
   feature "playground":
     requires "karax"
 
-requires "libffi"
-
 var pylibPre = "https://github.com/nimpylib"
 let envVal = getEnv("NIMPYLIB_PKGS_BARE_PREFIX")
 if envVal != "": pylibPre = ""
@@ -38,6 +36,7 @@ template pylib(x, ver) =
   requires if pylibPre == "": x & ver
            else: pylibPre & x
 
+pylib "libffi", ""
 pylib "intobject", " ^= 0.1.4"
 pylib "pysimperr", " ^= 0.1.0"
 pylib "pyrepr", " ^= 0.1.1"

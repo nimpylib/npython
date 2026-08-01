@@ -46,6 +46,6 @@ gen CFUNCTYPE, DEFAULT_ABI
 gen PYFUNCTYPE, DEFAULT_ABI
 
 when defined(windows):
-  gen WINFUNCTYPE, STDCALL
+  gen WINFUNCTYPE, when declared(STDCALL): STDCALL else: DEFAULT_ABI
 
 
