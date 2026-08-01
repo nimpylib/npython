@@ -15,7 +15,7 @@ when JsHasResMissingInCatchBug:
 
 proc PyErr_CreateException*(exception_type: PyTypeObject, value: PyObject): PyBaseExceptionObject =
   ## inner. unstable. `_PyErr_CreateException`
-  var args = @[PyObject exception_type]
+  var args: seq[PyObject]
   if value.isNil or value.isPyNone:
     #call(exception_type)
     discard
