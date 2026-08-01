@@ -4,11 +4,9 @@ import ../[pyobjectBase, stringobject]
 include ./common_h
 import ./base
 import ../../Utils/compat
-template isThrownException*(pyObj: PyObject): bool = 
-  if pyObj.ofPyExceptionObject:
+proc isThrownException*(pyObj: PyObject): bool {.inline.} =
+  pyObj.ofPyExceptionObject and
     cast[PyExceptionObject](pyObj).thrown
-  else:
-    false
 
 template retIt = return it
 template errorIfNot*(S; expect: string, pyObj: PyObject, methodName: string, doIt: untyped=retIt) = 
