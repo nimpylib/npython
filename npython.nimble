@@ -33,10 +33,9 @@ if envVal != "": pylibPre = ""
 elif pylibPre[^1] != '/':
   pylibPre.add '/'
 template pylib(x, ver) =
-  requires if pylibPre == "": x & ver
-           else: pylibPre & x
+  requires pylibPre & x & ver
 
-pylib "libffi", ""
+pylib "libffi", "#head"
 pylib "intobject", " ^= 0.1.4"
 pylib "pysimperr", " ^= 0.1.0"
 pylib "pyrepr", " ^= 0.1.1"
