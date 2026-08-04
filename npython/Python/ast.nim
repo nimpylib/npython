@@ -841,9 +841,25 @@ ast if_stmt, [AstIf]:
   result.body = astSuite(parseNode.children[3])
   if parseNode.children.len == 4:  # simple if no else
     return
-  if not (parseNode.children.len == 7):
-    raiseSyntaxError("elif not implemented", parseNode.children[4])
-  result.orelse = astSuite(parseNode.children[^1])
+
+  # The AST represents an elif chain as nested If nodes in orelse:
+  # if a: ... elif b: ... else: ...
+  # becomes if a: ... else: [If(test=b, ...)].
+  var current = result
+  var idx = 4
+  while idx < parseNode.children.len and
+      parseNode.children[idx].tokenNode.token == Token.elif:
+    let elifNode = newAstIf()
+    setNo(elifNode, parseNode.children[idx])
+    elifNode.test = astTest(parseNode.children[idx + 1])
+    elifNode.body = astSuite(parseNode.children[idx + 3])
+    current.orelse = @[AsdlStmt(elifNode)]
+    current = elifNode
+    idx += 4
+
+  if idx < parseNode.children.len:
+    assert parseNode.children[idx].tokenNode.token == Token.`else`
+    current.orelse = astSuite(parseNode.children[idx + 2])
   
 # while_stmt  'while' test ':' suite ['else' ':' suite]
 ast while_stmt, [AstWhile]:
