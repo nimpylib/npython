@@ -1,11 +1,11 @@
 import ctypes
 from math import cos, pi, sin
-
 import sys
-if sys.platform == 'win32': sys.exit()
 
-libc = ctypes.cdll['libc.so.6']
-libm = ctypes.cdll['libm.so.6']
+from utils import libcname, libmname
+
+libc = ctypes.cdll[libcname]
+libm = ctypes.cdll[libmname]
 
 libm.sin.argtypes = [ctypes.c_double]
 libm.sin.restype = ctypes.c_double
@@ -37,5 +37,7 @@ def increment(value):
 
 identity_type = ctypes.PYFUNCTYPE(ctypes.c_int, ctypes.c_int)
 assert identity_type(increment)(4) == 5
-#win_identity_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int)
-#assert win_identity_type(increment)(4) == 5
+
+if sys.platform == "win32":
+  win_identity_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_int)
+  assert win_identity_type(increment)(4) == 5
