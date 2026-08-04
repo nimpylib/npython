@@ -18,6 +18,7 @@ impObjects [
 imp Python, sysmodule
 imp Python, getargs/tovals
 imp Python, getargs/nokw
+imp Python, getargs/dispatch
 import ./common
 
 methodMacroTmpl(CtypesModule)
@@ -51,6 +52,22 @@ implCTypesModuleMethod sizeof(x):
 
 implCTypesModuleMethod pointer(obj: PyCDataObject):
   newPyPointerTo(obj)
+
+proc memset*(p, c, count: int): int {.clinicGenStaticMethod(CtypesModule).} =
+  ## Set `count` bytes at `p` to the low byte of `c`.
+  ##
+  ## Like CPython's ctypes.memset, return the destination address.
+  let dest = cast[ptr UncheckedArray[uint8]](cast[pointer](p))
+  for i in 0..<count:
+    dest[i] = uint8(c)
+  p
+
+proc memmove*(dest, src, count: int): int {.clinicGenStaticMethod(CtypesModule).} =
+  ## Copy `count` bytes from `src` to `dest`, allowing overlap.
+  ##
+  ## Like CPython's ctypes.memmove, return the destination address.
+  moveMem(cast[pointer](dest), cast[pointer](src), count)
+  dest
 
 #NOTE: like CPython, SIGSEGV if p == 0 (NULL)
 
