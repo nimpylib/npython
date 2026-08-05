@@ -16,7 +16,7 @@ assert asyncio.run(nested(4)) == 4
 
 
 async def delayed(value):
-    await asyncio.sleep(0)
+    await asyncio.sleep(0.001)
     return value
 
 

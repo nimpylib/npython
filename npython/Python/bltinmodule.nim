@@ -8,7 +8,6 @@ import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject
   notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
   listobjectImpl, enumobject, memoryobject,
-  coroutineobject,
   coroutine_runtime,
   ]
 import ../Objects/numobjects/complexobjectImpl
@@ -160,10 +159,8 @@ genBltOfNArg hasattr, 2:
 
 implBltinFunc repr(obj: PyObject): obj.callMagic(repr)
 
-implBltinFunc run(obj: PyObject):
-  if not obj.ofPyCoroutineObject:
-    return obj
-  runCoroutine(obj)
+implBltinFunc npyRunAwaitable(obj: PyObject), "__npy_runAwaitable":
+  runAwaitable(obj)
 
 implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject, *bases), "__build_class__":
   # may fail because of wrong number of args, etc.
