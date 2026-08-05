@@ -117,6 +117,7 @@ proc astSimpleStmt(parseNode: ParseNode): seq[AsdlStmt]
 proc astSmallStmt(parseNode: ParseNode): AsdlStmt
 proc astExprStmt(parseNode: ParseNode): AsdlStmt
 proc astTestlistStarExpr(parseNode: ParseNode): AsdlExpr
+proc astStarred(parseNode: ParseNode): AstStarred
 proc astAugAssign(parseNode: ParseNode): AsdlOperator
 
 proc astDelStmt(parseNode: ParseNode): AsdlStmt
@@ -857,10 +858,16 @@ ast case_block, [AstMatchCase]:
       for element in AstList(pattern).elts:
         if element of AstName and not AstName(element).id.value.eqAscii("_"):
           element.setStore()
+        elif element of AstStarred and AstStarred(element).value of AstName:
+          if not AstName(AstStarred(element).value).id.value.eqAscii("_"):
+            AstStarred(element).value.setStore()
     elif pattern of AstTuple:
       for element in AstTuple(pattern).elts:
         if element of AstName and not AstName(element).id.value.eqAscii("_"):
           element.setStore()
+        elif element of AstStarred and AstStarred(element).value of AstName:
+          if not AstName(AstStarred(element).value).id.value.eqAscii("_"):
+            AstStarred(element).value.setStore()
     elif pattern of AstDict:
       for value in AstDict(pattern).values:
         if value of AstName and not AstName(value).id.value.eqAscii("_"):
@@ -1582,9 +1589,10 @@ proc astTestlistComp[T: Asdlexpr](parseNode: ParseNode, newor: CollectionExprNew
       even if `newor` is `newSet` or `newDict`
   ]##
   let child1 = parseNode.children[0]
-  if child1.tokenNode.token == Token.star_expr:
-    raiseSyntaxError("Star expression not implemented", child1)
-  let test1 = astTest(child1)
+  let test1 = if child1.tokenNode.token == Token.star_expr:
+    astStarred(child1)
+  else:
+    astTest(child1)
   # comprehension
   if (parseNode.children.len == 2) and 
       (parseNode.children[1].tokenNode.token == Token.comp_for):
@@ -1603,7 +1611,7 @@ proc astTestlistComp[T: Asdlexpr](parseNode: ParseNode, newor: CollectionExprNew
     of Token.test:
       elts.add astTest(child)
     of Token.star_expr:
-      raiseSyntaxError("Star expression not implemented", child)
+      elts.add astStarred(child)
     else:
       unreachable
   result = newor(elts)
@@ -1775,7 +1783,15 @@ proc astStarred(parseNode: ParseNode): AstStarred =
   let res = newAstStarred()
   assert parseNode.children.len == 2
   assert parseNode.children[0].tokenNode.token == Token.Star
-  res.value = astTest(parseNode.children[1])
+  # `star_expr` uses `expr`, but call `argument` uses `test` for the
+  # expression after `*`.  Both productions are represented by AstStarred.
+  res.value = case parseNode.tokenNode.token
+    of Token.star_expr:
+      astExpr(parseNode.children[1])
+    of Token.argument:
+      astTest(parseNode.children[1])
+    else:
+      unreachable()
   res.ctx = newAstLoad()
   setNo(res, parseNode.children[0])
   res

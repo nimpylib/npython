@@ -641,6 +641,7 @@ compileMethod Match:
     let wildcard = namePattern and AstName(pattern).id.value.eqAscii("_")
     let sequencePattern = singlePattern and (pattern of AstList or pattern of AstTuple)
     let mappingPattern = singlePattern and pattern of AstDict
+    var matchedBlock: BasicBlock
     let classPattern = singlePattern and pattern of AstCall and
       AstCall(pattern).args.len == 0 and AstCall(pattern).keywords.len == 0
     if classPattern:
@@ -674,24 +675,64 @@ compileMethod Match:
           c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
     elif sequencePattern:
       let elements = if pattern of AstList: AstList(pattern).elts else: AstTuple(pattern).elts
-      c.addOp(newArgInstr(OpCode.LoadGlobal, c.tste.nameId(newPyAscii("len")), lineNo))
-      c.addOp(newArgInstr(OpCode.Copy, 2, lineNo))
-      c.addOp(newArgInstr(OpCode.CallFunction, 1, lineNo))
-      c.addLoadConst(newPyInt(elements.len), lineNo)
-      c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+      var starIdx = -1
+      for idx, element in elements:
+        if element of AstStarred:
+          if starIdx != -1:
+            raiseSyntaxError("multiple starred patterns are not implemented", element)
+          starIdx = idx
+      template emitLen() =
+        c.addOp(newArgInstr(OpCode.LoadGlobal, c.tste.nameId(newPyAscii("len")), lineNo))
+        c.addOp(newArgInstr(OpCode.Copy, 2, lineNo))
+        c.addOp(newArgInstr(OpCode.CallFunction, 1, lineNo))
+      if starIdx == -1:
+        emitLen()
+        c.addLoadConst(newPyInt(elements.len), lineNo)
+        c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+      else:
+        emitLen()
+        c.addLoadConst(newPyInt(elements.len - 1), lineNo)
+        c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Ge), lineNo))
       c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
       for idx, element in elements:
-        c.addOp(OpCode.DupTop, lineNo)
-        c.addLoadConst(newPyInt(idx), lineNo)
-        c.addOp(OpCode.BinarySubscr, lineNo)
-        if element of AstName and AstName(element).id.value.eqAscii("_"):
-          c.addOp(OpCode.PopTop, lineNo)
-        elif element of AstName:
-          c.compile(element)
+        if element of AstStarred:
+          let suffixLen = elements.len - idx - 1
+          c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+          if suffixLen == 0:
+            c.addOp(OpCode.PopTop, lineNo)
+            c.addOp(newArgInstr(OpCode.BuildList, 0, lineNo))
+          else:
+            c.addLoadConst(newPyInt(idx), lineNo)
+            emitLen()
+            c.addLoadConst(newPyInt(suffixLen), lineNo)
+            c.addOp(OpCode.BinarySubtract, lineNo)
+            c.addOp(newArgInstr(OpCode.BuildSlice, 2, lineNo))
+            c.addOp(OpCode.BinarySubscr, lineNo)
+          if AstStarred(element).value of AstName and AstName(AstStarred(element).value).id.value.eqAscii("_"):
+            c.addOp(OpCode.PopTop, lineNo)
+          else:
+            c.compile(AstStarred(element).value)
         else:
-          c.compile(element)
-          c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
-          c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+          c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+          if starIdx == -1 or idx < starIdx:
+            c.addLoadConst(newPyInt(idx), lineNo)
+          else:
+            emitLen()
+            c.addLoadConst(newPyInt(elements.len - starIdx - 1), lineNo)
+            c.addOp(OpCode.BinarySubtract, lineNo)
+            c.addLoadConst(newPyInt(idx - starIdx - 1), lineNo)
+            c.addOp(OpCode.BinaryAdd, lineNo)
+          c.addOp(OpCode.BinarySubscr, lineNo)
+          if element of AstName and AstName(element).id.value.eqAscii("_"):
+            c.addOp(OpCode.PopTop, lineNo)
+          elif element of AstName:
+            c.compile(element)
+          else:
+            c.compile(element)
+            c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+            c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+      matchedBlock = newBasicBlock()
+      c.addOp(newJumpInstr(OpCode.JumpAbsolute, matchedBlock, lineNo))
     elif not singlePattern:
       let matched = newBasicBlock()
       let body = newBasicBlock()
@@ -718,6 +759,8 @@ compileMethod Match:
       c.compile(pattern)
       c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
       c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+    if not matchedBlock.isNil:
+      c.addBlock(matchedBlock)
     if not caseNode.capture.isNil:
       c.addOp(OpCode.DupTop, lineNo)
       c.compile(caseNode.capture)

@@ -70,6 +70,18 @@ assert pair([2, 3]) == 5
 assert pair([2]) == -1
 
 
+def starred(value):
+    match value:
+        case [first, *rest]:
+            return first
+        case _:
+            return None
+
+
+assert starred([1, 2, 3]) == 1
+assert starred([1]) == 1
+
+
 def whole(value):
     match value:
         case [1, 2] as pair_value:
