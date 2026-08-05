@@ -939,8 +939,8 @@ ast while_stmt, [AstWhile]:
   setNo(result, parseNode.children[0])
   result.test = astTest(parseNode.children[1])
   result.body = astSuite(parseNode.children[3])
-  if not (parseNode.children.len == 4):
-    raiseSyntaxError("Else clause in while not implemented", parseNode.children[4])
+  if parseNode.children.len == 7:
+    result.orelse = astSuite(parseNode.children[6])
 
 proc astExprListInFor(e: var AsdlExpr, node: ParseNode) =
   if not (node.children.len == 1):
@@ -954,13 +954,13 @@ proc astExprListInFor(e: var AsdlExpr, node: ParseNode) =
 
 # for_stmt  'for' exprlist 'in' testlist ':' suite ['else' ':' suite]
 ast for_stmt, [AsdlStmt]:
-  if not (parseNode.children.len == 6):
-    raiseSyntaxError("for with else not implemented", parseNode.children[6])
   let forNode = newAstFor()
   setNo(forNode, parseNode.children[0])
   forNode.target.astExprListInFor(parseNode.children[1])
   forNode.iter = astTestlist(parseNode.children[3])
   forNode.body = astSuite(parseNode.children[5])
+  if parseNode.children.len == 9:
+    forNode.orelse = astSuite(parseNode.children[8])
   result = forNode
 
 #  try_stmt: ('try' ':' suite

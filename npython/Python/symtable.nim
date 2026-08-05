@@ -330,13 +330,13 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           visit forNode.target
           visit forNode.iter
           visitSeq(forNode.body)
-          assert forNode.orelse.len == 0
+          visitSeq(forNode.orelse)
 
         of AsdlStmtTk.While:
           let whileNode = AstWhile(astNode)
           visit whileNode.test
           visitSeq(whileNode.body)
-          assert whileNode.orelse.len == 0
+          visitSeq(whileNode.orelse)
 
         of AsdlStmtTk.If:
           let ifNode = AstIf(astNode)

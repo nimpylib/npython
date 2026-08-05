@@ -577,31 +577,43 @@ compileMethod Delete:
     c.compile(i)
 
 compileMethod For:
-  assert astNode.orelse.len == 0
   let start = newBasicBlock(BlockType.For)
+  let hasOrElse = astNode.orelse.len != 0
+  let elseBlock = if hasOrElse: newBasicBlock() else: nil
   let ending = newBasicBlock()
   # used in break stmt
   start.next = ending
   c.compile(astNode.iter)
   c.addOp(OpCode.GetIter, astNode.iter.lineNo.value)
   c.addBlock(start)
-  c.addOp(newJumpInstr(OpCode.ForIter, ending, astNode.lineNo.value))
+  c.addOp(newJumpInstr(OpCode.ForIter,
+    if hasOrElse: elseBlock else: ending, astNode.lineNo.value))
   c.compile(astNode.target)
   c.compileSeq(astNode.body)
   c.addOp(newJumpInstr(OpCode.JumpAbsolute, start, c.lastLineNo))
+  if hasOrElse:
+    c.addBlock(elseBlock)
+    c.compileSeq(astNode.orelse)
+    c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
   c.addBlock(ending)
 
 compileMethod While:
-  assert astNode.orelse.len == 0
   let loop = newBasicBlock(BlockType.While)
+  let hasOrElse = astNode.orelse.len != 0
+  let elseBlock = if hasOrElse: newBasicBlock() else: nil
   let ending = newBasicBlock()
   # used in break stmt
   loop.next = ending
   c.addBlock(loop)
   c.compile(astNode.test)
-  c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, ending, astNode.lineNo.value))
+  c.addOp(newJumpInstr(OpCode.PopJumpIfFalse,
+    if hasOrElse: elseBlock else: ending, astNode.lineNo.value))
   c.compileSeq(astNode.body)
   c.addOp(newJumpInstr(OpCode.JumpAbsolute, loop, c.lastLineNo))
+  if hasOrElse:
+    c.addBlock(elseBlock)
+    c.compileSeq(astNode.orelse)
+    c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
   c.addBlock(ending)
 
 
@@ -901,13 +913,13 @@ compileMethod Raise:
 
 
 proc codegen_try_except(c: Compiler, astNode: AstTry) =
-  assert astNode.orelse.len == 0, "not impl yet"
   assert 0 < astNode.handlers.len
   # the body here may not be necessary, I'm not sure. Add just in case.
   let body = newBasicBlock()
   var excpBlocks: seq[BasicBlock]
   for i in 0..<astNode.handlers.len:
     excpBlocks.add newBasicBlock()
+  let elseBlock = if astNode.orelse.len != 0: newBasicBlock() else: nil
   let ending = newBasicBlock()
 
   c.addBlock(body)
@@ -915,7 +927,8 @@ proc codegen_try_except(c: Compiler, astNode: AstTry) =
   c.addOp(newJumpInstr(OpCode.SetupFinally, excpBlocks[0], astNode.lineNo.value))
   c.compileSeq(astNode.body)
   # no exception happens, jump to the ending
-  c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
+  c.addOp(newJumpInstr(OpCode.JumpAbsolute,
+    if astNode.orelse.len != 0: elseBlock else: ending, c.lastLineNo))
 
   for idx, handlerObj in astNode.handlers:
     let isLast = idx == astNode.handlers.len-1
@@ -954,6 +967,11 @@ proc codegen_try_except(c: Compiler, astNode: AstTry) =
     # skip other handlers
     if not isLast:
       c.addop(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
+
+  if astNode.orelse.len != 0:
+    c.addBlock(elseBlock)
+    c.compileSeq(astNode.orelse)
+    c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
 
   let lastLineNo = c.lastLineNo
   c.addBlock(ending)
