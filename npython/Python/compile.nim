@@ -652,9 +652,11 @@ compileMethod Match:
       c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
     elif mappingPattern:
       let mapping = AstDict(pattern)
+      var restIdx = -1
       for idx, key in mapping.keys:
         if key.isNil:
-          unreachable("mapping rest patterns are not implemented")
+          restIdx = idx
+          continue
         c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
         c.compile(key)
         c.addOp(newArgInstr(OpCode.Swap, 2, lineNo))
@@ -673,6 +675,17 @@ compileMethod Match:
           c.compile(value)
           c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
           c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+      if restIdx != -1:
+        c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+        c.addOp(newArgInstr(OpCode.LoadAttr,
+          c.tste.nameId(newPyAscii("copy")), lineNo))
+        c.addOp(newArgInstr(OpCode.CallFunction, 0, lineNo))
+        for idx, key in mapping.keys:
+          if not key.isNil:
+            c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+            c.compile(key)
+            c.addOp(OpCode.DeleteSubscr, lineNo)
+        c.compile(mapping.values[restIdx])
     elif sequencePattern:
       let elements = if pattern of AstList: AstList(pattern).elts else: AstTuple(pattern).elts
       var starIdx = -1

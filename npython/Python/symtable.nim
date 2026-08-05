@@ -435,7 +435,9 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 
         of AsdlExprTk.Dict:
           let dictNode = AstDict(astNode)
-          visitSeq dictNode.keys
+          for key in dictNode.keys:
+            if not key.isNil:
+              visit key
           visitSeq dictNode.values
 
         of AsdlExprTk.Set:

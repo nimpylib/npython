@@ -869,7 +869,7 @@ ast case_block, [AstMatchCase]:
           if not AstName(AstStarred(element).value).id.value.eqAscii("_"):
             AstStarred(element).value.setStore()
     elif pattern of AstDict:
-      for value in AstDict(pattern).values:
+      for idx, value in AstDict(pattern).values:
         if value of AstName and not AstName(value).id.value.eqAscii("_"):
           value.setStore()
   let patternNode = parseNode.children[1]
@@ -1723,7 +1723,10 @@ ast dictorsetmaker, [AsdlExpr]:
     return s
   # Then `children[1]` won't go out of bound
   let leFix = le + 1  # XXX: + 1 to add tailing comma. So for list,etc. FIXME: allow trailing comma
-  let isDict = children[1].tokenNode.token == Token.Colon
+  var isDict = children[1].tokenNode.token == Token.Colon
+  for child in children:
+    if child.tokenNode.token == Token.Doublestar:
+      isDict = true
   # no need to care about setting lineNo and colOffset, because `atom` does so
   if isDict:
     # dict comprehension: "{ key: value for ... }"
@@ -1735,18 +1738,20 @@ ast dictorsetmaker, [AsdlExpr]:
       dc.generators = astCompFor(children[3])
       return dc
     let d = newAstDict()
-    for idx in 0..<(leFix div 4):
-      let i = idx * 4
-      if children.len < i + 3:
-        raiseSyntaxError("dict definition too complex")
-      let c1 = children[i]
-      assert (c1.tokenNode.token == Token.test)
-      d.keys.add(astTest(c1))
-      if not (children[i+1].tokenNode.token == Token.Colon):
-        raiseSyntaxError("dict definition too complex")
-      let c3 = children[i+2]
-      assert (c3.tokenNode.token == Token.test)
-      d.values.add(astTest(c3))
+    var i = 0
+    while i < children.len:
+      if children[i].tokenNode.token == Token.Comma:
+        i += 1
+      elif children[i].tokenNode.token == Token.Doublestar:
+        d.keys.add(nil)
+        d.values.add(astExpr(children[i + 1]))
+        i += 2
+      else:
+        if i + 2 >= children.len or children[i + 1].tokenNode.token != Token.Colon:
+          raiseSyntaxError("dict definition too complex")
+        d.keys.add(astTest(children[i]))
+        d.values.add(astTest(children[i + 2]))
+        i += 3
     result = d
   else:
     # comprehension

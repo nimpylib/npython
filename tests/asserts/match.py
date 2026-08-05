@@ -105,6 +105,18 @@ assert mapping({"kind": "ok", "extra": True}) == "ok"
 assert mapping({"other": "no"}) is None
 
 
+def mapping_rest(value):
+    match value:
+        case {"kind": kind, **rest}:
+            return kind + len(rest)
+        case _:
+            return None
+
+
+assert mapping_rest({"kind": 2, "extra": 3}) == 3
+assert mapping_rest({"kind": 2}) == 2
+
+
 def class_case(value):
     match value:
         case int():
