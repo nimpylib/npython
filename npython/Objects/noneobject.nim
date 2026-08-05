@@ -5,6 +5,8 @@ declarePyType None(tpToken, singleton):
   discard
 
 let pyNone* = newPyNoneSimple()  ## singleton
+let pyNoneObj* = PyObject pyNone ##
+## mainly for using as defval in  clinic gen signature
 
 proc isPyNone*(o: PyObject): bool = o == pyNone
 
