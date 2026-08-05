@@ -159,5 +159,5 @@ proc PyDict_FromKeys*(cls: PyObject, iterable, value: PyObject): PyObject =
       retIfExc PyObject_SetItem(d, key, value)
   d
 
-implDictMethod fromkeys(iterable: PyObject, value = PyObject pyNone), [classmethod]:
+implDictMethod fromkeys(iterable: PyObject, value = pyNoneObj), [classmethod]:
   PyDict_FromKeys(selfNoCast, iterable, value)

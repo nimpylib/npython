@@ -25,7 +25,7 @@ import ../getargs/[tovals]
 
 import ../call
 
-proc pow*(base: PyObject, exp: PyObject, `mod` = PyObject pyNone): PyObject{.bltin_clinicGen.} =
+proc pow*(base: PyObject, exp: PyObject, `mod` = pyNoneObj): PyObject{.bltin_clinicGen.} =
   if `mod`.isPyNone:
     PyNumber_PowerNoMod(base, exp)
   else:
@@ -34,7 +34,7 @@ proc pow*(base: PyObject, exp: PyObject, `mod` = PyObject pyNone): PyObject{.blt
 proc divmod*(x: PyObject, y: PyObject): PyObject{.bltin_clinicGen.} =
   PyNumber_Divmod(x, y)
 
-proc round*(number: PyObject, ndigits = PyObject pyNone): PyObject{.bltin_clinicGen.} =
+proc round*(number: PyObject, ndigits = pyNoneObj): PyObject{.bltin_clinicGen.} =
   let cb = PyObject_LookupSpecial(number, pyDUId round)
   if cb.isNil:
     return newTypeError newPyStr &"type {number.typeName:.100s} doesn't define __round__ method"

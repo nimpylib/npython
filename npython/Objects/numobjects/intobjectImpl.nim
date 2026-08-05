@@ -49,7 +49,7 @@ implIntMagic Mod, [noSelfCast]:
 
 implIntMagic divmod, [noSelfCast]: check_binop_do(divmod)
 
-implIntMagic pow(selfNoCast, other: PyObject, modu = PyObject pyNone):
+implIntMagic pow(selfNoCast, other: PyObject, modu = pyNoneObj):
   check_binop_noSelfCast
   let self1 = PyIntObject selfNoCast
   if modu.isPyNone:
@@ -124,7 +124,7 @@ implIntMagic float:
     ovf
 
 
-implIntMethod "__round__"(ndigits = PyObject pyNone):
+implIntMethod "__round__"(ndigits = pyNoneObj):
   if ndigits.isPyNone: return self
   let rei = PyNumber_Index(ndigits)
   retIfExc rei

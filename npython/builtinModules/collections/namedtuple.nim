@@ -185,7 +185,7 @@ proc normalizeNamedTupleFields(name: PyStrObject, fieldNames: openArray[PyStrObj
 
 template genNewWithBody(T, newNamedTupleName; body) {.dirty.} =
   proc newNamedTupleName*(name: PyStrObject, field_names: T, rename{.startKwOnly.}=false,
-      defaults=PyObject pyNone, module=PyObject pyNone): PyObject{.pyCFuncPragma.} =
+      defaults=pyNoneObj, module=pyNoneObj): PyObject{.pyCFuncPragma.} =
     body
 
 template genNew(T, nfieldNames;

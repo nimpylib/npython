@@ -161,7 +161,7 @@ implFloatMagic float:
   else:
     newPyFloat self
 
-implFloatMethod "__round__"(ndigits = PyObject pyNone):
+implFloatMethod "__round__"(ndigits = pyNoneObj):
   newPyFloat if ndigits.isPyNone:
     try: round(self.v)
     except ValueError as e: return newValueError newPyAscii e.msg

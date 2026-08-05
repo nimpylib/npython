@@ -31,7 +31,7 @@ impldefaultdictMethod "__missing__"(key):
   retIfExc value
   self.setdefault value
 
-impldefaultdictMagic init(default_factory=PyObject pyNone, *args, **kwargs):
+impldefaultdictMagic init(default_factory=pyNoneObj, *args, **kwargs):
   self.default_factory = default_factory
   pyDictObjectType.magicMethods.init(self, args, kwargs)
 

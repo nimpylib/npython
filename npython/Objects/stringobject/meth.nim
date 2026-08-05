@@ -262,11 +262,11 @@ template gen_startswith(startswith, prefix){.dirty.} =
 gen_startswith startswith, prefix
 gen_startswith endswith, suffix
 
-implStrMethod split(sep = PyObject pyNone, maxsplit = -1): self.split(sep, maxsplit)
-implStrMethod rsplit(sep = PyObject pyNone, maxsplit = -1): self.rsplit(sep, maxsplit)
-implStrMethod  strip(chars = PyObject pyNone):  self.strip(chars)
-implStrMethod lstrip(chars = PyObject pyNone): self.lstrip(chars)
-implStrMethod rstrip(chars = PyObject pyNone): self.rstrip(chars)
+implStrMethod split(sep = pyNoneObj, maxsplit = -1): self.split(sep, maxsplit)
+implStrMethod rsplit(sep = pyNoneObj, maxsplit = -1): self.rsplit(sep, maxsplit)
+implStrMethod  strip(chars = pyNoneObj):  self.strip(chars)
+implStrMethod lstrip(chars = pyNoneObj): self.lstrip(chars)
+implStrMethod rstrip(chars = pyNoneObj): self.rstrip(chars)
 
 implStrMethod partition(sep: PyStrObject): retValueErrorAscii self.partition(sep)
 implStrMethod rpartition(sep: PyStrObject): retValueErrorAscii self.rpartition(sep)

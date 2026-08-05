@@ -85,13 +85,13 @@ template doRFind(self, target): untyped =
   rfind(self, target, start, stop)
 
 template gen_split(split, B){.dirty.} =
-  proc split*(self: `Py B Object`; sep = PyObject pyNone, maxsplit = -1): PyObject{.clinicGenMethodRaises(B, [ValueError]).} =
+  proc split*(self: `Py B Object`; sep = pyNoneObj, maxsplit = -1): PyObject{.clinicGenMethodRaises(B, [ValueError]).} =
     if sep.isPyNone: `pack B List` self.items.split(maxsplit)
     else: `pack B List` doCorS(seq[seq[char]], split, sep, maxsplit)
 
 
 template gen_strip(strip, B){.dirty.} =
-  proc strip*(self: `Py B Object`; chars = PyObject pyNone): PyObject{.clinicGenMethodRaises(B, [ValueError]).} =
+  proc strip*(self: `Py B Object`; chars = pyNoneObj): PyObject{.clinicGenMethodRaises(B, [ValueError]).} =
     if chars.isPyNone: `newPy B` self.items.strip()
     else: `newPy B` binDoCorS(strip, chars)
 
