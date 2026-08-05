@@ -24,10 +24,8 @@ template genGetitem*(nameStr, implNameMagic, newPyName, mutRead; getter: untyped
       let slice = PySliceObject(other)
       let newObj = newPyName()
       let retObj = getSliceItems(slice, self.items, newObj.items)
-      if retObj.isThrownException:
-        return retObj
-      else:
-        return newObj
+      retIfExc retObj
+      return newObj
       
     return newIndexTypeError(newPyStr nameStr, other)
 
@@ -71,8 +69,7 @@ template genSequenceMagicsBesidesBaseCollect(nameStr,
       let i1 = self.items[i]
       let i2 = tOther.items[i]
       let retObj = i1.callMagic(eq, i2)
-      if retObj.isThrownException:
-        return retObj
+      retIfExc retObj
       assert retObj.ofPyBoolObject
       if not PyBoolObject(retObj).b:
         return pyFalseObj
@@ -105,8 +102,7 @@ template genSequenceMagicsBesidesBaseCollect(nameStr,
   implNameMethod index(target: PyObject), mutRead:
     for idx, item in self.items:
       let retObj =  item.callMagic(eq, target)
-      if retObj.isThrownException:
-        return retObj
+      retIfExc retObj
       if isPyTrueObj(retObj):
         return newPyInt(idx)
     let msg = fmt"{target} is not in " & nameStr
@@ -116,8 +112,7 @@ template genSequenceMagicsBesidesBaseCollect(nameStr,
     var count: int
     for item in self.items:
       let retObj = item.callMagic(eq, target)
-      if retObj.isThrownException:
-        return retObj
+      retIfExc retObj
       if isPyTrueObj(retObj):
         inc count
     return newPyInt(count)

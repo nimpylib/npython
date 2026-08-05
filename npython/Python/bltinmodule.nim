@@ -168,8 +168,7 @@ implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject, *bases), 
   if f.isThrownException:
     unreachable("funcObj shouldn't have any arg issue")
   let retObj = f.evalFrame
-  if retObj.isThrownException:
-    return retObj
+  retIfExc retObj
   tpMagic(Type, new)(@[pyTypeObjectType, name, newPyTuple(bases), f.toPyDict()])
 
 proc register_bltins* =

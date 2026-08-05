@@ -150,8 +150,7 @@ proc newPyReversed*(sequ: PyObject; typ=pyReversedObjectType): PyObject =
   let reversed_meth = PyObject_LookupSpecial(sequ, pyDUId reversed)
   if reversed_meth.isPyNone: noRev
   if not reversed_meth.isNil:
-    if reversed_meth.isThrownException:
-      return reversed_meth
+    retIfExc reversed_meth
     return call reversed_meth
 
   # is nil. not found
@@ -208,4 +207,3 @@ implReversedMagic len:
 
 implReversedMagic iter: self
 implReversedMagic iternext: self.next()
-

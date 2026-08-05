@@ -181,10 +181,8 @@ when true:
       else:
         newObj = newPyString newUnicodeUnicodeVariantOfCap slice.calLenOrRetOF
         retObj = tgetSliceItems(unicodeStr)
-      if retObj.isThrownException:
-        return retObj
-      else:
-        return newObj
+      retIfExc retObj
+      return newObj
 
 
   template genIndex(index, find){.dirty.} =

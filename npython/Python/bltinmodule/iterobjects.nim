@@ -41,8 +41,7 @@ template newPyZipImpl(tp_alloc_may_exc: static bool; args: PyTupleObject; tstric
   lz.ittuple = PyTuple_Collect:
     for item in args:
       let it = PyObject_GetIter(item)
-      if it.isThrownException:
-        return it
+      retIfExc it
       it
   lz.tuplesize = tuplesize
   lz.result = res
@@ -221,4 +220,3 @@ template register_iter_objects* =
   regobj zip
   regobj map
   regobj filter
-

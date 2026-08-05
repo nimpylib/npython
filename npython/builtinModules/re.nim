@@ -80,7 +80,7 @@ implReModuleMethod compile(pattern: PyObject, flags = 0): compilePattern(pattern
 
 implReModuleMethod search(patternObj: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
-  if pattern.isThrownException: return pattern
+  retIfExc pattern
   if pattern.isPyNone or not pattern.ofPyRePatternObject:
     return pattern
   if not textObj.ofPyStrObject: return newTypeError(newPyAscii("expected string or bytes-like object"))
@@ -88,13 +88,13 @@ implReModuleMethod search(patternObj: PyObject, textObj: PyObject):
 
 implReModuleMethod match(patternObj: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
-  if pattern.isThrownException: return pattern
+  retIfExc pattern
   if not textObj.ofPyStrObject: return newTypeError(newPyAscii("expected string or bytes-like object"))
   implMatch(PyRePatternObject(pattern), PyStrObject(textObj))
 
 implReModuleMethod findall(patternObj: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
-  if pattern.isThrownException: return pattern
+  retIfExc pattern
   if not textObj.ofPyStrObject: return newTypeError(newPyAscii("expected string or bytes-like object"))
   let regex = PyRePatternObject(pattern).regex
   let text = $PyStrObject(textObj).str
@@ -111,7 +111,7 @@ implReModuleMethod findall(patternObj: PyObject, textObj: PyObject):
 
 implReModuleMethod sub(patternObj: PyObject, replacement: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
-  if pattern.isThrownException: return pattern
+  retIfExc pattern
   if not replacement.ofPyStrObject or not textObj.ofPyStrObject:
     return newTypeError(newPyAscii("sub() arguments must be strings"))
   newPyStr replace($PyStrObject(textObj).str, PyRePatternObject(pattern).regex,
@@ -119,7 +119,7 @@ implReModuleMethod sub(patternObj: PyObject, replacement: PyObject, textObj: PyO
 
 implReModuleMethod split(patternObj: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
-  if pattern.isThrownException: return pattern
+  retIfExc pattern
   if not textObj.ofPyStrObject: return newTypeError(newPyAscii("expected string or bytes-like object"))
   var result = newPyList()
   for part in split($PyStrObject(textObj).str, PyRePatternObject(pattern).regex):

@@ -22,8 +22,7 @@ proc runAwaitable*(obj: PyObject): PyObject =
   coro.running = true
   let result = coro.frame.evalFrame
   coro.running = false
-  if result.isThrownException:
-    return result
+  retIfExc result
   if not coro.frame.completed:
     return newRuntimeError(newPyAscii("coroutine suspended without completion"))
   coro.finished = true

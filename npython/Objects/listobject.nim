@@ -93,14 +93,12 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
         self[nslice] = ls
       else:
         let (iterable, nextMethod) = getIterableWithCheck(iterableToLoop)
-        if iterable.isThrownException:
-          return iterable
+        retIfExc iterable
         for i in iterInt(ind):
           let it = nextMethod(iterable)
           if it.isStopIter:
             break
-          if it.isThrownException:
-            return it
+          retIfExc it
           self[i] = it.mapper
       return pyNone
     return newIndexTypeError(newPyAscii"list", arg1)
@@ -204,8 +202,7 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
     var retObj: PyObject
     allowSelfReadWhenBeforeRealWrite:
       retObj = tpMethod(S, index)(selfNoCast, @[target])
-    if retObj.isThrownException:
-      return retObj
+    retIfExc retObj
     assert retObj.ofPyIntObject
     let idx = PyIntObject(retObj).toIntOrRetOF
     self.items.delete(idx)

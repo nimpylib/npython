@@ -115,13 +115,10 @@ implTypeMagic call:
     let msg = fmt"cannot create '{self.name}' instances because __new__ is not set"
     return newTypeError(newPyStr msg)
   let newObj = newFunc(@[PyObject(self)] & @args, kwargs)
-  if newObj.isThrownException:
-    return newObj
+  retIfExc newObj
   let initFunc = self.magicMethods.init
   if not initFunc.isNil:
     let initRet = initFunc(newObj, args, kwargs)
-    if initRet.isThrownException:
-      return initRet
+    retIfExc initRet
     # otherwise discard
   return newObj
-
