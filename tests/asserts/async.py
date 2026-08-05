@@ -1,3 +1,6 @@
+import asyncio
+
+
 async def identity(value):
     return value
 
@@ -10,6 +13,14 @@ async def nested(value):
 
 
 assert asyncio.run(nested(4)) == 4
+
+
+async def delayed(value):
+    await asyncio.sleep(0)
+    return value
+
+
+assert asyncio.run(delayed(5)) == 5
 
 
 def async_for_sum(values):

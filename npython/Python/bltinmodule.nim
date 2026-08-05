@@ -9,6 +9,7 @@ import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobject
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
   listobjectImpl, enumobject, memoryobject,
   coroutineobject,
+  coroutine_runtime,
   ]
 import ../Objects/numobjects/complexobjectImpl
 import ../Objects/stringobject/strformat
@@ -162,20 +163,7 @@ implBltinFunc repr(obj: PyObject): obj.callMagic(repr)
 implBltinFunc run(obj: PyObject):
   if not obj.ofPyCoroutineObject:
     return obj
-  let coro = PyCoroutineObject(obj)
-  if coro.finished:
-    return newRuntimeError(newPyAscii("cannot reuse already awaited coroutine"))
-  if coro.running:
-    return newRuntimeError(newPyAscii("coroutine already executing"))
-  coro.running = true
-  let result = coro.frame.evalFrame
-  coro.running = false
-  if result.isThrownException:
-    return result
-  if not coro.frame.completed:
-    return newRuntimeError(newPyAscii("coroutine suspended without completion"))
-  coro.finished = true
-  result
+  runCoroutine(obj)
 
 implBltinFunc buildClass(funcObj: PyFunctionObject, name: PyStrObject, *bases), "__build_class__":
   # may fail because of wrong number of args, etc.
