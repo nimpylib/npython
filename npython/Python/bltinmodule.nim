@@ -18,7 +18,7 @@ import ./getargs
 import ../Utils/trans_imp
 impExpCwd bltinmodule, [
   compile_eval_exec, globals_locals_vars,
-  iterobjects, io, sums, iterops, unarys, ops,
+  iterobjects, io, sums, iterops, unarys, ops, isinstance,
 ]
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
@@ -39,6 +39,7 @@ template register_bltin_funcs1{.dirty.} =
   register_globals_locals_vars
   register_unarys
   register_ops
+  register_isinstance
   registerBltinFunction "sum", builtin_sum
 
 const bltinFuncs = CacheSeq"bltinFuncs"
@@ -112,7 +113,6 @@ implBltinFunc id(obj: PyObject):
 
 implBltinFunc len(obj: PyObject):
   obj.callMagic(len)
-
 
 implBltinFunc hash(obj: PyObject): obj.callMagic(hash)
 
