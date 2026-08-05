@@ -634,26 +634,46 @@ compileMethod Match:
     let caseNode = AstMatchCase(caseObj)
     let next = newBasicBlock()
     let lineNo = caseNode.lineNo.value
-    let namePattern = caseNode.pattern of AstName
-    let wildcard = namePattern and AstName(caseNode.pattern).id.value.eqAscii("_")
-    if wildcard:
+    let singlePattern = caseNode.patterns.len == 1
+    let pattern = if singlePattern: caseNode.patterns[0] else: nil
+    let namePattern = singlePattern and pattern of AstName
+    let wildcard = namePattern and AstName(pattern).id.value.eqAscii("_")
+    if not singlePattern:
+      let matched = newBasicBlock()
+      let body = newBasicBlock()
+      for idx, pattern in caseNode.patterns:
+        c.addOp(OpCode.DupTop, lineNo)
+        c.compile(pattern)
+        c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+        if idx == caseNode.patterns.high:
+          c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+        else:
+          c.addOp(newJumpInstr(OpCode.JumpIfTrueOrPop, matched, lineNo))
+      c.addOp(newJumpInstr(OpCode.JumpAbsolute, body, lineNo))
+      c.addBlock(matched)
       c.addOp(OpCode.PopTop, lineNo)
+      c.addOp(newJumpInstr(OpCode.JumpAbsolute, body, lineNo))
+      c.addBlock(body)
+    elif wildcard:
+      discard
     elif namePattern:
       c.addOp(OpCode.DupTop, lineNo)
-      c.compile(caseNode.pattern)
-      c.addOp(OpCode.PopTop, lineNo)
+      c.compile(pattern)
     else:
       c.addOp(OpCode.DupTop, lineNo)
-      c.compile(caseNode.pattern)
+      c.compile(pattern)
       c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
       c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
-      c.addOp(OpCode.PopTop, lineNo)
+    if not caseNode.guard.isNil:
+      c.compile(caseNode.guard)
+      c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+    c.addOp(OpCode.PopTop, lineNo)
     c.compileSeq(caseNode.body)
     c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
-    if not (wildcard or namePattern):
+    if not (wildcard or namePattern) or not caseNode.guard.isNil or not singlePattern:
       c.addBlock(next)
-  let lastPattern = if astNode.cases.len == 0: nil else: AstMatchCase(astNode.cases[^1]).pattern
-  let lastAlwaysMatches = lastPattern of AstName
+  let lastPatterns = if astNode.cases.len == 0: @[] else: AstMatchCase(astNode.cases[^1]).patterns
+  let lastAlwaysMatches = lastPatterns.len == 1 and lastPatterns[0] of AstName
   if not lastAlwaysMatches:
     c.addOp(OpCode.PopTop, astNode.lineNo.value)
   c.addBlock(ending)

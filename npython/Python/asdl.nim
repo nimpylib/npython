@@ -466,7 +466,7 @@ genAsdlTypes:
 
   withitem = (Withitem(expr context_expr, expr? optional_vars))
 
-  match_case(int lineno, int col_offset) = (MatchCase(expr pattern, stmt* body))
+  match_case(int lineno, int col_offset) = (MatchCase(expr* patterns, expr? guard, stmt* body))
 
 {.warning[Spacing]: on.}
 

@@ -31,3 +31,28 @@ def capture(value):
 
 
 assert capture(7) == 7
+
+
+def guarded(value):
+    match value:
+        case item if item > 0:
+            return "positive"
+        case _:
+            return "not positive"
+
+
+assert guarded(1) == "positive"
+assert guarded(0) == "not positive"
+
+
+def either(value):
+    match value:
+        case 1 | 2:
+            return "small"
+        case _:
+            return "other"
+
+
+assert either(1) == "small"
+assert either(2) == "small"
+assert either(3) == "other"

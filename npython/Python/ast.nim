@@ -141,6 +141,7 @@ proc astAsyncStmt(parseNode: ParseNode): AsdlStmt
 proc astIfStmt(parseNode: ParseNode): AstIf
 proc astMatchStmt(parseNode: ParseNode): AstMatch
 proc astCaseBlock(parseNode: ParseNode): AstMatchCase
+proc astPattern(parseNode: ParseNode): seq[AsdlExpr]
 proc astWhileStmt(parseNode: ParseNode): AstWhile
 proc astForStmt(parseNode: ParseNode): AsdlStmt
 proc astTryStmt(parseNode: ParseNode): AstTry
@@ -844,11 +845,32 @@ ast match_stmt, [AstMatch]:
 ast case_block, [AstMatchCase]:
   result = newAstMatchCase()
   setNo(result, parseNode.children[0])
-  result.pattern = astTest(parseNode.children[1])
-  if result.pattern of AstName and
-      not AstName(result.pattern).id.value.eqAscii("_"):
-    result.pattern.setStore()
-  result.body = astSuite(parseNode.children[3])
+  result.patterns = astPattern(parseNode.children[1])
+  if result.patterns.len > 1:
+    for pattern in result.patterns:
+      if pattern of AstName and not AstName(pattern).id.value.eqAscii("_"):
+        raiseSyntaxError("capture names in OR patterns are not implemented", pattern)
+  for pattern in result.patterns:
+    if pattern of AstName and not AstName(pattern).id.value.eqAscii("_"):
+      pattern.setStore()
+  var idx = 2
+  if parseNode.children[idx].tokenNode.token == Token.`if`:
+    result.guard = astOrTest(parseNode.children[idx + 1])
+    idx += 2
+  result.body = astSuite(parseNode.children[idx + 1])
+
+ast pattern, [seq[AsdlExpr]]:
+  var pending: seq[AsdlExpr]
+  for child in parseNode.children:
+    if child.tokenNode.token == Token.or_test:
+      pending.add astOrTest(child)
+  while pending.len != 0:
+    let pattern = pending.pop()
+    if pattern of AstBinOp and AstBinOp(pattern).op.kind == AsdlOperatorTk.BitOr:
+      pending.add AstBinOp(pattern).right
+      pending.add AstBinOp(pattern).left
+    else:
+      result.add pattern
   
 ast async_stmt, [AsdlStmt]:
   discard
