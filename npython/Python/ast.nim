@@ -853,6 +853,25 @@ ast case_block, [AstMatchCase]:
   for pattern in result.patterns:
     if pattern of AstName and not AstName(pattern).id.value.eqAscii("_"):
       pattern.setStore()
+    elif pattern of AstList:
+      for element in AstList(pattern).elts:
+        if element of AstName and not AstName(element).id.value.eqAscii("_"):
+          element.setStore()
+    elif pattern of AstTuple:
+      for element in AstTuple(pattern).elts:
+        if element of AstName and not AstName(element).id.value.eqAscii("_"):
+          element.setStore()
+    elif pattern of AstDict:
+      for value in AstDict(pattern).values:
+        if value of AstName and not AstName(value).id.value.eqAscii("_"):
+          value.setStore()
+  let patternNode = parseNode.children[1]
+  if patternNode.children.len > 1:
+    let asIdx = patternNode.children.high - 1
+    if patternNode.children[asIdx].tokenNode.token == Token.`as`:
+      result.capture = newAstName(patternNode.children[asIdx + 1].tokenNode)
+      setNo(result.capture, parseNode.children[0])
+      result.capture.setStore()
   var idx = 2
   if parseNode.children[idx].tokenNode.token == Token.`if`:
     result.guard = astOrTest(parseNode.children[idx + 1])

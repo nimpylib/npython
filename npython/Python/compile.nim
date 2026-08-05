@@ -12,6 +12,7 @@ import opcode
 import ../Parser/parser
 import ../Objects/[
   pyobject, stringobjectImpl, exceptionsImpl,
+  numobjects,
   setobject, listobject,
   codeobject, noneobject]
 import ../Objects/stringobject/strformat
@@ -638,7 +639,60 @@ compileMethod Match:
     let pattern = if singlePattern: caseNode.patterns[0] else: nil
     let namePattern = singlePattern and pattern of AstName
     let wildcard = namePattern and AstName(pattern).id.value.eqAscii("_")
-    if not singlePattern:
+    let sequencePattern = singlePattern and (pattern of AstList or pattern of AstTuple)
+    let mappingPattern = singlePattern and pattern of AstDict
+    let classPattern = singlePattern and pattern of AstCall and
+      AstCall(pattern).args.len == 0 and AstCall(pattern).keywords.len == 0
+    if classPattern:
+      c.addOp(newArgInstr(OpCode.LoadGlobal, c.tste.nameId(newPyAscii("isinstance")), lineNo))
+      c.addOp(newArgInstr(OpCode.Copy, 2, lineNo))
+      c.compile(AstCall(pattern).fun)
+      c.addOp(newArgInstr(OpCode.CallFunction, 2, lineNo))
+      c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+    elif mappingPattern:
+      let mapping = AstDict(pattern)
+      for idx, key in mapping.keys:
+        if key.isNil:
+          unreachable("mapping rest patterns are not implemented")
+        c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+        c.compile(key)
+        c.addOp(newArgInstr(OpCode.Swap, 2, lineNo))
+        c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.In), lineNo))
+        c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+        c.addOp(OpCode.PopTop, lineNo)
+        c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+        c.compile(key)
+        c.addOp(OpCode.BinarySubscr, lineNo)
+        let value = mapping.values[idx]
+        if value of AstName and AstName(value).id.value.eqAscii("_"):
+          c.addOp(OpCode.PopTop, lineNo)
+        elif value of AstName:
+          c.compile(value)
+        else:
+          c.compile(value)
+          c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+          c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+    elif sequencePattern:
+      let elements = if pattern of AstList: AstList(pattern).elts else: AstTuple(pattern).elts
+      c.addOp(newArgInstr(OpCode.LoadGlobal, c.tste.nameId(newPyAscii("len")), lineNo))
+      c.addOp(newArgInstr(OpCode.Copy, 2, lineNo))
+      c.addOp(newArgInstr(OpCode.CallFunction, 1, lineNo))
+      c.addLoadConst(newPyInt(elements.len), lineNo)
+      c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+      c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+      for idx, element in elements:
+        c.addOp(OpCode.DupTop, lineNo)
+        c.addLoadConst(newPyInt(idx), lineNo)
+        c.addOp(OpCode.BinarySubscr, lineNo)
+        if element of AstName and AstName(element).id.value.eqAscii("_"):
+          c.addOp(OpCode.PopTop, lineNo)
+        elif element of AstName:
+          c.compile(element)
+        else:
+          c.compile(element)
+          c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+          c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+    elif not singlePattern:
       let matched = newBasicBlock()
       let body = newBasicBlock()
       for idx, pattern in caseNode.patterns:
@@ -664,6 +718,9 @@ compileMethod Match:
       c.compile(pattern)
       c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
       c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+    if not caseNode.capture.isNil:
+      c.addOp(OpCode.DupTop, lineNo)
+      c.compile(caseNode.capture)
     if not caseNode.guard.isNil:
       c.compile(caseNode.guard)
       c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))

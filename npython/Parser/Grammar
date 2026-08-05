@@ -71,7 +71,7 @@ compound_stmt: if_stmt | match_stmt | while_stmt | for_stmt | try_stmt | with_st
 async_stmt: 'async' (funcdef | with_stmt | for_stmt)
 match_stmt: 'match' test ':' NEWLINE INDENT case_block+ DEDENT
 case_block: 'case' pattern ['if' or_test] ':' suite
-pattern: or_test ('|' or_test)*
+pattern: or_test ('|' or_test)* ['as' NAME]
 if_stmt: 'if' test ':' suite ('elif' test ':' suite)* ['else' ':' suite]
 while_stmt: 'while' test ':' suite ['else' ':' suite]
 for_stmt: 'for' exprlist 'in' testlist ':' suite ['else' ':' suite]
