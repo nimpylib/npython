@@ -627,6 +627,37 @@ compileMethod If:
     c.compileSeq(astNode.orelse)
   c.addBlock(ending)
 
+compileMethod Match:
+  let ending = newBasicBlock()
+  c.compile(astNode.subject)
+  for caseObj in astNode.cases:
+    let caseNode = AstMatchCase(caseObj)
+    let next = newBasicBlock()
+    let lineNo = caseNode.lineNo.value
+    let namePattern = caseNode.pattern of AstName
+    let wildcard = namePattern and AstName(caseNode.pattern).id.value.eqAscii("_")
+    if wildcard:
+      c.addOp(OpCode.PopTop, lineNo)
+    elif namePattern:
+      c.addOp(OpCode.DupTop, lineNo)
+      c.compile(caseNode.pattern)
+      c.addOp(OpCode.PopTop, lineNo)
+    else:
+      c.addOp(OpCode.DupTop, lineNo)
+      c.compile(caseNode.pattern)
+      c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+      c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+      c.addOp(OpCode.PopTop, lineNo)
+    c.compileSeq(caseNode.body)
+    c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
+    if not (wildcard or namePattern):
+      c.addBlock(next)
+  let lastPattern = if astNode.cases.len == 0: nil else: AstMatchCase(astNode.cases[^1]).pattern
+  let lastAlwaysMatches = lastPattern of AstName
+  if not lastAlwaysMatches:
+    c.addOp(OpCode.PopTop, astNode.lineNo.value)
+  c.addBlock(ending)
+
 compileMethod IfExp:
   let ending = newBasicBlock()
   let next = newBasicBlock()

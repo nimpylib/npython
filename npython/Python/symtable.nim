@@ -344,6 +344,14 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
           visitSeq(ifNode.body)
           visitSeq(ifNode.orelse)
 
+        of AsdlStmtTk.Match:
+          let matchNode = AstMatch(astNode)
+          visit matchNode.subject
+          for caseObj in matchNode.cases:
+            let caseNode = AstMatchCase(caseObj)
+            visit caseNode.pattern
+            visitSeq caseNode.body
+
         of AsdlStmtTk.Raise:
           let raiseNode = AstRaise(astNode)
           visit raiseNode.exc

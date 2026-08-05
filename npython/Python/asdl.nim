@@ -376,6 +376,7 @@ genAsdlTypes:
     AsyncFor(expr target, expr iter, stmt* body, stmt* orelse),
     While(expr test, stmt* body, stmt* orelse),
     If(expr test, stmt* body, stmt* orelse),
+    Match(expr subject, match_case* cases),
     With(withitem* items, stmt* body),
     AsyncWith(withitem* items, stmt* body),
 
@@ -464,6 +465,8 @@ genAsdlTypes:
   alias = (Alias(identifier name, identifier? asname))
 
   withitem = (Withitem(expr context_expr, expr? optional_vars))
+
+  match_case(int lineno, int col_offset) = (MatchCase(expr pattern, stmt* body))
 
 {.warning[Spacing]: on.}
 

@@ -139,6 +139,8 @@ proc astAssertStmt(parseNode: ParseNode): AstAssert
 proc astCompoundStmt(parseNode: ParseNode): AsdlStmt
 proc astAsyncStmt(parseNode: ParseNode): AsdlStmt
 proc astIfStmt(parseNode: ParseNode): AstIf
+proc astMatchStmt(parseNode: ParseNode): AstMatch
+proc astCaseBlock(parseNode: ParseNode): AstMatchCase
 proc astWhileStmt(parseNode: ParseNode): AstWhile
 proc astForStmt(parseNode: ParseNode): AsdlStmt
 proc astTryStmt(parseNode: ParseNode): AstTry
@@ -814,11 +816,12 @@ ast assert_stmt, [AstAssert]:
   if parseNode.children.len == 4:
     result.msg = astTest(parseNode.children[3])
   
-# compound_stmt  if_stmt | while_stmt | for_stmt | try_stmt | with_stmt | funcdef | classdef | decorated | async_stmt
+# compound_stmt  if_stmt | match_stmt | while_stmt | for_stmt | try_stmt | with_stmt | funcdef | classdef | decorated | async_stmt
 ast compound_stmt, [AsdlStmt]:
   let child = parseNode.children[0]
   childAst(child, result, 
     if_stmt,
+    match_stmt,
     while_stmt,
     for_stmt,
     try_stmt,
@@ -829,6 +832,23 @@ ast compound_stmt, [AsdlStmt]:
     async_stmt
     )
   assert result != nil
+
+ast match_stmt, [AstMatch]:
+  result = newAstMatch()
+  setNo(result, parseNode.children[0])
+  result.subject = astTest(parseNode.children[1])
+  # match_stmt: 'match' test ':' NEWLINE INDENT case_block+ DEDENT
+  for child in parseNode.children[5..^2]:
+    result.cases.add astCaseBlock(child)
+
+ast case_block, [AstMatchCase]:
+  result = newAstMatchCase()
+  setNo(result, parseNode.children[0])
+  result.pattern = astTest(parseNode.children[1])
+  if result.pattern of AstName and
+      not AstName(result.pattern).id.value.eqAscii("_"):
+    result.pattern.setStore()
+  result.body = astSuite(parseNode.children[3])
   
 ast async_stmt, [AsdlStmt]:
   discard
