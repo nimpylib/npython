@@ -12,7 +12,7 @@ import opcode
 import ../Parser/parser
 import ../Objects/[
   pyobject, stringobjectImpl, exceptionsImpl,
-  numobjects,
+  numobjects, boolobjectImpl,
   setobject, listobject,
   codeobject, noneobject]
 import ../Objects/stringobject/strformat
@@ -642,14 +642,31 @@ compileMethod Match:
     let sequencePattern = singlePattern and (pattern of AstList or pattern of AstTuple)
     let mappingPattern = singlePattern and pattern of AstDict
     var matchedBlock: BasicBlock
-    let classPattern = singlePattern and pattern of AstCall and
-      AstCall(pattern).args.len == 0 and AstCall(pattern).keywords.len == 0
+    let classPattern = singlePattern and pattern of AstCall
     if classPattern:
+      let classCall = AstCall(pattern)
+      if classCall.args.len != 0:
+        raiseSyntaxError("positional class patterns are not implemented", pattern)
       c.addOp(newArgInstr(OpCode.LoadGlobal, c.tste.nameId(newPyAscii("isinstance")), lineNo))
       c.addOp(newArgInstr(OpCode.Copy, 2, lineNo))
-      c.compile(AstCall(pattern).fun)
+      c.compile(classCall.fun)
       c.addOp(newArgInstr(OpCode.CallFunction, 2, lineNo))
       c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+      for keyword in classCall.keywords:
+        if AstKeyword(keyword).arg.isNil:
+          raiseSyntaxError("class pattern keyword unpack is not implemented", pattern)
+        c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+        c.addOp(newArgInstr(OpCode.LoadAttr,
+          c.tste.nameId(AstKeyword(keyword).arg.value), lineNo))
+        let value = AstKeyword(keyword).value
+        if value of AstName and AstName(value).id.value.eqAscii("_"):
+          c.addOp(OpCode.PopTop, lineNo)
+        elif value of AstName:
+          c.compile(value)
+        else:
+          c.compile(value)
+          c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+          c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
     elif mappingPattern:
       let mapping = AstDict(pattern)
       var restIdx = -1
@@ -750,16 +767,29 @@ compileMethod Match:
       let matched = newBasicBlock()
       let body = newBasicBlock()
       for idx, pattern in caseNode.patterns:
-        c.addOp(OpCode.DupTop, lineNo)
-        c.compile(pattern)
-        c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
-        if idx == caseNode.patterns.high:
-          c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+        if pattern of AstName and not AstName(pattern).id.value.eqAscii("_"):
+          if idx != caseNode.patterns.high:
+            raiseSyntaxError("capture pattern must be last in an OR pattern", pattern)
+          c.addOp(OpCode.DupTop, lineNo)
+          c.compile(pattern)
+          c.addLoadConst(pyTrueObj, lineNo)
+          c.addOp(newJumpInstr(OpCode.JumpAbsolute, matched, lineNo))
         else:
-          c.addOp(newJumpInstr(OpCode.JumpIfTrueOrPop, matched, lineNo))
+          c.addOp(OpCode.DupTop, lineNo)
+          c.compile(pattern)
+          c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
+          if idx == caseNode.patterns.high:
+            c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+          else:
+            c.addOp(newJumpInstr(OpCode.JumpIfTrueOrPop, matched, lineNo))
       c.addOp(newJumpInstr(OpCode.JumpAbsolute, body, lineNo))
       c.addBlock(matched)
       c.addOp(OpCode.PopTop, lineNo)
+      for pattern in caseNode.patterns:
+        if pattern of AstName and not AstName(pattern).id.value.eqAscii("_"):
+          c.addOp(OpCode.DupTop, lineNo)
+          c.compile(pattern)
+          break
       c.addOp(newJumpInstr(OpCode.JumpAbsolute, body, lineNo))
       c.addBlock(body)
     elif wildcard:

@@ -847,10 +847,6 @@ ast case_block, [AstMatchCase]:
   result = newAstMatchCase()
   setNo(result, parseNode.children[0])
   result.patterns = astPattern(parseNode.children[1])
-  if result.patterns.len > 1:
-    for pattern in result.patterns:
-      if pattern of AstName and not AstName(pattern).id.value.eqAscii("_"):
-        raiseSyntaxError("capture names in OR patterns are not implemented", pattern)
   for pattern in result.patterns:
     if pattern of AstName and not AstName(pattern).id.value.eqAscii("_"):
       pattern.setStore()
@@ -870,6 +866,14 @@ ast case_block, [AstMatchCase]:
             AstStarred(element).value.setStore()
     elif pattern of AstDict:
       for idx, value in AstDict(pattern).values:
+        if value of AstName and not AstName(value).id.value.eqAscii("_"):
+          value.setStore()
+    elif pattern of AstCall:
+      for arg in AstCall(pattern).args:
+        if arg of AstName and not AstName(arg).id.value.eqAscii("_"):
+          arg.setStore()
+      for keyword in AstCall(pattern).keywords:
+        let value = AstKeyword(keyword).value
         if value of AstName and not AstName(value).id.value.eqAscii("_"):
           value.setStore()
   let patternNode = parseNode.children[1]

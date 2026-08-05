@@ -58,6 +58,18 @@ assert either(2) == "small"
 assert either(3) == "other"
 
 
+def or_capture(value):
+    match value:
+        case 1 | captured:
+            return captured
+        case _:
+            return None
+
+
+assert or_capture(1) == 1
+assert or_capture(4) == 4
+
+
 def pair(value):
     match value:
         case [first, second]:
