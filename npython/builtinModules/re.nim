@@ -3,6 +3,7 @@ import std/re
 import ../Objects/[
   pyobject,
   moduleobjectImpl,
+  byteobjectsImpl,
   stringobject,
   listobjectImpl,
   tupleobjectImpl,
@@ -45,29 +46,52 @@ proc compilePattern(pattern: PyObject; flags = 0): PyObject =
   except RegexError as e:
     return newValueError(newPyStr e.msg)
 
-proc makeMatch(pattern: PyRePatternObject; text: PyStrObject; start = 0): PyObject =
+proc regexText(textObj: PyObject; text: var string; matchText: var PyStrObject): PyObject =
+  if textObj.ofPyStrObject:
+    matchText = PyStrObject(textObj)
+    text = $matchText.str
+  elif textObj.ofPyBytesObject:
+    text = PyBytesObject(textObj).asString
+    matchText = newPyStr text
+  elif textObj.ofPyByteArrayObject:
+    text = PyByteArrayObject(textObj).asString
+    matchText = newPyStr text
+  else:
+    return newTypeError(newPyAscii("expected string or bytes-like object"))
+  pyNone
+
+proc makeMatch(pattern: PyRePatternObject; text: string; matchText: PyStrObject; start = 0): PyObject =
   var groups = newSeq[string](20)
-  let bounds = findBounds($text.str, pattern.regex, groups, start)
+  let bounds = findBounds(text, pattern.regex, groups, start)
   if bounds.first < 0:
     return pyNone
   let result = newPyReMatchSimple()
-  result.text = text
+  result.text = matchText
   result.first = bounds.first
   result.last = bounds.last
   result.groups = groups
   result
 
-proc implMatch(pattern: PyRePatternObject; text: PyStrObject): PyObject =
-  let result = makeMatch(pattern, text)
+proc implMatch(pattern: PyRePatternObject; text: string; matchText: PyStrObject): PyObject =
+  let result = makeMatch(pattern, text, matchText)
   if result.isPyNone: return result
   if PyReMatchObject(result).first != 0: return pyNone
   result
 
-proc implSearch(pattern: PyRePatternObject; text: PyStrObject): PyObject =
-  makeMatch(pattern, text)
+proc implSearch(pattern: PyRePatternObject; text: string; matchText: PyStrObject): PyObject =
+  makeMatch(pattern, text, matchText)
 
-implRePatternMethod search(text: PyStrObject): implSearch(self, text)
-implRePatternMethod match(text: PyStrObject): implMatch(self, text)
+implRePatternMethod search(textObj: PyObject):
+  var text: string
+  var matchText: PyStrObject
+  retIfExc regexText(textObj, text, matchText)
+  implSearch(self, text, matchText)
+
+implRePatternMethod match(textObj: PyObject):
+  var text: string
+  var matchText: PyStrObject
+  retIfExc regexText(textObj, text, matchText)
+  implMatch(self, text, matchText)
 
 implReMatchMethod group(index: int):
   if index == 0:
@@ -83,21 +107,26 @@ implReModuleMethod search(patternObj: PyObject, textObj: PyObject):
   retIfExc pattern
   if pattern.isPyNone or not pattern.ofPyRePatternObject:
     return pattern
-  if not textObj.ofPyStrObject: return newTypeError(newPyAscii("expected string or bytes-like object"))
-  implSearch(PyRePatternObject(pattern), PyStrObject(textObj))
+  var text: string
+  var matchText: PyStrObject
+  retIfExc regexText(textObj, text, matchText)
+  implSearch(PyRePatternObject(pattern), text, matchText)
 
 implReModuleMethod match(patternObj: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
   retIfExc pattern
-  if not textObj.ofPyStrObject: return newTypeError(newPyAscii("expected string or bytes-like object"))
-  implMatch(PyRePatternObject(pattern), PyStrObject(textObj))
+  var text: string
+  var matchText: PyStrObject
+  retIfExc regexText(textObj, text, matchText)
+  implMatch(PyRePatternObject(pattern), text, matchText)
 
 implReModuleMethod findall(patternObj: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
   retIfExc pattern
-  if not textObj.ofPyStrObject: return newTypeError(newPyAscii("expected string or bytes-like object"))
+  var text: string
+  var matchText: PyStrObject
+  retIfExc regexText(textObj, text, matchText)
   let regex = PyRePatternObject(pattern).regex
-  let text = $PyStrObject(textObj).str
   var result = newPyList()
   var start = 0
   while start <= text.len:
@@ -112,16 +141,21 @@ implReModuleMethod findall(patternObj: PyObject, textObj: PyObject):
 implReModuleMethod sub(patternObj: PyObject, replacement: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
   retIfExc pattern
-  if not replacement.ofPyStrObject or not textObj.ofPyStrObject:
+  if not replacement.ofPyStrObject:
     return newTypeError(newPyAscii("sub() arguments must be strings"))
-  newPyStr replace($PyStrObject(textObj).str, PyRePatternObject(pattern).regex,
+  var text: string
+  var matchText: PyStrObject
+  retIfExc regexText(textObj, text, matchText)
+  newPyStr replace(text, PyRePatternObject(pattern).regex,
     $PyStrObject(replacement).str)
 
 implReModuleMethod split(patternObj: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
   retIfExc pattern
-  if not textObj.ofPyStrObject: return newTypeError(newPyAscii("expected string or bytes-like object"))
+  var text: string
+  var matchText: PyStrObject
+  retIfExc regexText(textObj, text, matchText)
   var result = newPyList()
-  for part in split($PyStrObject(textObj).str, PyRePatternObject(pattern).regex):
+  for part in split(text, PyRePatternObject(pattern).regex):
     result.add newPyStr part
   result
