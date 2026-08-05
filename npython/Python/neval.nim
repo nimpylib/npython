@@ -436,6 +436,7 @@ proc evalFrame*(f: PyFrameObject): PyObject =
               sPush KeyError!bltinDict[newPyAscii"__build_class__"]
               
             of OpCode.ReturnValue:
+              f.returnValue = sTop()
               f.completed = true
               return sPop()
 

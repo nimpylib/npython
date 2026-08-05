@@ -1,8 +1,15 @@
 async def identity(value):
-    return await value
+    return value
 
 
-assert identity(3) == 3
+assert asyncio.run(identity(3)) == 3
+
+
+async def nested(value):
+    return await identity(value)
+
+
+assert asyncio.run(nested(4)) == 4
 
 
 def async_for_sum(values):

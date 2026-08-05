@@ -239,6 +239,11 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
       let f = AstFunctionDef(astNode)
       visitArgs f.args, ste
       addBodies(AstFunctionDef)
+    elif astNode of AstAsyncFunctionDef:
+      ste.kind = SteKind.Function
+      let f = AstAsyncFunctionDef(astNode)
+      visitArgs f.args, ste
+      addBodies(AstAsyncFunctionDef)
     elif astNode of AstClassDef:
       ste.kind = SteKind.Class
       addBodies(AstClassDef)
@@ -293,6 +298,12 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 
         of AsdlStmtTk.FunctionDef:
           let funcNode = AstFunctionDef(astNode)
+          ste.addDeclaration(funcNode.name)
+          visitInNewBlock astNode
+          visitSeq(funcNode.decorator_list)
+
+        of AsdlStmtTk.AsyncFunctionDef:
+          let funcNode = AstAsyncFunctionDef(astNode)
           ste.addDeclaration(funcNode.name)
           visitInNewBlock astNode
           visitSeq(funcNode.decorator_list)
@@ -536,6 +547,9 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
         of AsdlExprTk.YieldFrom:
           ste.isGenerator = true
           visit AstYieldFrom(astNode).value
+
+        of AsdlExprTk.Await:
+          visit AstAwait(astNode).value
 
 
         else:

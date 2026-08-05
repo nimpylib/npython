@@ -1,7 +1,7 @@
 import std/strformat
 
 import pyobject
-import ./[exceptions, tupleobject, dictobject, codeobject, stringobject, hash, generatorobject, noneobject, boolobject]
+import ./[exceptions, tupleobject, dictobject, codeobject, stringobject, hash, generatorobject, coroutineobject, noneobject, boolobject]
 from ./exceptions/extra_utils import PyErr_CreateException
 import frameobject
 import funcobject
@@ -95,6 +95,10 @@ proc callFunction(funcObj: PyFunctionObject, args: openArray[PyObject], kwargs: 
     let frame = PyFrameObject(newF)
     frame.privateOwner = FRAME_OWNED_BY_GENERATOR
     return newPyGenerator(frame)
+  if code.flags & CO.COROUTINE:
+    let frame = PyFrameObject(newF)
+    frame.privateOwner = FRAME_OWNED_BY_GENERATOR
+    return newPyCoroutine(frame)
   PyFrameObject(newF).evalFrame
 
 proc resumeGenerator(self: PyGeneratorObject): PyObject =

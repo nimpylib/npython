@@ -279,11 +279,13 @@ proc assemble(cu: CompilerUnit, fileName: PyStrObject): PyCodeObject =
     result.flags = typeof(result.flags)(result.flags.ord or CO.GENERATOR.ord)
 
 
-proc makeFunction(c: Compiler, cu: CompilerUnit, 
-                  functionName: PyStrObject, lineNo: int, extraFlags: int = 0) = 
+proc makeFunction(c: Compiler, cu: CompilerUnit,
+                  functionName: PyStrObject, lineNo: int, extraFlags: int = 0,
+                  codeFlags: int = 0) =
   assert (not cu.codeName.isNil)
   # take the compiler unit and make it a function on stack top
   let co = cu.assemble(c.fileName)
+  co.flags = typeof(co.flags)(co.flags.ord or codeFlags)
 
   var flag: int
   # stack and flag according to CPython document:
@@ -510,6 +512,24 @@ compileMethod FunctionDef:
   for deco in astNode.decorator_list:
     c.addOp(newArgInstr(OpCode.CallFunction, 1, deco.lineNo.value))
   c.addStoreOp(astNode.name.value, astNode.lineNo.value)
+
+compileMethod AsyncFunctionDef:
+  for deco in astNode.decorator_list:
+    c.compile(deco)
+  let name = astNode.name.value
+  let argsNode = AstArguments(astNode.args)
+  let extraFlags = c.compileArguments(astNode, argsNode, name)
+  c.units.add(newCompilerUnit(c.st, astNode, name))
+  c.compileSeq(astNode.body)
+  c.makeFunction(c.units.pop, name, astNode.lineNo.value, extraFlags, CO.COROUTINE.ord)
+  for deco in astNode.decorator_list:
+    c.addOp(newArgInstr(OpCode.CallFunction, 1, deco.lineNo.value))
+  c.addStoreOp(astNode.name.value, astNode.lineNo.value)
+
+compileMethod Await:
+  c.addOp(newArgInstr(OpCode.LoadGlobal, c.tste.nameId(newPyAscii("__npy_runAwaitable")), astNode.lineNo.value))
+  c.compile(astNode.value)
+  c.addOp(newArgInstr(OpCode.CallFunction, 1, astNode.lineNo.value))
 
 compileMethod ClassDef:
   for deco in astNode.decorator_list:

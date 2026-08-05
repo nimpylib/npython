@@ -394,7 +394,15 @@ ast decorated, [AsdlStmt]:
   
 ast async_funcdef, [AsdlStmt]:
   assert parseNode.children.len == 2
-  result = astFuncdef(parseNode.children[1])
+  let normal = astFuncdef(parseNode.children[1])
+  let asyncDef = newAstAsyncFunctionDef()
+  setNo(asyncDef, parseNode.children[0])
+  asyncDef.name = AstFunctionDef(normal).name
+  asyncDef.args = AstFunctionDef(normal).args
+  asyncDef.body = AstFunctionDef(normal).body
+  asyncDef.decorator_list = AstFunctionDef(normal).decorator_list
+  asyncDef.returns = AstFunctionDef(normal).returns
+  result = asyncDef
   
 # funcdef  'def' NAME parameters ['->' test] ':' suite
 ast funcdef, [AstFunctionDef]:
@@ -910,7 +918,15 @@ ast async_stmt, [AsdlStmt]:
   assert parseNode.children.len == 2
   case parseNode.children[1].tokenNode.token
   of Token.funcdef:
-    result = astFuncdef(parseNode.children[1])
+    let normal = astFuncdef(parseNode.children[1])
+    let asyncDef = newAstAsyncFunctionDef()
+    setNo(asyncDef, parseNode.children[0])
+    asyncDef.name = normal.name
+    asyncDef.args = normal.args
+    asyncDef.body = normal.body
+    asyncDef.decorator_list = normal.decorator_list
+    asyncDef.returns = normal.returns
+    result = asyncDef
   of Token.for_stmt:
     result = astForStmt(parseNode.children[1])
   of Token.with_stmt:
@@ -1327,15 +1343,22 @@ proc astPower(parseNode: ParseNode): AsdlExpr =
 # atom_expr  ['await'] atom trailer*
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr = 
   let child = parseNode.children[0]
-  if child.tokenNode.token == Token.await:
+  let isAwait = child.tokenNode.token == Token.await
+  if isAwait:
     result = astAtom(parseNode.children[1])
   else:
     result = astAtom(child)
-  let trailerStart = if child.tokenNode.token == Token.await: 2 else: 1
+  let trailerStart = if isAwait: 2 else: 1
   if parseNode.children.len == trailerStart:
-    return
-  for trailerChild in parseNode.children[trailerStart..^1]:
-    result = astTrailer(trailerChild, result)
+    discard
+  else:
+    for trailerChild in parseNode.children[trailerStart..^1]:
+      result = astTrailer(trailerChild, result)
+  if isAwait:
+    let awaitNode = newAstAwait()
+    setNo(awaitNode, child)
+    awaitNode.value = result
+    result = awaitNode
   
 
 # fstring_format_spec: FSTRING_MIDDLE | fstring_replacement_field

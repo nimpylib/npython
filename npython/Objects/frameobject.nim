@@ -37,6 +37,7 @@ declarePyType Frame(mutable):
   lastInstruction: int = -1
   valueStack: seq[PyObject]
   completed: bool
+  returnValue: PyObject
   yieldFrom: PyObject
   yieldFromSend: PyObject
   owner{.private.}: PyInterpFrameOwner
@@ -304,4 +305,3 @@ proc getLocals*(self: PyFrameObject): PyObject{.cdecl.} =
   ## `PyFrame_GetLocals`
   assert not self.isIncomplete
   self.frame_locals_get()
-
