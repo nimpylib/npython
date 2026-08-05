@@ -107,6 +107,7 @@ type CollectionExprNew[T: Asdlexpr] = proc (ls: seq[AsdlExpr]): T{.nimcall.}
 {.push raises: [SyntaxError].}
 proc astDecorated(parseNode: ParseNode): AsdlStmt
 proc astFuncdef(parseNode: ParseNode): AstFunctionDef
+proc astAsyncFuncdef(parseNode: ParseNode): AsdlStmt
 proc astParameters(parseNode: ParseNode): AstArguments
 proc astTypedArgsList(parseNode: ParseNode): AstArguments
 proc astTfpdef(parseNode: ParseNode): AstArg
@@ -384,13 +385,16 @@ ast decorated, [AsdlStmt]:
     funcDef.decorator_list = decorators
     return funcDef
   of Token.async_funcdef:
-    raiseSyntaxError("async function not implemented", child2)
+    let funcDef = astAsyncFuncdef(child2)
+    AstFunctionDef(funcDef).decorator_list = decorators
+    return funcDef
   else:
     unreachable
 
   
 ast async_funcdef, [AsdlStmt]:
-  raiseSyntaxError("async function definition not implemented", parseNode)
+  assert parseNode.children.len == 2
+  result = astFuncdef(parseNode.children[1])
   
 # funcdef  'def' NAME parameters ['->' test] ':' suite
 ast funcdef, [AstFunctionDef]:
@@ -903,7 +907,16 @@ ast pattern, [seq[AsdlExpr]]:
       result.add pattern
   
 ast async_stmt, [AsdlStmt]:
-  discard
+  assert parseNode.children.len == 2
+  case parseNode.children[1].tokenNode.token
+  of Token.funcdef:
+    result = astFuncdef(parseNode.children[1])
+  of Token.for_stmt:
+    result = astForStmt(parseNode.children[1])
+  of Token.with_stmt:
+    result = astWithStmt(parseNode.children[1])
+  else:
+    unreachable
   
 # if_stmt  'if' test ':' suite ('elif' test ':' suite)* ['else' ':' suite]
 ast if_stmt, [AstIf]:
@@ -1315,11 +1328,13 @@ proc astPower(parseNode: ParseNode): AsdlExpr =
 proc astAtomExpr(parseNode: ParseNode): AsdlExpr = 
   let child = parseNode.children[0]
   if child.tokenNode.token == Token.await:
-    raiseSyntaxError("Await not implemented", child)
-  result = astAtom(child)
-  if parseNode.children.len == 1:
+    result = astAtom(parseNode.children[1])
+  else:
+    result = astAtom(child)
+  let trailerStart = if child.tokenNode.token == Token.await: 2 else: 1
+  if parseNode.children.len == trailerStart:
     return
-  for trailerChild in parseNode.children[1..^1]:
+  for trailerChild in parseNode.children[trailerStart..^1]:
     result = astTrailer(trailerChild, result)
   
 
