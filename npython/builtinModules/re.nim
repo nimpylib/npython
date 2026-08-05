@@ -1,4 +1,5 @@
-import std/re
+import std/options
+import pkg/pyre
 
 import ../Objects/[
   pyobject,
@@ -16,23 +17,69 @@ import ./private/gen
 import ../Python/getargs/dispatch
 
 genModule re
+declarePyError Pattern, Base:
+  msg{.member.}: PyStrObject
+  pattern{.member, nil2none.}: PyObject
+  pos{.member, nil2none.}: PyObject
+  lineno{.member, nil2none.}: PyObject
+  colno{.member, nil2none.}: PyObject
+genProperty ReModule, "PatternError", PatternError, pyPatternErrorObjectType
 
 declarePyType RePattern():
-  regex: Regex
+  regex: pyre.Regex
 
 declarePyType ReMatch():
   text: PyStrObject
-  first: int
-  last: int
-  groups: seq[string]
+  value: pyre.Match
 
+proc setPatternErrorLocation(error: PyPatternErrorObject; pattern, pos: PyObject): PyObject =
+  if pattern.isPyNone or pos.isPyNone:
+    return pyNone
+  if not pattern.ofPyStrObject or not pos.ofPyIntObject:
+    return newTypeError(newPyAscii("pattern must be a string and pos must be an integer"))
+  let patternText = $PyStrObject(pattern).str
+  let position = PyIntObject(pos).toSomeSignedIntUnsafe[:int]
+  var lineno = 1
+  var lineStart = -1
+  for index in 0 ..< min(position, patternText.len):
+    if patternText[index] == '\n':
+      inc lineno
+      lineStart = index
+  error.lineno = newPyInt lineno
+  error.colno = newPyInt (position - lineStart)
+  pyNone
 
-proc toRegexFlags(flags: int): set[RegexFlag] =
-  result = {reStudy}
-  if (flags and 2) != 0: result.incl reIgnoreCase
-  if (flags and 8) != 0: result.incl reMultiLine
-  if (flags and 16) != 0: result.incl reDotAll
-  if (flags and 64) != 0: result.incl reExtended
+implPatternErrorMagic init(msg: PyStrObject, pattern=pyNoneObj, pos=pyNoneObj):
+  self.msg = msg
+  if not pattern.isPyNone:
+    self.pattern = pattern
+  if not pos.isPyNone:
+    self.pos = pos
+  retIfExc setPatternErrorLocation(self, pattern, pos)
+  self.args = newPyTuple [msg]
+  if not pattern.isPyNone and not pos.isPyNone:
+    let position = PyIntObject(pos).toSomeSignedIntUnsafe[:int]
+    self.args = newPyTuple [newPyStr($msg.str &
+      " at position " & $position)]
+  pyNone
+
+proc newPatternError*(error: pyre.PatternError): PyPatternErrorObject =
+  let result = newPatternError(newPyStr error.msg)
+  result.msg = newPyStr error.msg
+  if error.pattern.len != 0:
+    result.pattern = newPyStr error.pattern
+  if error.pos >= 0:
+    result.pos = newPyInt error.pos
+    var lineno = 1
+    var lineStart = -1
+    for index in 0 ..< error.pos:
+      if error.pattern[index] == '\n':
+        inc lineno
+        lineStart = index
+    result.lineno = newPyInt lineno
+    result.colno = newPyInt (error.pos - lineStart)
+    result.args = newPyTuple [newPyStr(error.msg & " at position " & $error.pos)]
+  result
 
 proc compilePattern(pattern: PyObject; flags = 0): PyObject =
   if pattern.ofPyRePatternObject:
@@ -41,10 +88,10 @@ proc compilePattern(pattern: PyObject; flags = 0): PyObject =
     return newTypeError(newPyAscii("first argument must be string or compiled pattern"))
   try:
     let result = newPyRePatternSimple()
-    result.regex = re($PyStrObject(pattern).str, toRegexFlags(flags))
+    result.regex = pyre.compile($PyStrObject(pattern).str, flags)
     return result
-  except RegexError as e:
-    return newValueError(newPyStr e.msg)
+  except PatternError as e:
+    return newPatternError(e)
 
 proc regexText(textObj: PyObject; text: var string; matchText: var PyStrObject): PyObject =
   if textObj.ofPyStrObject:
@@ -60,23 +107,22 @@ proc regexText(textObj: PyObject; text: var string; matchText: var PyStrObject):
     return newTypeError(newPyAscii("expected string or bytes-like object"))
   pyNone
 
-proc makeMatch(pattern: PyRePatternObject; text: string; matchText: PyStrObject; start = 0): PyObject =
-  var groups = newSeq[string](20)
-  let bounds = findBounds(text, pattern.regex, groups, start)
-  if bounds.first < 0:
-    return pyNone
-  let result = newPyReMatchSimple()
-  result.text = matchText
-  result.first = bounds.first
-  result.last = bounds.last
-  result.groups = groups
-  result
+proc makeMatch(pattern: PyRePatternObject; text: string; matchText: PyStrObject;
+               anchored = false): PyObject =
+  try:
+    let found = if anchored: pyre.match(pattern.regex, text)
+                else: pyre.search(pattern.regex, text)
+    if found.isNone:
+      return pyNone
+    let result = newPyReMatchSimple()
+    result.text = matchText
+    result.value = found.get
+    result
+  except PatternError as e:
+    newPatternError(e)
 
 proc implMatch(pattern: PyRePatternObject; text: string; matchText: PyStrObject): PyObject =
-  let result = makeMatch(pattern, text, matchText)
-  if result.isPyNone: return result
-  if PyReMatchObject(result).first != 0: return pyNone
-  result
+  makeMatch(pattern, text, matchText, anchored = true)
 
 proc implSearch(pattern: PyRePatternObject; text: string; matchText: PyStrObject): PyObject =
   makeMatch(pattern, text, matchText)
@@ -94,11 +140,12 @@ implRePatternMethod match(textObj: PyObject):
   implMatch(self, text, matchText)
 
 implReMatchMethod group(index: int):
-  if index == 0:
-    return newPyStr(($self.text.str)[self.first..self.last])
-  if index < 1 or index > self.groups.len:
+  var value: Option[string]
+  try:
+    value = self.value.group(index)
+  except IndexDefect:
     return newIndexError(newPyAscii("no such group"))
-  newPyStr self.groups[index - 1]
+  if value.isNone: pyNone else: newPyStr value.get
 
 implReModuleMethod compile(pattern: PyObject, flags = 0): compilePattern(pattern, flags)
 
@@ -126,16 +173,24 @@ implReModuleMethod findall(patternObj: PyObject, textObj: PyObject):
   var text: string
   var matchText: PyStrObject
   retIfExc regexText(textObj, text, matchText)
-  let regex = PyRePatternObject(pattern).regex
   var result = newPyList()
-  var start = 0
-  while start <= text.len:
-    let found = find(text, regex, start)
-    if found < 0: break
-    var groups = newSeq[string](20)
-    let bounds = findBounds(text, regex, groups, found)
-    result.add newPyStr(text[bounds.first..bounds.last])
-    start = if bounds.last < found: found + 1 else: bounds.last + 1
+  try:
+    let regex = PyRePatternObject(pattern).regex
+    let captureCount = regex.captureCount
+    if captureCount == 0:
+      for found in pyre.finditer(regex, text):
+        result.add newPyStr found.group().get
+    elif captureCount == 1:
+      for captures in pyre.findallCaptures(regex, text):
+        result.add newPyStr captures[0]
+    else:
+      for captures in pyre.findallCaptures(regex, text):
+        var groups: seq[PyObject]
+        for capture in captures:
+          groups.add newPyStr capture
+        result.add newPyTuple groups
+  except PatternError as e:
+    return newPatternError(e)
   result
 
 implReModuleMethod sub(patternObj: PyObject, replacement: PyObject, textObj: PyObject):
@@ -146,8 +201,34 @@ implReModuleMethod sub(patternObj: PyObject, replacement: PyObject, textObj: PyO
   var text: string
   var matchText: PyStrObject
   retIfExc regexText(textObj, text, matchText)
-  newPyStr replace(text, PyRePatternObject(pattern).regex,
-    $PyStrObject(replacement).str)
+  try:
+    newPyStr pyre.sub(PyRePatternObject(pattern).regex,
+      $PyStrObject(replacement).str, text)
+  except PatternError as e:
+    newPatternError(e)
+
+implReModuleMethod subn(patternObj: PyObject, replacement: PyObject, textObj: PyObject):
+  let pattern = compilePattern(patternObj)
+  retIfExc pattern
+  if not replacement.ofPyStrObject:
+    return newTypeError(newPyAscii("subn() arguments must be strings"))
+  var text: string
+  var matchText: PyStrObject
+  retIfExc regexText(textObj, text, matchText)
+  try:
+    let replaced = pyre.subn(PyRePatternObject(pattern).regex,
+      $PyStrObject(replacement).str, text)
+    newPyTuple([newPyStr replaced.value, newPyInt replaced.count])
+  except PatternError as e:
+    newPatternError(e)
+
+implReModuleMethod escape(textObj: PyObject):
+  if not textObj.ofPyStrObject:
+    return newTypeError(newPyAscii("escape() argument must be str"))
+  try:
+    newPyStr pyre.escape($PyStrObject(textObj).str)
+  except PatternError as e:
+    newPatternError(e)
 
 implReModuleMethod split(patternObj: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
@@ -156,6 +237,9 @@ implReModuleMethod split(patternObj: PyObject, textObj: PyObject):
   var matchText: PyStrObject
   retIfExc regexText(textObj, text, matchText)
   var result = newPyList()
-  for part in split(text, PyRePatternObject(pattern).regex):
-    result.add newPyStr part
+  try:
+    for part in pyre.split(PyRePatternObject(pattern).regex, text):
+      result.add newPyStr part
+  except PatternError as e:
+    return newPatternError(e)
   result

@@ -57,6 +57,7 @@ pylib "intflags", " ^= 0.1.0"
 
 pylib "posixos", " ^= 0.1.0"
 pylib "pymath", " ^= 0.1.0"
+pylib "pyre", " ^= 0.1.0"
 
 # copied from nimpylib.nimble
 #   at 43378424222610f8ce4a10593bd719691fbb634b
