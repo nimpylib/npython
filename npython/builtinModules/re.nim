@@ -64,7 +64,7 @@ implPatternErrorMagic init(msg: PyStrObject, pattern=pyNoneObj, pos=pyNoneObj):
   pyNone
 
 proc newPatternError*(error: pyre.PatternError): PyPatternErrorObject =
-  let result = newPatternError(newPyStr error.msg)
+  result = newPatternError(newPyStr error.msg)
   result.msg = newPyStr error.msg
   if error.pattern.len != 0:
     result.pattern = newPyStr error.pattern
@@ -79,7 +79,6 @@ proc newPatternError*(error: pyre.PatternError): PyPatternErrorObject =
     result.lineno = newPyInt lineno
     result.colno = newPyInt (error.pos - lineStart)
     result.args = newPyTuple [newPyStr(error.msg & " at position " & $error.pos)]
-  result
 
 proc compilePattern(pattern: PyObject; flags = 0): PyObject =
   if pattern.ofPyRePatternObject:
@@ -87,9 +86,9 @@ proc compilePattern(pattern: PyObject; flags = 0): PyObject =
   if not pattern.ofPyStrObject:
     return newTypeError(newPyAscii("first argument must be string or compiled pattern"))
   try:
-    let result = newPyRePatternSimple()
-    result.regex = pyre.compile($PyStrObject(pattern).str, flags)
-    return result
+    let res = newPyRePatternSimple()
+    res.regex = pyre.compile($PyStrObject(pattern).str, flags)
+    return res
   except PatternError as e:
     return newPatternError(e)
 
@@ -114,10 +113,10 @@ proc makeMatch(pattern: PyRePatternObject; text: string; matchText: PyStrObject;
                 else: pyre.search(pattern.regex, text)
     if found.isNone:
       return pyNone
-    let result = newPyReMatchSimple()
-    result.text = matchText
-    result.value = found.get
-    result
+    let res = newPyReMatchSimple()
+    res.text = matchText
+    res.value = found.get
+    res
   except PatternError as e:
     newPatternError(e)
 
@@ -173,25 +172,25 @@ implReModuleMethod findall(patternObj: PyObject, textObj: PyObject):
   var text: string
   var matchText: PyStrObject
   retIfExc regexText(textObj, text, matchText)
-  var result = newPyList()
+  let res = newPyList()
   try:
     let regex = PyRePatternObject(pattern).regex
     let captureCount = regex.captureCount
     if captureCount == 0:
       for found in pyre.finditer(regex, text):
-        result.add newPyStr found.group().get
+        res.add newPyStr found.group().get
     elif captureCount == 1:
       for captures in pyre.findallCaptures(regex, text):
-        result.add newPyStr captures[0]
+        res.add newPyStr captures[0]
     else:
       for captures in pyre.findallCaptures(regex, text):
         var groups: seq[PyObject]
         for capture in captures:
           groups.add newPyStr capture
-        result.add newPyTuple groups
+        res.add newPyTuple groups
   except PatternError as e:
     return newPatternError(e)
-  result
+  result = res
 
 implReModuleMethod sub(patternObj: PyObject, replacement: PyObject, textObj: PyObject):
   let pattern = compilePattern(patternObj)
@@ -236,10 +235,10 @@ implReModuleMethod split(patternObj: PyObject, textObj: PyObject):
   var text: string
   var matchText: PyStrObject
   retIfExc regexText(textObj, text, matchText)
-  var result = newPyList()
+  let res = newPyList()
   try:
     for part in pyre.split(PyRePatternObject(pattern).regex, text):
-      result.add newPyStr part
+      res.add newPyStr part
   except PatternError as e:
     return newPatternError(e)
-  result
+  result = res
