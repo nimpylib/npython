@@ -17,13 +17,18 @@ proc newLibPragmas(old_pragma: NimNode, name = NimNode nil): NimNode =
   var pragmas = if old_pragma.len > 0:
     old_pragma.copyNimTree
   else: newNimNode nnkPragma
+  let nameStr = strVal(if name.kind == nnkPostfix: name[1] else: name)
   pragmas.add nnkExprColonExpr.newTree(ident"exportc",
-    newLit strVal(if name.kind == nnkPostfix: name[1] else: name)
+    newLit nameStr
   )
   when defined(js) and defined(esModule) and appType == "lib":
     pragmas.add nnkExprColonExpr.newTree(
       ident"codeGenDecl", newLit"export function $# $#($#)"
     )
+  elif defined(wasm):
+   pragmas.add nnkExprColonExpr.newTree(ident"codegenDecl", newLit(
+            "__attribute__((export_name(\"" & nameStr & "\"))) $# $#$#"
+              ))
   pragmas.add ident"dynlib"
   pragmas.add ident"cdecl"
   pragmas
