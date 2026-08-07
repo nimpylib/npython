@@ -166,7 +166,7 @@ taskWithArgs buildLib, "build shared library":
 
 #taskRequires "buildWasm", "wasm_backend ^= 0.1.2"
 taskWithArgs buildWasm, "build .wasm(wasi) executable":
-  pylib "wasm_backend", " ^= 0.1.2"
+  pylib "wasm_backend", " ^= 0.1.3"
   let res = gorgeEx("nim-wasm-build-flags " & NimVersion, cache=NimVersion)
   if res.exitCode != 0:
     quit res.output
