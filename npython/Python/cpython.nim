@@ -118,7 +118,8 @@ proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsyn
     var cmdline =
       if cmdline.len == 0:
         when defined(nodejs): @[]
-        else: @["-"]
+        # if "-", IndexDefect on nim2.2.8
+        else: @["--"]
       else: commandLineParamsCompat()
   var
     args: seq[string]
@@ -126,7 +127,7 @@ proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsyn
   var p = initOptParser(cmdline,
     shortNoVal={'h', 'V', 'q', 'v'},
     # Python can be considered not to allow: -c:CODE -c=code
-    longNoVal = @["help", "version"],
+    longNoVal = @["help", "version", ""],
   )
   template expectFinalStrArg(body) =
     p.noLongOption()
@@ -138,6 +139,11 @@ proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsyn
       Py_Initialize()
       defer: Py_Finalize()
     body
+  template handleRestFiles(p, args) =
+    while true:
+      p.next()
+      if p.kind == cmdEnd: break
+      args.add p.key
   while true:
     p.next()
     case p.kind
@@ -164,7 +170,9 @@ proc main*(cmdline: string|seq[string] = "", init: static[bool] = true){.mayAsyn
           else:
             quitCompat 1
       of "":  # allow -
-        discard
+        if p.kind == cmdLongOption:
+          p.handleRestFiles args
+        break
       else:
         p.unknownOption()
     of cmdEnd: break
