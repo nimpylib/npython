@@ -170,7 +170,10 @@ taskWithArgs buildWasm, "build .wasm(wasi) executable":
   let res = gorgeEx("nim-wasm-build-flags " & NimVersion, cache=NimVersion)
   if res.exitCode != 0:
     quit res.output
-  let cmd = "c " & res.output
+  var cmd = "c "
+  if (NimMajor, NimMinor, NimPatch) < (2, 3, 1):
+    cmd.add "--passL:--export=NimMain "
+  cmd.add res.output
   selfExecBuildWithSrcAdd cmd,
     binPathWithoutExt & ".wasm", args
 
