@@ -8,6 +8,8 @@ import ../../Objects/[
   pyobject,
   exceptions,
   stringobject,
+  byteobjects,
+  dictobject,
   boolobjectImpl,
   noneobject,
 ]
@@ -36,6 +38,20 @@ proc handlestr(obj: PyObject, res: var PyStrObject): PyBaseErrorObject {.raises:
     return
   newTypeError newPyAscii converterr("str", obj)
 genToVal PyStrObject, handlestr
+
+proc handlebytes(obj: PyObject, res: var PyBytesObject): PyBaseErrorObject {.raises: [].} =
+  if obj.ofPyBytesObject:
+    res = PyBytesObject obj
+    return
+  newTypeError newPyAscii converterr("bytes", obj)
+genToVal PyBytesObject, handlebytes
+
+proc handledict(obj: PyObject, res: var PyDictObject): PyBaseErrorObject {.raises: [].} =
+  if obj.ofPyDictObject:
+    res = PyDictObject obj
+    return
+  newTypeError newPyAscii converterr("dict", obj)
+genToVal PyDictObject, handledict
 
 proc `handle %s`(x: PyObject, res: var string): PyBaseErrorObject {.raises: [].} =
   if x.ofPyStrObject:
