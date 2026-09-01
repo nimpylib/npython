@@ -1,8 +1,8 @@
 import pyobject
 
 declarePyType SleepAwaitable():
-  milliseconds: int
+  milliseconds: Natural
 
-proc newPySleepAwaitable*(milliseconds: int): PySleepAwaitableObject =
+proc newPySleepAwaitable*(milliseconds: Natural): PySleepAwaitableObject =
   result = newPySleepAwaitableSimple()
   result.milliseconds = milliseconds

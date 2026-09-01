@@ -2,14 +2,15 @@ import pyobject
 import coroutineobject
 import sleepobject
 import ../Python/neval
+from ../Utils/utils import `!!`
 import ./exceptions
 import ./stringobject
 import ./noneobject
-import std/os
+from pkg/pytime import sleep
 
 proc runAwaitable*(obj: PyObject): PyObject =
   if obj.ofPySleepAwaitableObject:
-    when not defined(js):
+    ValueError!!
       sleep PySleepAwaitableObject(obj).milliseconds
     return pyNone
   if not obj.ofPyCoroutineObject:
@@ -20,13 +21,12 @@ proc runAwaitable*(obj: PyObject): PyObject =
   if coro.running:
     return newRuntimeError(newPyAscii("coroutine already executing"))
   coro.running = true
-  let result = coro.frame.evalFrame
+  result = coro.frame.evalFrame
   coro.running = false
   retIfExc result
   if not coro.frame.completed:
     return newRuntimeError(newPyAscii("coroutine suspended without completion"))
   coro.finished = true
-  result
 
 proc runCoroutine*(obj: PyObject): PyObject =
   if not obj.ofPyCoroutineObject:
