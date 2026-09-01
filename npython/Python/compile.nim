@@ -279,14 +279,13 @@ proc assemble(cu: CompilerUnit, fileName: PyStrObject): PyCodeObject =
     result.flags = typeof(result.flags)(result.flags.ord or CO.GENERATOR.ord)
 
 
-proc makeFunction(c: Compiler, cu: CompilerUnit,
-                  functionName: PyStrObject, lineNo: int, extraFlags: int = 0,
-                  codeFlags: int = 0) =
-  assert (not cu.codeName.isNil)
-  # take the compiler unit and make it a function on stack top
-  let co = cu.assemble(c.fileName)
-  co.flags = typeof(co.flags)(co.flags.ord or codeFlags)
 
+
+proc makeFunctionAux(co: PyCodeObject; c: Compiler, cu: CompilerUnit,
+                  functionName: PyStrObject, lineNo: int, extraFlags: int = 0) =
+  # take the compiler unit and make it a function on stack top
+
+  assert (not cu.codeName.isNil)
   var flag: int
   # stack and flag according to CPython document:
   # 0x01 a tuple of default values for positional-only and positional-or-keyword parameters in positional order
@@ -330,6 +329,19 @@ proc makeFunction(c: Compiler, cu: CompilerUnit,
   c.tcu.addLoadConst(functionName, lineNo)
   # currently flag may be 0 or 8 or include extraFlags
   c.addOp(newArgInstr(OpCode.MakeFunction, flag, lineNo))
+
+proc makeFunction(c: Compiler, cu: CompilerUnit,
+                  functionName: PyStrObject, lineNo: int, extraFlags: int,
+                  codeFlags: CO) =
+  let co = cu.assemble(c.fileName)
+  co.flags = typeof(co.flags)(co.flags.ord or codeFlags.ord)
+  co.makeFunctionAux c, cu, functionName, lineNo, extraFlags
+
+proc makeFunction(c: Compiler, cu: CompilerUnit,
+                  functionName: PyStrObject, lineNo: int, extraFlags = 0
+    ) =
+  let co = cu.assemble(c.fileName)
+  co.makeFunctionAux c, cu, functionName, lineNo, extraFlags
 
 macro genMapMethod(methodName, code: untyped): untyped =
   result = newStmtList()
@@ -521,7 +533,7 @@ compileMethod AsyncFunctionDef:
   let extraFlags = c.compileArguments(astNode, argsNode, name)
   c.units.add(newCompilerUnit(c.st, astNode, name))
   c.compileSeq(astNode.body)
-  c.makeFunction(c.units.pop, name, astNode.lineNo.value, extraFlags, CO.COROUTINE.ord)
+  c.makeFunction(c.units.pop, name, astNode.lineNo.value, extraFlags, CO.COROUTINE)
   for deco in astNode.decorator_list:
     c.addOp(newArgInstr(OpCode.CallFunction, 1, deco.lineNo.value))
   c.addStoreOp(astNode.name.value, astNode.lineNo.value)
