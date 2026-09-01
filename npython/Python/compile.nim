@@ -608,44 +608,43 @@ compileMethod Delete:
   for i in astNode.targets:
     c.compile(i)
 
-compileMethod For:
-  let start = newBasicBlock(BlockType.For)
+template compileOrelse(c: Compiler, astNode, ending, body: untyped) {.dirty.} =
   let hasOrElse = astNode.orelse.len != 0
   let elseBlock = if hasOrElse: newBasicBlock() else: nil
+  body
+  if hasOrElse:
+    c.addBlock(elseBlock)
+    c.compileSeq(astNode.orelse)
+    c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
+
+compileMethod For:
+  let start = newBasicBlock(BlockType.For)
   let ending = newBasicBlock()
   # used in break stmt
   start.next = ending
   c.compile(astNode.iter)
   c.addOp(OpCode.GetIter, astNode.iter.lineNo.value)
   c.addBlock(start)
-  c.addOp(newJumpInstr(OpCode.ForIter,
-    if hasOrElse: elseBlock else: ending, astNode.lineNo.value))
-  c.compile(astNode.target)
-  c.compileSeq(astNode.body)
-  c.addOp(newJumpInstr(OpCode.JumpAbsolute, start, c.lastLineNo))
-  if hasOrElse:
-    c.addBlock(elseBlock)
-    c.compileSeq(astNode.orelse)
-    c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
+  compileOrelse(c, astNode, ending):
+    c.addOp(newJumpInstr(OpCode.ForIter,
+      if hasOrElse: elseBlock else: ending, astNode.lineNo.value))
+    c.compile(astNode.target)
+    c.compileSeq(astNode.body)
+    c.addOp(newJumpInstr(OpCode.JumpAbsolute, start, c.lastLineNo))
   c.addBlock(ending)
 
 compileMethod While:
   let loop = newBasicBlock(BlockType.While)
-  let hasOrElse = astNode.orelse.len != 0
-  let elseBlock = if hasOrElse: newBasicBlock() else: nil
   let ending = newBasicBlock()
   # used in break stmt
   loop.next = ending
   c.addBlock(loop)
-  c.compile(astNode.test)
-  c.addOp(newJumpInstr(OpCode.PopJumpIfFalse,
-    if hasOrElse: elseBlock else: ending, astNode.lineNo.value))
-  c.compileSeq(astNode.body)
-  c.addOp(newJumpInstr(OpCode.JumpAbsolute, loop, c.lastLineNo))
-  if hasOrElse:
-    c.addBlock(elseBlock)
-    c.compileSeq(astNode.orelse)
-    c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
+  compileOrelse(c, astNode, ending):
+    c.compile(astNode.test)
+    c.addOp(newJumpInstr(OpCode.PopJumpIfFalse,
+      if hasOrElse: elseBlock else: ending, astNode.lineNo.value))
+    c.compileSeq(astNode.body)
+    c.addOp(newJumpInstr(OpCode.JumpAbsolute, loop, c.lastLineNo))
   c.addBlock(ending)
 
 
@@ -951,59 +950,54 @@ proc codegen_try_except(c: Compiler, astNode: AstTry) =
   var excpBlocks: seq[BasicBlock]
   for i in 0..<astNode.handlers.len:
     excpBlocks.add newBasicBlock()
-  let elseBlock = if astNode.orelse.len != 0: newBasicBlock() else: nil
   let ending = newBasicBlock()
 
   c.addBlock(body)
   # jump to exception handling if exception happens
   c.addOp(newJumpInstr(OpCode.SetupFinally, excpBlocks[0], astNode.lineNo.value))
   c.compileSeq(astNode.body)
-  # no exception happens, jump to the ending
-  c.addOp(newJumpInstr(OpCode.JumpAbsolute,
-    if astNode.orelse.len != 0: elseBlock else: ending, c.lastLineNo))
+  compileOrelse(c, astNode, ending):
+    # no exception happens, jump to the ending
+    c.addOp(newJumpInstr(OpCode.JumpAbsolute,
+      if hasOrElse: elseBlock else: ending, c.lastLineNo))
 
-  for idx, handlerObj in astNode.handlers:
-    let isLast = idx == astNode.handlers.len-1
+    for idx, handlerObj in astNode.handlers:
+      let isLast = idx == astNode.handlers.len-1
 
-    let handler = AstExcepthandler(handlerObj)
-    let hLine = handler.lineno.value
-    c.addBlock(excpBlocks[idx])
-    let noAs = handler.name.isNil
-    if handler.type.isNil:
-      assert noAs
-    else:
-      # In CPython duptop is required, here we don't need that, because in each
-      # exception match comparison we don't pop the exception, 
-      # allowing further comparison
-      # c.addop(OpCode.DupTop) 
-      c.compile(handler.type)
-      c.addop(newArgInstr(OpCode.CompareOp, int(CmpOp.ExcpMatch), hLine))
-      if isLast:
-        c.addop(newJumpInstr(OpCode.PopJumpIfFalse, ending, c.lastLineNo))
+      let handler = AstExcepthandler(handlerObj)
+      let hLine = handler.lineno.value
+      c.addBlock(excpBlocks[idx])
+      let noAs = handler.name.isNil
+      if handler.type.isNil:
+        assert noAs
       else:
-        c.addop(newJumpInstr(OpCode.PopJumpIfFalse, excpBlocks[idx+1], c.lastLineNo))
-    if not noAs:
-      # no need to `c.compile(handler.name)`
-      #  as it's just a identifier
-      c.addop(OpCode.DupTop, hLine)
-      c.addStoreOp(handler.name, hLine)
-    # now we are handling the exception, no need for future comparison
-    c.addop(OpCode.PopTop, hLine)
-    c.compileSeq(handler.body)
-    if not noAs:
-      #[name=None; del name  # Mark as artificial]#
-      c.addLoadConst(pyNone, hLine)
-      c.addStoreOp(handler.name, hLine)
+        # In CPython duptop is required, here we don't need that, because in each
+        # exception match comparison we don't pop the exception, 
+        # allowing further comparison
+        # c.addop(OpCode.DupTop) 
+        c.compile(handler.type)
+        c.addop(newArgInstr(OpCode.CompareOp, int(CmpOp.ExcpMatch), hLine))
+        if isLast:
+          c.addop(newJumpInstr(OpCode.PopJumpIfFalse, ending, c.lastLineNo))
+        else:
+          c.addop(newJumpInstr(OpCode.PopJumpIfFalse, excpBlocks[idx+1], c.lastLineNo))
+      if not noAs:
+        # no need to `c.compile(handler.name)`
+        #  as it's just a identifier
+        c.addop(OpCode.DupTop, hLine)
+        c.addStoreOp(handler.name, hLine)
+      # now we are handling the exception, no need for future comparison
+      c.addop(OpCode.PopTop, hLine)
+      c.compileSeq(handler.body)
+      if not noAs:
+        #[name=None; del name  # Mark as artificial]#
+        c.addLoadConst(pyNone, hLine)
+        c.addStoreOp(handler.name, hLine)
 
-      c.addDeleteOp(handler.name, hLine)
-    # skip other handlers
-    if not isLast:
-      c.addop(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
-
-  if astNode.orelse.len != 0:
-    c.addBlock(elseBlock)
-    c.compileSeq(astNode.orelse)
-    c.addOp(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
+        c.addDeleteOp(handler.name, hLine)
+      # skip other handlers
+      if not isLast:
+        c.addop(newJumpInstr(OpCode.JumpAbsolute, ending, c.lastLineNo))
 
   let lastLineNo = c.lastLineNo
   c.addBlock(ending)
