@@ -671,6 +671,18 @@ compileMethod If:
     c.compileSeq(astNode.orelse)
   c.addBlock(ending)
 
+template compileMappingRest(c: Compiler, mapping: AstDict, restIdx: int, lineNo: int) =
+  c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+  c.addOp(newArgInstr(OpCode.LoadAttr,
+    c.tste.nameId(newPyAscii("copy")), lineNo))
+  c.addOp(newArgInstr(OpCode.CallFunction, 0, lineNo))
+  for key in mapping.keys:
+    if not key.isNil:
+      c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
+      c.compile(key)
+      c.addOp(OpCode.DeleteSubscr, lineNo)
+  c.compile(mapping.values[restIdx])
+
 compileMethod Match:
   let ending = newBasicBlock()
   c.compile(astNode.subject)
@@ -715,6 +727,8 @@ compileMethod Match:
       var restIdx = -1
       for idx, key in mapping.keys:
         if key.isNil:
+          if restIdx != -1:
+            raiseSyntaxError("multiple mapping rest patterns are not implemented", pattern)
           restIdx = idx
           continue
         c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
@@ -735,17 +749,10 @@ compileMethod Match:
           c.compile(value)
           c.addOp(newArgInstr(OpCode.CompareOp, int(CmpOp.Eq), lineNo))
           c.addOp(newJumpInstr(OpCode.PopJumpIfFalse, next, lineNo))
+      if restIdx != -1 and restIdx != mapping.keys.len - 1:
+        raiseSyntaxError("mapping rest pattern must be last", pattern)
       if restIdx != -1:
-        c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
-        c.addOp(newArgInstr(OpCode.LoadAttr,
-          c.tste.nameId(newPyAscii("copy")), lineNo))
-        c.addOp(newArgInstr(OpCode.CallFunction, 0, lineNo))
-        for idx, key in mapping.keys:
-          if not key.isNil:
-            c.addOp(newArgInstr(OpCode.Copy, 1, lineNo))
-            c.compile(key)
-            c.addOp(OpCode.DeleteSubscr, lineNo)
-        c.compile(mapping.values[restIdx])
+        compileMappingRest(c, mapping, restIdx, lineNo)
     elif sequencePattern:
       let elements = if pattern of AstList: AstList(pattern).elts else: AstTuple(pattern).elts
       var starIdx = -1
