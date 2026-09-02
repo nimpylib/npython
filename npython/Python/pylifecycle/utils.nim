@@ -9,7 +9,7 @@ import ../../Objects/[
 import ../coreconfig
 
 proc Py_FdIsInteractive*(fp: fileio.File, filename: PyStrObject): bool =
-  if isatty(fileno(fp)): 
+  if isatty(fp): 
     return true
   if not Py_GetConfig().interactive:
     return false

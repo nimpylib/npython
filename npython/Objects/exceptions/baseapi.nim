@@ -36,7 +36,7 @@ template retIfExc*(e: PyObject) =
     return PyBaseErrorObject exc
 
 
-when NPythonAsyncReadline:
+when npythonJsAsyncReadline:
   template retIfExc*(e: MayPromise[PyBaseErrorObject]) =
     let exc = mayAwait e
     if not exc.isNil:

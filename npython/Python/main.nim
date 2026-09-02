@@ -15,7 +15,7 @@ import ./main/utils
 
 proc stdin_is_interactive(config: PyConfig): bool =
   ## Return if stdin is a TTY or if -i command line option is used
-  isatty(fileno(stdin)) or config.interactive
+  isatty(stdin) or config.interactive
 
 using config: PyConfig
 proc config_run_code(config): bool =
