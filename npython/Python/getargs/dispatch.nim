@@ -1,5 +1,6 @@
 
 import std/macros
+import std/tables
 import ./[
   tovalUtils,
   va_and_kw,
@@ -14,6 +15,7 @@ import ../../Objects/[
   noneobject,
 ]
 import ../../Objects/exceptions/oserr/convert
+import ../../Objects/exceptions/ioerror
 
 type
   ClinicGenConf = object
@@ -167,10 +169,15 @@ proc genExcepts(excepts, body: NimNode): NimNode =
     return body
   result = nnkTryStmt.newTree body
   var hasOSError = false
+  let specialExc = {
+    "OSError": bindSym"handleOsErrRetPyObj",
+    "IOError": bindSym"handleIOErrRetPyObj"
+  }.toTable
+  var specialHandles = newSeq[NimNode]()
 
   for exc in excepts:
-    if exc.eqIdent "OSError":
-      hasOSError = true
+    withValue specialExc, exc.strVal, val:
+      specialHandles.add val
       continue
     let alias = ident "e"
     let newPyE = ident("new" & exc.strVal)
@@ -179,14 +186,17 @@ proc genExcepts(excepts, body: NimNode): NimNode =
       quote do:
         return `newPyE`(newPyStr `alias`.msg)
     )
-  if hasOSError:
-    if excepts.len == 1:
+  let nHandles = specialHandles.len
+  if nHandles > 0:
+    if excepts.len == nHandles:
       result = body
-    let handleOsErrRetPyObjId = bindSym"handleOsErrRetPyObj"
-    result = quote do:
-      `handleOsErrRetPyObjId`: `result`
+    for i in specialHandles:
+      result = quote do:
+        `i`: `result`
   else:
     result = newStmtList(result)
+macro withNimErrorsAsPy*(excepts, body): untyped =
+  genExcepts excepts, body
 
 
 proc clinicGenMethodOfKindImpl*(typ: NimNode; kind: NPyMethodKind, exceptions,
