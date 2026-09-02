@@ -20,6 +20,7 @@ import ../Utils/trans_imp
 impExpCwd bltinmodule, [
   compile_eval_exec, globals_locals_vars,
   iterobjects, io, sums, iterops, unarys, ops, isinstance,
+  fileio,
 ]
 
 proc registerBltinFunction(name: string, fun: BltinFunc) = 
@@ -35,6 +36,7 @@ proc registerBltinObject(name: string, obj: PyObject) =
 
 template register_bltin_funcs1{.dirty.} =
   register_io
+  register_fileio
   register_iterops
   register_compile_eval_exec
   register_globals_locals_vars
