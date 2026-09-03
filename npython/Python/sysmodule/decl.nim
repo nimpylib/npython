@@ -13,4 +13,8 @@ declarePyType SysModule(base(Module)):
   path{.member.}: PyListObject  # list[str]
   argv{.member.}: PyListObject  # list[str]
   orig_argv{.member.}: PyListObject  # list[str]
+  stdin{.member.}: PyObject
+  stdout{.member.}: PyObject
+  stderr{.member.}: PyObject
+
 

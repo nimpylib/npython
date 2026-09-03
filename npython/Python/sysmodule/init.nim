@@ -9,7 +9,9 @@ import ../../Objects/[
   exceptions,
   dictobject,
   moduleobjectImpl,
+  fileobject,
 ]
+import pkg/pyio_open as pyio
 export Py_Int_Float_InitTypes
 
 import ../../Include/internal/pycore_initconfig
@@ -56,7 +58,13 @@ proc PySys_Create*(sysmod: var PySysModuleObject): PyBaseErrorObject =
 
   let sysdict = sysmod.getDict()
 
-  #TODO:io
+  template set_stdio(name) =
+    let std = PyObject newPyFile pyio.name
+    sysmod.name = std
+    SET_SYS("__" & astToStr(name) & "__", std)
+  set_stdio stdin
+  set_stdio stdout
+  set_stdio stderr
 
   retIfExc initCore(sysdict)
 
@@ -64,4 +72,3 @@ proc PySys_Create*(sysmod: var PySysModuleObject): PyBaseErrorObject =
   sysmod.modules = modules
 
   #TODO:monioring
-
