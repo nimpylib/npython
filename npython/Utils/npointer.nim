@@ -1,7 +1,7 @@
 
 when defined(js):
   import npointer_js
-  export npointer_js except genGS
+  export npointer_js
 else:
   import std/endians
   type NPointer* = pointer
@@ -30,18 +30,19 @@ else:
       swapIfNeed n, vv, v:
         vv = v
       d.s(i, vv)
-template genIGS*(n){.dirty.} =
-  genGS `getUint n`, `setUint n`, `uint n`, n
-  genGS `getInt n`, `setInt n`, `int n`, n
-template genFGS*(n){.dirty.} =
-  genGS `getFloat n`, `setFloat n`, `float n`, n
-genIGS 8
-genIGS 16
-genIGS 32
-genIGS 64
+  template genIGS*(n){.dirty.} =
+    genGS `getUint n`, `setUint n`, `uint n`, n
+    genGS `getInt n`, `setInt n`, `int n`, n
+  template genFGS*(n){.dirty.} =
+    genGS `getFloat n`, `setFloat n`, `float n`, n
+  genIGS 64
 
-genFGS 32
-genFGS 64
+  genIGS 32
+  genIGS 16
+  genIGS 8
+
+  genFGS 64
+  genFGS 32
 
 when isMainModule:
   var p = alloc0(4)
