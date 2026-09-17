@@ -172,6 +172,13 @@ proc `&`*(a: UnicodeVariant, c: char): UnicodeVariant =
 proc len*(str: UnicodeVariant): int {. cdecl .} =
   str.doBothKindOk(len)
 
+proc contains*(str: UnicodeVariant, c: char): bool {. cdecl .} =
+  if str.ascii: c in str.asciiStr
+  else: Rune(c) in str.unicodeStr
+proc contains*(str: UnicodeVariant, c: Rune): bool {. cdecl .} =
+  if str.ascii: c <% Rune(char.high) and cast[char](c) in str.asciiStr
+  else: c in str.unicodeStr
+
 proc joinAsRunes*(r: openArray[UnicodeVariant], sep: string): seq[Rune] =
   ## Join `UnicodeVariant` with a separator.
   result = newSeqOfCap[Rune](r.len)
@@ -272,6 +279,11 @@ proc eqAscii*(self: PyStrObject; s: string): bool =
 template itemSize*(self: PyStrObject): int =
   ## `PyUnicode_KIND`
   self.str.itemSize
+
+template contains*(s: PyStrObject, c: char|Rune): bool =
+  bind contains
+  s.str.contains c
+# s.contains(strobject) is defined under another module
 
 proc hash*(self: PyStrObject): Hash {. inline, cdecl .} =
   result = hash(self.str) # don't write as self.str.hash as that returns attr

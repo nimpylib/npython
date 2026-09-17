@@ -149,20 +149,19 @@ proc substring*(self: PyStrObject, start, stop: int, res: var PyStrObject): PyIn
     return newIndexError newPyAscii "string index out of range"
   res = self.substringUnsafe(start, stop)
 
+proc contains*(self, o: PyStrObject): bool =
+ doKindsWith2It(self.str, o.str):
+    it1.contains it2
+    it1.findExpanded(it2) >= 0
+    it1.findExpanded(it2) >= 0
+    it1.contains it2
+implStrMagic contains(o: PyStrObject):
+  newPyBool self.contains o
+
 when true:
   # copied and modified from ./tupleobject.nim
   implStrMagic iter: 
     newPyStrIter(self)
-
-  implStrMagic contains(o: PyStrObject):
-    let res = doKindsWith2It(self.str, o.str):
-      it1.contains it2
-      it1.findExpanded(it2) > 0
-      it1.findExpanded(it2) > 0
-      it1.contains it2
-    if res: pyTrueObj
-    else: pyFalseObj
-
 
   implStrMagic getitem:
     if other.ofPyIntObject:

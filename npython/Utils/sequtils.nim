@@ -70,4 +70,4 @@ iterator findAll*[T](s: openArray[T], x: T): int =
 
 wrapOA findAll
 
-proc contains*[T](s, sub: openArray[T]): bool{.inline.} = s.find(sub) > 0
+proc contains*[T](s, sub: openArray[T]): bool{.inline.} = s.find(sub) >= 0
