@@ -163,7 +163,7 @@ proc PyRun_InteractiveLoopObject*(fp; filename): bool {.mayAsync, pyCFuncPragma.
   ## returns if fails
   mayAwait PyRun_InteractiveLoopObjectImpl(fp, filename, initPyCompilerFlags())
 
-when NPythonAsyncReadline:
+when npythonJsAsyncReadline:
   converter upcast[T: PyObject](p: MayPromise[T]): MayPromise[PyObject] = p
 
 using mode: Mode

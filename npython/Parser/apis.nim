@@ -25,6 +25,7 @@ using fp: fileio.File
 {.push raises: [].}
 proc tokenize_and_cst_one*(input: string, lexer: Lexer, 
   rootCst: var ParseNode, exc: var PyBaseErrorObject, filename_obj: PyStrObject,
+  mode = Mode.Single
   ): bool =
   ## unstable. export for karax
   ## returns finished
@@ -52,7 +53,7 @@ proc newPyInteractiveSrc* : PyInteractiveSrcObject = newPyInteractiveSrcSimple()
 ## workaround for repl lineNo tracking
 ##  (otherwise it will always be 1, as we create a new Lexer whose lineNo is initialized each time)
 
-proc tokenize_and_cst(fp; filename_obj: PyStrObject; enc: string, ps1, ps2: string,
+proc tokenize_and_cst(fp; mode: Mode; filename_obj: PyStrObject; enc: string, ps1, ps2: string,
     errcode: var ParseErrorcode,
     rootCst: var ParseNode, # out. the root of the concrete syntax tree. 
     interactive_src: var PyInteractiveSrcObject,
@@ -63,10 +64,20 @@ proc tokenize_and_cst(fp; filename_obj: PyStrObject; enc: string, ps1, ps2: stri
   var exc: PyBaseErrorObject
 
   var prompt = ps1
+  if mode != Mode.Single:
+    try:
+      input = fp.readAll
+    except IOError as e:
+      return mayNewPromise PyBaseErrorObject newIOError e
+    if tokenize_and_cst_one(input, lexer, rootCst, exc, filename_obj, mode):
+      result = mayNewPromise exc
+    return
+
+  assert fp == fileio.stdin
   # loop when user input multiple lines
   while true:
     try:
-      input = mayAwait fp.readLine(stdout, prompt)  #TODO:enc encoding
+      input = mayAwait readLineCompat(prompt)  #TODO:enc encoding
       prompt = ps2
     except EOFError:
       errcode = E_EOF
@@ -98,7 +109,7 @@ proc run_parser_from_file_pointer(fp; mode: Mode, filename_obj: PyStrObject; enc
   var rootCst: ParseNode
 
   # _PyTokenizer_FromFile
-  retIfExc tokenize_and_cst(fp, filename_obj, enc, ps1, ps2, errcode, rootCst, interactive_src)
+  retIfExc tokenize_and_cst(fp, mode, filename_obj, enc, ps1, ps2, errcode, rootCst, interactive_src)
   interactiveHandleErrcode
 
   try:
