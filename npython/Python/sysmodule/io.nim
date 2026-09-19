@@ -1,18 +1,12 @@
 
-when defined(nimPreviewSlimSystem):
-  import std/assertions
 
-import ../../Objects/[pyobjectBase, stringobject,]
-import ../../Utils/compat
-import ./attrs
+import ../../Objects/stringobject
+import ../sysmodule_instance
+import ../../Objects/abstract/call
+import ../../Include/internal/pycore_global_strings
 
 proc PySys_EchoStderr*(s: string) =
-  #TODO:sys.stderr
-  assert:
-    var unused: PyObject
-    var exists: bool
-    discard PySys_GetOptionalAttr(newPyAscii"stderr", unused, exists)
-    not exists
-  do: "sys.stderr shall be not set currently"
-
-  errEchoCompatNoRaise s
+  let stderr = sys.stderr #PySys_GetObject("stderr")
+  if stderr.isNil: return
+  discard stderr.callMethod(pyId"write", newPyStr s)
+  discard stderr.callMethod(pyId"write", newPyAscii '\n')
