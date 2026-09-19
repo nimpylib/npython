@@ -5,7 +5,7 @@ import ../Objects/[
   listobjectImpl,
   typeobject,
   ]
-import ../Utils/[utils, nexportc, compat, trans_imp]
+import ../Utils/[nexportc, compat, trans_imp]
 import ../Include/cpython/pyerrors
 import ../Include/internal/[pycore_int, pycore_global_strings]
 import ../builtinModules/index
@@ -29,7 +29,7 @@ when declared(system.outOfMemHook):
 
 when not defined(js):
   proc controlCHandler {. noconv .} =
-    raise newException(InterruptError, "")
+    raise newException(KeyboardInterrupt, "")
 
   system.setControlCHook(controlCHandler)
 

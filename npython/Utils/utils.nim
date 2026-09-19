@@ -20,9 +20,6 @@ type
   # internal error for not implemented bigint lib
   IntError* = object of CatchableError
 
-  # internal error for keyboard interruption
-  InterruptError* = object of OSError  ## Python's is inherited from OSError
-
 proc newSyntaxError(msg, fileName: string, lineNo, colNo: int): SyntaxError = 
   new result
   result.msg = msg

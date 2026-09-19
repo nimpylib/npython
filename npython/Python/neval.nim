@@ -1,12 +1,15 @@
 
 from std/strutils import replace
-import strformat
-import tables
+import std/strformat
+import std/tables
 import std/sets
-import compile
-import opcode
-import builtindict
-import ./[call, traceback]
+import ./[
+  compile, opcode,
+  builtindict,
+  neval_frame,
+  pyimport,
+  intrinsics,
+  call, traceback]
 import ../Include/ceval
 import ../Include/internal/pycore_global_strings
 import ../Objects/typeobject/apis/attrs
@@ -19,11 +22,6 @@ import ../Objects/[pyobject, baseBundle, tupleobject, listobject, dictobject,
 import ../Objects/abstract/[dunder, number, format]
 import ../Objects/abstract/sequence/list
 import ../Utils/utils
-import ./[
-  neval_frame,
-  pyimport,
-  intrinsics,
-]
 export pyimport, neval_frame
 when defined(debug_instr) or defined(debug_instr2):
   import ./neval_debug
@@ -1047,9 +1045,9 @@ proc evalFrame*(f: PyFrameObject): PyObject =
         except OutOfMemDefect:
           excpObj = newMemoryError(newPyAscii"Out of Memory")
           handleException(excpObj)
-        except InterruptError:
-          excpObj = newKeyboardInterrupt(newPyAscii"Keyboard Interrupt")
-          handleException(excpObj)
+        # except InterruptError:
+        #   excpObj = newKeyboardInterrupt(newPyAscii"Keyboard Interrupt")
+        #   handleException(excpObj)
 
       # exception handler, return exception or re-enter the loop with new instruction index
       block exceptionHandler:

@@ -73,7 +73,7 @@ proc tokenize_and_cst(fp; filename_obj: PyStrObject; enc: string, ps1, ps2: stri
       return mayNewPromise PyBaseErrorObject nil
     except IOError as e:
       return mayNewPromise PyBaseErrorObject newIOError e
-    except InterruptError:
+    except KeyboardInterrupt:
       errEchoCompatNoRaise"KeyboardInterrupt"
       continue
     if tokenize_and_cst_one(input, lexer, rootCst, exc, filename_obj):
