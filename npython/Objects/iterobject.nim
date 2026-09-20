@@ -1,9 +1,8 @@
-import ./[
-  pyobject,
-  exceptions,
-]
+import pyobject
+import exceptions
 import ../Include/cpython/pyerrors
 import ./abstract/sequence/checks
+import ./stringobject
 
 
 declarePyType NimSeqIter():

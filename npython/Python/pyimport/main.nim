@@ -15,6 +15,7 @@ import std/os
 import std/strutils
 import ../../Utils/compat_io_os
 import ../../Objects/stringobject/strformat
+import ../../Objects/exceptions/ioerror
 import ../../builtinModules/index
 import ./utils
 
@@ -160,11 +161,8 @@ proc pyImport*(rt: Evaluator; name: PyStrObject): PyObject{.raises: [].} =
   if location.kind == mkNamespace:
     return module
 
-  let input = try:
+  let input = handleIOErrRetPyObj:
     readFileCompat(location.filepath)
-  except IOError as e:
-    #TODO:io maybe newIOError?
-    return newImportError(newPyAscii"Import Failed due to IOError " & newPyAscii $e.msg)
   let compileRes = compile(input, location.filepath)
   retIfExc compileRes
 

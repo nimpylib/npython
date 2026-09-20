@@ -2,18 +2,18 @@
 
 
 import std/strformat
-import ../Utils/[compat]
 import ../Objects/[warningobject, pyobject,
+  noneobject,
   stringobject, exceptions,
   tupleobject, dictobject/ops,
   numobjects/intobject/decl,
-  pyobjectBase]
-
+  fileobject/generics,
+  ]
+import ../Python/sysmodule_instance
 export warningobject
 
-proc formatwarnmsg_impl_nonewline(msg: PyWarningMessageObject): string{.raises: [].} =
+proc formatwarnmsg_impl(msg: PyWarningMessageObject): string{.raises: [].} =
   ## `_formatwarnmsg_impl` of `Lib/_py_warnings.py`
-  ## but without the tailing newline
   let category = msg.categoryName
   let
     filename = msg.filename.str
@@ -21,8 +21,8 @@ proc formatwarnmsg_impl_nonewline(msg: PyWarningMessageObject): string{.raises: 
     message = msg.message.str
   let linenoS =
     try: $linenoObj
-    except Exception: "<unknown lineno>"  ## Handle potential exceptions
-  result = fmt"{filename}:{linenoS}: {category}: {message}"  ## Use the new message variable
+    except CatchableError: "<unknown lineno>"  ## Handle potential exceptions
+  result = fmt"{filename}:{linenoS}: {category}: {message}\n"  ## Use the new message variable
 
   # TODO: linecache.getline(msg.filename, msg.lineno)
   # TODO: tracemalloc.get_object_traceback(msg.source)
@@ -31,11 +31,18 @@ proc formatwarnmsg_impl_nonewline(msg: PyWarningMessageObject): string{.raises: 
 proc showwarnmsg_impl(msg: PyWarningMessageObject){.raises: [].} =
   ## `_showwarnmsg_impl` of `Lib/_py_warnings.py`
   # _formatwarnmsg
-  #TODO:sys.stderr
-  errEchoCompatNoRaise(
+  var file = msg.file
+  if file.isPyNone:
+    file = sys.stderr
+    assert not file.isNil
+    if file.isPyNone:
+      return
+  #errEchoCompatNoRaise(
+  discard PyFile_Write(
     # XXX: TODO: `_formatwarnmsg_impl`
-    msg.formatwarnmsg_impl_nonewline
-  )
+    msg.formatwarnmsg_impl
+    ,
+    file)
 
 proc warn_explicit(category: PyTypeObject#[typedesc[Warning]]#, message: PyStrObject,
   filename: PyStrObject, lineno: int,

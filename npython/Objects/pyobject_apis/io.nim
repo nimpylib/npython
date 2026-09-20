@@ -1,8 +1,7 @@
 
 import ../../Include/internal/pycore_ceval_rec
 import ../../Include/ceval
-import ../../Utils/fileio
-import ../../Utils/[intflags,]
+import ../../Utils/[fileio, intflags, nexportc]
 export intflags
 import ../[
   pyobjectBase,
@@ -50,6 +49,10 @@ template PyObject_WriteImpl(writePrc) =
       result = newIOError e #TODO:OSError PyErr_SetFromErrno(pyOSErrorObjectType)
       #clearerr(fp)
 
+proc PyObject_Print*(op: PyObject, fp: fileio.File,
+                     flags: IntFlag[PyPrintFlags] = Py_PRINT_REPR
+): PyBaseErrorObject {.npyexportc.} =
+  PyObject_WriteImpl write
 proc PyObject_Println*(op: PyObject, fp: fileio.File, flags: IntFlag[PyPrintFlags] = Py_PRINT_REPR): PyBaseErrorObject =
-  ## variant of PyObject_Print that also appends an '\n'
+  ## variant of `PyObject_Print`_ that also appends an '\n'
   PyObject_WriteImpl writeLine

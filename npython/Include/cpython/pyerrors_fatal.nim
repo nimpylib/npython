@@ -8,23 +8,18 @@ import ../internal/defines/[
 import ./private/runtime_singleton
 ]#
 
-const Js = defined(js)
-when Js:
-  template withPUTS(body){.dirty.} =
-    var tempPUTS: string
-    body
-    errEchoCompatNoRaise tempPUTS
-  template tPUTS(_; s: string) = tempPUTS.add s
-else:
-  import ../../Utils/fileio
-  template withPUTS(body) =
-    body
-    stderr.write '\n'
-  template tPUTS(_; s: string) =
-    stderr.write s
-template PUTS(_; s: string) =
-  try: tPUTS(_, s)
+import ../../Utils/fileio
+template disIOE(body) =
+  try: body
   except IOError: discard
+template withPUTS(body) =
+  body
+  disIOE:
+    stderr.write '\n'
+template tPUTS(_; s: string) =
+  stderr.write s
+template PUTS(_; s: string) =
+  disIOE: tPUTS(_, s)
 #[
 proc dump_runtime(runtime: var PyRuntimeState) =
   withPUTS:

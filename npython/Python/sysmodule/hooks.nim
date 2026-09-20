@@ -3,10 +3,12 @@ import ../../Objects/[
   pyobjectBase, exceptions,
   noneobject,
   stringobject,
+  fileobject/generics,
   ]
 import ../../Objects/pyobject_apis/[attrs, io]
 import ../pythonrun/pyerr_display
 import ../pyimport/utils
+import ../sysmodule_instance
 import ../../Include/internal/pycore_global_strings
 import ../../Utils/[fileio,]
 
@@ -26,24 +28,20 @@ proc displayhook_impl*(o: PyObject): PyBaseErrorObject =
   if o.isPyNone: return
   retIfExc PyObject_SetAttr(builtins, newPyAscii('_'), pyNone)
 
-  #TODO:sys.stdout
-  #TODO:encoding
-  #[
-  var outf: PyObject
-  retIfExc PySys_GetAttr(pyId(stdout), outf)
+  let outf = sys.stdout
   if outf.isPyNone:
     return newRuntimeError newPyAscii"lost sys.stdout"
-  let res = PyFile_WriteObject(o, outf)
+
+  let res = PyFile_Write(o, outf, Py_PRINT_RAW)
+  #TODO:encoding
+  #[
   if res.ofPyUnicodeEncodeErrorObject:
     #[/* repr(o) is not encodable to sys.stdout.encoding with
       * sys.stdout.errors error handler (which is probably 'strict') */]#
     retIfExc sys_displayhook_unencodable(outf, o)
-  retIfExc res
-  retIfExc PyFile_WriteObject(newPyAscii('\n'), outf, Py_PRINT_RAW)
   ]#
-
-  let res = PyObject_Println(o, fileio.stdout, Py_PRINT_RAW)
   retIfExc res
+  retIfExc PyFile_Write(newPyAscii('\n'), outf, Py_PRINT_RAW)
 
   retIfExc PyObject_SetAttr(builtins, newPyAscii('_'), o)
 

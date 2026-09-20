@@ -1,7 +1,6 @@
 from std/unicode import size
-import std/strformat
-from std/strutils import split
 
+import ../Include/internal/pycore_global_strings
 import ../Include/cpython/pyerrors
 import ../Include/cpython/critical_section
 import ../Include/cpython/compile
@@ -12,28 +11,24 @@ import ../Objects/[
   stringobjectImpl,
   codeobject,
   frameobject,
+  pyobject_apis/attrs,
 ]
 import ../Objects/stringobject/meth/extra
 import ../Objects/codeobject/locApis
-import ../Objects/exceptions/ioerror
 import ../Objects/numobjects/intobject
 import ../Objects/numobjects/intobject/ops
 import ./sysmodule/attrs
 import ../Parser/[lexer, apis]
-import ../Python/[asdl]
-import ../Utils/compat
+import ../Python/[asdl, call]
 
-using f: PyObject ## std stream e.g. stderr
+using f: PyObject ## io stream e.g. stderr
 
-template PyFile_WritelineString*(s: string; f): untyped =
-  #TODO:io
-  bind newIOError
-  discard f
-  try:
-    errEchoCompat s
-    PyBaseErrorObject(nil)
-  except IOError as e:
-    newIOError e
+proc PyFile_WritelineString*(s: string; f): PyBaseErrorObject =
+  let cb = PyObject_GetAttr(f, pyId"write")
+  retIfExc cb
+  retIfExc cb.call newPyStr s
+  retIfExc cb.call newPyAscii '\n'
+
 template PyFile_WritelineString*(s: cstring; f): untyped =
   PyFile_WritelineString $s, f
 
@@ -75,12 +70,11 @@ proc display_source_lineNotNil(f; filename_obj: PyStrObject, lineno, indent: int
   if filename_obj.len == 0:
     return
 
-  #TODO:io
-  when declared(openFileCompat):
-    let fileName = $filename_obj.str
+  when false:
+    # CPython uses io.open on fileNameObj, so it says:
     # Do not attempt to open things like <string> or <stdin>
-    let len = fileName.len
-    if len >= 2 and (fileName[0] == '<') and fileName[^1] == '>':
+    let len = fileNameObj.len
+    if len >= 2 and (fileNameObj[0] == Rune'<') and fileNameObj[len-1] == Rune'>':
       return
 
   # Try to get the source line using existing helper

@@ -10,12 +10,11 @@ import ../../Objects/[
 import ../sysmodule/[attrs, ]
 import ../pylifecycle/pyruntime_singleton
 import ../../Objects/numobjects/intobject
+import ../../Objects/fileobject/generics
 from ../coreconfig import Py_GetConfig
 import ../../Include/internal/pycore_global_strings
 import ../../Include/cpython/pyatomic
-when not declared(stdout):
-  import ../../Utils/fileio
-import ../../Utils/utils
+import ../../Utils/fileio
 
 
 proc parse_exit_code(code: PyObject, exitcode_p: var int): bool =
@@ -61,15 +60,11 @@ proc Py_HandleSystemExitAndKeyboardInterrupt*(exc: PyBaseErrorObject, exitcode: 
     # If code is not an int or None, print it below
     eo = code
 
-  var sys_stderr: PyObject
-  if not PySys_GetOptionalAttr(pyId stderr, sys_stderr).isNil:
+  let sys_stderr = PySys_GetDataChecked stderr
+  if sys_stderr.isThrownException:
     discard
   elif not sys_stderr.isNil and not sys_stderr.isPyNone:
-    when declared(PyFile_WritelineObject):
-      #TODO:fileio PyFile_WriteObject
-      discard PyFile_WritelineObject(exc, sys_stderr)
-    else:
-      unreachable "not impl: PyFile_WriteObject" #TODO:sys.stderr
+    discard PyFile_Write(exc, sys_stderr, Py_PRINT_RAW)
   else:
     let e: PyBaseErrorObject = PyObject_Println(exc, stderr, Py_PRINT_RAW)
     if not e.isNil:

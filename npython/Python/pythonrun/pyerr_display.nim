@@ -16,10 +16,11 @@ import ../../Objects/[
   stringobject,
   setobjectAux,
   noneobject,
+  fileobject/generics,
 ]
 import ../../Include/internal/pycore_ceval_rec
 import ../../Include/internal/pycore_global_strings
-import ../../Objects/pyobject_apis/[attrs, strings,]
+import ../../Objects/pyobject_apis/[attrs, strings, dumps,]
 import ../../Objects/stringobject/strformat
 import ../../Objects/typeobject/getters
 import ../../Objects/numobjects/intobject
@@ -389,25 +390,20 @@ proc private_PyErr_Display(file; unused: PyObject; value; tb: PyObject){.raises:
     PyUnstable_Object_Dump(value)
     errEchoCompatNoRaise("lost sys.stderr")
 
-  when declared(PyFile_Flush):
-    #TODO:io
-    discard PyFile_Flush(file)
+  discard PyFile_Flush(file)
   # Silently ignore file.flush() error
 
 proc PyErr_Display*(unused: PyObject; value; tb: PyObject) =
-  var file: PyObject = nil
-  let exc = PySys_GetOptionalAttr(pyId(stderr), file)
+  let file = PySys_GetDataChecked(stderr)
 
-  #TODO:io
-  file = newPyInt(2)
-
-  if not exc.isNil:
+  if file.isThrownException:
+    let exc = PyBaseErrorObject file
     PyUnstable_Object_Dump(value)
     errEchoCompatNoRaise("lost sys.stderr")
     PyUnstable_Object_Dump(exc)
     return
 
-  if file == nil:
+  if file.isNil:
     PyUnstable_Object_Dump(value)
     errEchoCompatNoRaise("lost sys.stderr")
     return

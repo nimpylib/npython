@@ -8,59 +8,48 @@ import ../../Objects/[
   exceptions,
   exceptions/ioerror,
   noneobject,
+  boolobjectImpl,
   stringobject,
   dictobject,
+  fileobject/generics,
   pyobject_apis/strings,
+  pyobject_apis/attrs,
 ]
 import ../../Include/cpython/pylock
-import ../../Utils/[
-  compat, fileio, utils,
-]
+import ../../Include/internal/pycore_global_strings
 import ../sysmodule/[
-  audit,
+  audit, attrs,
 ]
+import ../../Objects/abstract/call
+import ../../Python/call
 import pkg/pysimperr/rterr
 
 proc input*(prompt: PyObject=nil): PyObject{.bltin_clinicGen.} =
-  #TODO:sys.stdin
-  #TODO:sys.stdout
-  #TODO:sys.stderr
-  #[
   template chkOrLost(id) =
-    let obj = PySys_GetNonNoneAttr pyId id  # PySys_GetNonNoneAttr EXT is responsible to set "lost sys.xxx" msg
-    retIfExc obj
+    let `id obj` = PySys_GetDataChecked id
+    #PySys_GetAttr pyId id  # PySys_GetAttr is responsible to set "lost sys.xxx" msg
+    retIfExc `id obj`
   chkOrLost stdin
   chkOrLost stdout
   chkOrLost stderr
-  ]#
 
   retIfExc audit("builtins.input", if prompt.isNil: pyNone else: prompt)
 
-  var promptstr: string
+  var promptstr: PyStrObject
   block readline:
     #template goto_readline_errors = break readline
     if not prompt.isNil:
       let stringpo = PyObject_StrNonNil prompt
       retIfExc stringpo
       #goto_readline_errors
-      promptstr = PyStrObject(stringpo).asUTF8  #TODO:sys.stdout,PyUnicode_AsEncodedString
+      promptstr = PyStrObject(stringpo)
       if '\0' in promptstr:
         return newValueError newPyAscii"input: prompt string cannot contain null characters"
     else:
-      promptstr = ""
-    let s = try:
-      when defined(nodejs):
-        when declared(nodeReadLineSync): nodeReadLineSync promptstr
-        else: return newNotImplementedError newPyAscii"#TODO:input sync readline not impl in nodejs backend"; ""
-      else: readLine(stdin, stdout, promptstr) # readLine handles the case if stdin is not tty
-    except EOFError:
-      return newEOFError()
-    except IOError as e:
-      return newIOError e
-    except InterruptError:
-      return newKeyboardInterrupt()
-    result = newPyStr s
-    return
+      promptstr = newPyAscii()
+    retIfExc stdoutObj.callMethod(pyId"write", promptstr)
+    retIfExc PyFile_Flush stdoutObj
+    return stdinObj.callMethod(newPyAscii"readline")
   # _readline_errors
 
 
@@ -76,9 +65,9 @@ else:
   template withPriLock(body) =
     withLock prilock: body
 
-proc print*(args: varargs[PyObject],
+proc printImpl(args: varargs[PyObject],
     sep: string|PyStrObject = " ", endl: string|PyStrObject = NewLine,
-    #TODO:io
+    file = pyNoneObj, flush = false
   ) =
 
   when sep is PyStrObject:
@@ -86,39 +75,54 @@ proc print*(args: varargs[PyObject],
   when endl is PyStrObject:
     let endl = $endl.str
 
-  #TODO:sys.stdout: shall do nothing if missing sys.stdout; else write to it
-  const noWrite = not declared(writeStdoutCompat)
-  when noWrite:
-    var res: string
-    template writeStdoutCompat(s) = res.add s
-  template handleExc(e) =
-    if e.isThrownException:
-      withPriLock:
-        priRtErr = PyBaseErrorObject e
-      raise new RuntimeError
-  template toStr(obj): string =
-    let objStr = PyObject_StrNonNil obj
-    handleExc(objStr)
-    $PyStrObject(objStr).str
+  var file = file
+  if file.isNil or file.isPyNone:
+    file = PySys_GetDataChecked stdout #PySys_GetAttr("stdout");.. Lost
+    # CPython: print does nothing if sys.stdout is None
+    if file.isPyNone:
+      return
   withPriLock:
+    template handleExc(eExpr) =
+      let e = eExpr
+      if e.isThrownException:
+        # caller holds the lock already
+        priRtErr = PyBaseErrorObject e
+        # for opt, we didn't attach info from priRtErr to RuntimeError
+        #  which is just a signal
+        raise new RuntimeError
+    template toStr(obj): PyStrObject =
+      let objStr = PyObject_StrNonNil obj
+      handleExc(objStr)
+      PyStrObject(objStr)
+
+    let f = PyObject_GetAttr(file, pyId"write")
+    handleExc f
     if args.len != 0:
-      writeStdoutCompat args[0].toStr
-      if args.len > 1:
-        for i in 1..<args.len:
-          writeStdoutCompat sep
-          writeStdoutCompat args[i].toStr
-    when noWrite:
-      if endl == NewLine:
-        echoCompat res
-      elif endl.len > 1 and endl[^1] == NewLine[0]:
-        writeStdoutCompat endl[0..^2]
-        echoCompat res
-      else:
-        raise newException(NotImplementedError,
-          r"this build target cannot print if `not end.endswith('\n')`"
-        )
-    else:
-      writeStdoutCompat endl
+      handleExc f.call(args[0].toStr)
+      let sepO = newPyStr sep
+      for i in 1..<args.len:
+        handleExc f.call(sepO)
+        handleExc f.call(args[i].toStr)
+    handleExc f.call(newPyStr endl)
+    if flush:
+      handleExc PyFile_Flush file
+
+proc printNoRaise*(args: varargs[PyObject],
+    sep: string|PyStrObject = " ", endl: string|PyStrObject = NewLine,
+    file = pyNoneObj, flush = false
+  ): PyBaseErrorObject =
+  ## `print`_ but not raise, just returning the exception
+  try: printImpl(args, sep, endl, file, flush)
+  except RuntimeError:
+    withPriLock:
+      result = priRtErr
+proc print*(args: varargs[PyObject],
+    sep: string|PyStrObject = " ", endl: string|PyStrObject = NewLine,
+    file = pyNoneObj, flush = false
+  ) =
+  let exc = printNoRaise(args, sep, endl, file, flush)
+  if not exc.isNil:
+    raise newException(RuntimeError, $exc)
 
 proc builtinPrint*(args: openArray[PyObject], kwargs: PyObject): PyObject {. pyCFuncPragma .} =
   let kwargs = PyDictObject kwargs
@@ -132,21 +136,14 @@ proc builtinPrint*(args: openArray[PyObject], kwargs: PyObject): PyObject {. pyC
     endl = NewLine
   retIfExc getOptionalStr("sep", osep, sep)
   retIfExc getOptionalStr("end", oend, endl)
-  template notImpl(argname, obj) =
-    if not obj.isNil and not obj.isPyNone:
-      return newNotImplementedError(
-        newPyAscii argname & " currently can only be None"
-      )
-  #TODO:io
-  notImpl "file", ofile
-  notImpl "flush", oflush
+  var flush = false
+  if not oflush.isNil:
+    retIfExc oflush.PyObject_IsTrue flush
   try:
-    print(args, sep, endl)
+    printImpl(args, sep, endl, ofile, flush)
     return pyNone
   except IOError as e:
     return newIOError e
-  except NotImplementedError as e:
-    return newNotImplementedError newPyAscii e.msg
   except RuntimeError:
     withPriLock:
       return priRtErr
