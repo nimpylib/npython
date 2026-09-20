@@ -42,8 +42,7 @@ proc displayhook_impl*(o: PyObject): PyBaseErrorObject =
   retIfExc PyFile_WriteObject(newPyAscii('\n'), outf, Py_PRINT_RAW)
   ]#
 
-
-  let res = PyObject_Println(o, fileio.stdout)  
+  let res = PyObject_Println(o, fileio.stdout, Py_PRINT_RAW)
   retIfExc res
 
   retIfExc PyObject_SetAttr(builtins, newPyAscii('_'), o)
