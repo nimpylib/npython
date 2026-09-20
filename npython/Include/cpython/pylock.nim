@@ -8,6 +8,10 @@ const
 import ./pyatomic
 export SingleThread
 
+when defined(js):
+  proc cpuRelax() = discard
+elif defined(nimPreviewSlimSystem):
+  import std/sysatomics
 type
   PyMutex*{.pure.} = object
     bits: uint8
@@ -21,15 +25,17 @@ proc lock*(m) =
   ## 
   ## If the mutex is currently locked, the calling thread will be parked until
   ## the mutex is unlocked.
-  let expected = Py_UNLOCKED
-  if not Py_atomic_compare_exchange(m.bits.addr, expected.addr, Py_LOCKED):
-    m.lock()
+  var expected = Py_UNLOCKED
+  while not Py_atomic_compare_exchange(m.bits.addr, expected.addr, Py_LOCKED):
+    expected = Py_UNLOCKED
+    cpuRelax()
 
 
 proc unlock*(m) =
-  let expected = Py_LOCKED
-  if not Py_atomic_compare_exchange(m.bits.addr, expected.addr, Py_UNLOCKED):
-    m.unlock()
+  var expected = Py_LOCKED
+  while not Py_atomic_compare_exchange(m.bits.addr, expected.addr, Py_UNLOCKED):
+    expected = Py_LOCKED
+    cpuRelax()
 
 proc isLocked*(m): bool =
   (Py_atomic_load(m.bits.addr) and Py_LOCKED) != 0
