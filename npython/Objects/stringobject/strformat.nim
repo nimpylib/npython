@@ -67,7 +67,7 @@ template gen(TspecS; ct: bool, invalid_format){.dirty.} =
     of 'R', '\0': doWith PyObject_ReprNonNil
     of 'S': doWith PyObject_StrNonNil
     of 'U': sadd obj
-    of 'A': notImpl "NPython: %A not impl yet"  #TODO:ascii
+    of 'A': doWith PyObject_ASCIINonNil
     of 'T':
       let typ = obj.pyType
       saddType typ
