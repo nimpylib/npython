@@ -26,6 +26,19 @@ import ../Include/[
 
 methodMacroTmpl(Dict)
 
+implDictMagic iter, [mutable: read]:
+  genPyNimIteratorIter self.keys()
+implDictMethod keys(), [mutable: read]:
+  genPyNimIteratorIter self.keys()
+implDictMethod values(), [mutable: read]:
+  genPyNimIteratorIter self.values()
+
+iterator pyItems(dict: PyDictObject): PyTupleObject =
+  for (k, v) in dict.pairs:
+    yield newPyTuple([k, v])
+implDictMethod items(), [mutable: read]:
+  genPyNimIteratorIter self.pyItems
+
 
 implDictMagic getitem, [mutable: read]:
   var

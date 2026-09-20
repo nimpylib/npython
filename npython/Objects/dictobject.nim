@@ -13,7 +13,7 @@ import ./bltcommon; export bltcommon
 import ./numobjects/intobject_decl
 import ../Utils/[utils, optres]
 export GetItemRes
-import ./[iterobject, tupleobject]
+import ./[tupleobject]
 
 import ./hash
 import ./dictobject/[ops, helpers]
@@ -29,19 +29,6 @@ borIter items, keys
 borIter keys
 borIter values
 borIter pairs, pairs, (PyObject, PyObject)
-
-implDictMagic iter, [mutable: read]:
-  genPyNimIteratorIter self.keys()
-implDictMethod keys(), [mutable: read]:
-  genPyNimIteratorIter self.keys()
-implDictMethod values(), [mutable: read]:
-  genPyNimIteratorIter self.values()
-
-iterator pyItems(dict: PyDictObject): PyTupleObject =
-  for (k, v) in dict.pairs:
-    yield newPyTuple([k, v])
-implDictMethod items(), [mutable: read]:
-  genPyNimIteratorIter self.pyItems
 
 proc hasOnlyStringKeys*(dict: PyDictObject): bool =
   ## `_PyDict_HasOnlyStringKeys`

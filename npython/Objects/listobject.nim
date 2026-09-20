@@ -1,19 +1,15 @@
 import std/[sequtils, algorithm]
-import strformat
-import strutils
+import std/[strutils, strformat]
 
-import pyobject
+import ./pyobject
 import ./[
-  exceptions, stringobject, boolobject, noneobject,
+  exceptions, stringobject, noneobject,
+  iterobject, tupleobject, dictobject,
 ]
-import ./numobjects/intobject/[decl, ops_imp_warn, idxHelpers]
+import ./numobjects/intobject/[decl, signbit, ops_mix_nim, ops_toint]
 
-import ./sliceobjectImpl
 import ./hash
-import iterobject
-import ./tupleobjectImpl
-import ./dictobject
-import ../Utils/[utils, compat]
+import ../Utils/compat
 
 declarePyType List(reprLock, mutable, tpToken, typeName("list")):
   items: seq[PyObject]
@@ -39,19 +35,18 @@ proc toPyTuple*(tup: PyListObject): PyTupleObject =
 
 template lsSeqToStr(ss): string = '[' & ss.join", " & ']'
 
-genSequenceMagics "list",
-  implListMagic, implListMethod,
+genCollectMagics items,
+  implListMagic,
   ofPyListObject, PyListObject,
-  newPyList, [mutable: read], [reprLockWithMsg"[...]", mutable: read],
-  lsSeqToStr, initWithDictUsingPairs=true
+  [mutable: read], [reprLockWithMsg"[...]", mutable: read],
+  lsSeqToStr
 
 proc add*(self: PyListObject, o: PyObject) = self.items.add o
-template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dirty.} =
+template genMutableSequenceMethods_NotDepWarn*(mapper, unmapper, S, Ele, beforeAppend){.dirty.} =
   ## `beforeAppend` body will be inserted before `append` method's implementation
-  bind times, reverse
-  bind PyNumber_AsSsize_t
-  bind ofPySliceObject, PySliceObject, getIterableWithCheck, toNimSlice,
-    iterInt, unhashable, delete, indices, getIndex
+  bind reverse
+  bind unhashable, delete
+  bind pyForIn, toIntOrRetOF
   bind echoCompat
   proc extend*(self: `Py S Object`, other: PyObject): PyObject =
     if other.`ofPy S Object`:
@@ -61,66 +56,12 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
         self.items.add nextObj.mapper
     pyNone
 
-  `impl S Magic` imul, [mutable: write]:
-    var n: int
-    let e = PyNumber_AsSsize_t(other, n)
-    if not e.isNil:
-      return e
-    self.items = times(self.items, n)
 
   `impl S Magic` iadd, [mutable: write]: self.extend other
 
   
   proc `[]=`*(self: `Py S Object`; i: int, v: Ele){.inline.} = self.items[i] = v
   proc `[]=`*(self: `Py S Object`; i: HSlice, v: seq[Ele]){.inline.} = self.items[i] = v
-
-  `impl S Magic` setitem, [mutable: write]:
-    if arg1.ofPyIntObject:
-      let idx = getIndex(PyIntObject(arg1), self.len)
-      self[idx] = arg2.mapper
-      return pyNone
-    if ofPySliceObject(arg1):
-      let slice = PySliceObject(arg1)
-      let iterableToLoop = arg2
-      let L = self.len
-      var nslice: Slice[int]
-      let ind = slice.indices(L)
-
-      if ind.toNimSlice(L, nslice):
-        var ls: seq[Ele]
-        pyForIn it, iterableToLoop:
-          ls.add it.mapper
-        self[nslice] = ls
-      else:
-        let (iterable, nextMethod) = getIterableWithCheck(iterableToLoop)
-        retIfExc iterable
-        for i in iterInt(ind):
-          let it = nextMethod(iterable)
-          if it.isStopIter:
-            break
-          retIfExc it
-          self[i] = it.mapper
-      return pyNone
-    return newIndexTypeError(newPyAscii"list", arg1)
-
-  `impl S Magic` delitem, [mutable: write]:
-    if other.ofPyIntObject:
-      let idx = getIndex(PyIntObject(other), self.len)
-      self.items.delete idx
-      return pyNone
-    if ofPySliceObject(other):
-      let slice = PySliceObject(other)
-      let L = self.len
-      var nslice: Slice[int]
-      let ind = slice.indices(L)
-
-      if ind.toNimSlice(L, nslice):
-        delete(self.items, nslice)
-      else:
-        for i in iterInt(ind):
-          self.items.delete i
-      return pyNone
-    return newIndexTypeError(newPyAscii"list", other)
 
   `impl S Magic` hash: unhashable self
 
@@ -198,16 +139,6 @@ template genMutableSequenceMethods*(mapper, unmapper, S, Ele, beforeAppend){.dir
       return newIndexError newPyAscii(msg)
     unmapper self.items.pop
 
-  `impl S Method` remove(target: PyObject), [mutable: write]:
-    var retObj: PyObject
-    allowSelfReadWhenBeforeRealWrite:
-      retObj = tpMethod(S, index)(selfNoCast, @[target])
-    retIfExc retObj
-    assert retObj.ofPyIntObject
-    let idx = PyIntObject(retObj).toIntOrRetOF
-    self.items.delete(idx)
-    return pyNone
-
 
 template asIs(x): untyped = x
-genMutableSequenceMethods(asIs, asIs, List, PyObject): discard
+genMutableSequenceMethods_NotDepWarn(asIs, asIs, List, PyObject): discard

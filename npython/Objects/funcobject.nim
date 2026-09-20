@@ -1,8 +1,12 @@
-import pyobject
-import codeobject
-import baseBundle
-import dictobject
-import tupleobject
+import ./[
+  pyobject,
+  exceptions,
+  noneobject,
+  codeobject,
+  stringobject,
+  dictobject,
+  tupleobject,
+]
 import ../Include/internal/pycore_global_strings
 
 declarePyType Function(tpToken):

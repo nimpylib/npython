@@ -3,8 +3,8 @@ import std/strformat
 import pkg/pyrepr
 import ./hash
 import ./pyobject
-import ./[listobject, tupleobjectImpl, stringobject, exceptions, noneobject]
-import ./numobjects/intobject/[decl, ops_imp_warn]
+import ./[tupleobject, stringobject, exceptions, noneobject]
+import ./numobjects/intobject/[decl]
 import ../Utils/[addr0, nexportc]
 import ./charsview/decl as charsview_decl
 export charsview_decl
@@ -155,17 +155,4 @@ proc bufferNotImpl*(): PyNotImplementedErrorObject =
   ## TODO:buffer: delete this once buffer api is implemented
   newNotImplementedError newPyAscii"not impl for buffer api"
 
-template PyNumber_AsCharOr*(vv: PyObject, errSubject="byte"; orDoIt): char =
-  bind PyNumberAsClampedSsize_t, checkCharRangeOrRetVE
-  var value: int
-  block:
-    let it{.inject.} = PyNumber_AsClampedSsize_t(vv, value)
-    if not it.isNil:
-      orDoIt
-  checkCharRangeOrRetVE(value, errSubject)
-  cast[char](value)
-
-template PyNumber_AsCharOrRet*(vv: PyObject, errSubject="byte"): char =
-  PyNumber_AsCharOr(vv, errSubject):
-    return it
 

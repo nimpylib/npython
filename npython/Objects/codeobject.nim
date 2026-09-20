@@ -5,10 +5,10 @@ import ./[pyobject,
   stringobject,
   byteobjects,
 ]
-import ../Include/ceval
 import ../Include/cpython/compile
+import ../Include/ceval
 import ./numobjects/intobject_decl
-import ../Python/[opcode, symtable]
+import ../Python/[opcode, symtable_enums]
 
 type
   OpArg* = int

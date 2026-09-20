@@ -1,7 +1,7 @@
 
 import std/hashes
+import std/strformat
 import ./hash
-import strformat
 
 import ./pyobject
 import ./tupleobject
@@ -34,12 +34,14 @@ proc times*[T](s: openArray[T], n: int): seq[T] =
   for _ in 1..n:
     result.add s
 
-template genSequenceMagicsBesidesBaseCollect(nameStr,
+template genSequenceMagicsBesidesBaseCollect*(nameStr,
     implNameMagic, implNameMethod;
     ofPyNameObject, PyNameObject,
     newPyName; mutRead;
     initWithDictUsingPairs=false): untyped{.dirty.} =
   bind PyNumber_AsSsize_t
+  bind fmt, formatValue
+  bind pyNone
   iterator pairs*(self: PyNameObject): (int, PyObject) =
     for i, v in  self.items.pairs: yield (i, v)
   implNameMagic mul, mutRead:

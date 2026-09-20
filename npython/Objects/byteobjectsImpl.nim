@@ -2,14 +2,14 @@
 import std/macros
 import std/strformat
 from std/algorithm import reverse
-import ../Utils/[sequtils, addr0]
+import ../Utils/[sequtils, addr0, trans_imp]
 import ./byteobjects
 import ./pyobject
 import ./numobjects/intobject
 import ./[boolobject, numobjects, stringobjectImpl, exceptions, noneobject,
   iterobject, hash, abstract,
   bltcommon,
-  listobject,
+  listobjectImpl,
   pybuffer, memoryobject,
 ]
 import ./tupleobjectImpl
@@ -19,6 +19,9 @@ import ./abstract/pybuffer
 import pkg/pystrutils
 import ../Python/getargs/[va_and_kw, dispatch]
 import ../Utils/[sequtils2]
+impExpCwd byteobjects, [
+  utils,
+]
 
 export byteobjects
 

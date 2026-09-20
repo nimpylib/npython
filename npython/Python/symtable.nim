@@ -1,27 +1,21 @@
-import tables
 
-import sets
-import macros
+import std/tables
+import std/sets
+import std/macros
 
-import ast
-import asdl
-import ../Objects/noneobject
-import ../Objects/pyobjectBase
+import ./[ast, asdl]
 import ../Objects/[
-  stringobjectImpl,
+  pyobjectBase,
+  noneobject,
   listobject,
+  stringobject,
 ]
-import ../Utils/utils
-
-type
-  Scope* {. pure .} = enum
-    Local,
-    Cell,
-    Free,
-    Global
-
-  SteKind* {. pure .} = enum
-    Module, Function, Class
+import ../Objects/stringobject/[
+  plainMeth,
+]
+import ../Utils/utils except raiseSyntaxError
+import ./symtable_enums
+export symtable_enums
 
 type
   SymTable* = ref object
@@ -550,10 +544,6 @@ proc collectDeclaration*(st: SymTable, astRoot: AsdlModl){.raises: [SyntaxError]
 
         of AsdlExprTk.Await:
           visit AstAwait(astNode).value
-
-
-        else:
-          unreachable $AsdlExpr(astNode).kind
 
       elif astNode of AsdlSlice:
         case AsdlSlice(astNode).kind

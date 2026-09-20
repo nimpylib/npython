@@ -1,8 +1,9 @@
-import pyobject
-import exceptions
+import ./[
+  pyobject,
+  exceptions,
+]
 import ../Include/cpython/pyerrors
-import ./abstract/sequence
-import ./stringobject
+import ./abstract/sequence/checks
 
 
 declarePyType NimSeqIter():
@@ -31,20 +32,6 @@ declarePyType SeqIter():
 
 implSeqIterMagic iter: self
 
-implSeqIterMagic iternext:
-  #{.push warning[OverflowCheck]: off.}
-  let sequ = self.sequ
-  if sequ.isNil: stopIter
-
-  if self.idx == high int:
-    return newOverflowError newPyAscii"iter index too large"
-  result = PySequence_GetItemNonNil(sequ, self.idx)
-  if not result.isThrownException:
-    self.idx.inc
-    return
-  if result.ofPyIndexErrorObject or result.isExceptionOf(StopIter):
-    self.sequ = nil
-  #{.pop.}
 
 proc newPySeqIter*(sequ: PyObject; exc: var PyBaseErrorObject): PySeqIterObject =
   result = newPySeqIterSimple()

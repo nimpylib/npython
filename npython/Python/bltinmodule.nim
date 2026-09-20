@@ -4,8 +4,9 @@ import strformat
 import neval
 import builtindict
 
-import ../Objects/[bundle, typeobjectImpl, methodobject, descrobject, funcobjectImpl,
-  notimplementedobject, sliceobjectImpl, dictobjectImpl, exceptions,
+import ../Objects/[bundle, exceptions,
+  typeobjectImpl, methodobject, descrobject, funcobjectImpl,
+  notimplementedobject, sliceobjectImpl, dictobjectImpl, iterobjectImpl,
   byteobjectsImpl, noneobjectImpl, descrobjectImpl, pyobject_apis,
   listobjectImpl, enumobject, memoryobject,
   coroutine_runtime,
