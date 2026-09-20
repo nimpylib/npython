@@ -2,7 +2,7 @@
 
 
 import std/strformat
-
+import pkg/pycomplex
 import ../getargs/[
   dispatch,
   kwargs,
@@ -66,20 +66,22 @@ proc sum*(iterable: PyObject, start{.startKwOnly.}: PyObject = nil): PyObject{.b
     #[Fast addition by keeping temporary sums in C instead of new Python objects.
     Assumes all inputs are the same type.  If the assumption fails, default
     to the more general routine.]#
-    template loopAdd(cond: bool; defval; body) =
+    template loopAdd(cond: bool; resVal; body) =
       result = nil
       while result.isNil:
         let res = PyIter_NextItem(iter, item)
         case res
         of Error: return item
         of Missing:
-          return defval
+          return resVal
         of Get: discard
         result = PyNumber_Add(body, item)
         retIfExc result
-    template loopAdd(defval; body) =
-      loopAdd result.isNil, defval, body
-        
+    template loopAdd(resVal; body) =
+      loopAdd result.isNil, resVal:
+        body
+        resVal
+
     if result.ofExactPyIntObject:
       var overflow: bool
       var i_result = PyIntObject(result).asLongAndOverflow overflow
@@ -101,22 +103,32 @@ proc sum*(iterable: PyObject, start{.startKwOnly.}: PyObject = nil): PyObject{.b
             i_result += b
             continue
         # Either overflowed or is not an int. Restore real objects and process normally
-        newPyInt i_result
     
+    template floatBody =
+      if item.ofExactPyFloatObject:
+        re_sum += PyFloatObject(item).v
+        continue
+      if item.ofPyIntObject:
+        let value = PyIntObject(item).toFloat
+        re_sum += value
+        continue
     if result.ofExactPyFloatObject:
       var re_sum = newCompensatedSum PyFloatObject(result).v
       loopAdd newPyFloat(re_sum.toFloat):
-        if item.ofExactPyFloatObject:
-          re_sum += PyFloatObject(item).v
-          continue
-        if item.ofPyIntObject:
-          let value = PyIntObject(item).toFloat
-          re_sum += value
-          continue
+        floatBody
 
-        newPyFloat re_sum.toFloat
-      
+    if result.ofExactPyComplexObject:
+      let z = PyComplexObject(result).v
+      var
+        re_sum = newCompensatedSum z.real
+        im_sum = newCompensatedSum z.imag
+      loopAdd newPyComplex(re_sum.toFloat, im_sum.toFloat):
+        if item.ofExactPyComplexObject:
+          let z = PyComplexObject(item).v
+          re_sum += z.real
+          im_sum += z.imag
+          continue
+        floatBody
 
-    #TODO:complex
   loopAdd true, result, item
 
